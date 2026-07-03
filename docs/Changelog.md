@@ -7,22 +7,39 @@ marked passed** — assume "unverified in a live session" otherwise.
 
 ---
 
-## Repo publish: folder rename + GitHub + wiki + Thunderstore files (2026-07-03)
+## Repo publish + Thunderstore packaging (2026-07-03)
+
+Full detail and rebuild/upload steps now live in [Publishing.md](Publishing.md).
 
 - **Working directory renamed** `Dvergr Expanded` → `Lost Scrolls II` to finally match
   the mod identity (the earlier rename only touched the GUID/namespace/assembly, not the
   folder). Build artifacts (`bin/`/`obj/`) regenerate under the new path; no source change.
+  Because Windows locks the folder while a session holds it open, the actual rename runs
+  from the parent via the helper `E:\Valheim Modding\Rename to Lost Scrolls II.ps1`.
 - **Published to GitHub** as a new public repository:
-  `https://github.com/yesu0725/Lost-Scrolls-II`.
-- **Wiki authored** (`wiki/` folder, modeled on the sibling Valheim-ServerGuard wiki): a
-  `Home.md` overview plus one player-facing page per feature (recruiting, leveling,
-  commands, chores, totems, duels) and a spoiler-free `The-Story.md`. No lore reveal —
-  the gospel allegory, the mirror thesis, and the author-only roadmap stay out of all
-  wiki copy.
-- **Thunderstore package files** created under `Thunderstore files/Lost Scrolls II/`
-  (`manifest.json`, `README.md`, `CHANGELOG.md`, the built `LostScrollsII.dll`) modeled on
-  the ServerGuard package. `icon.png` is left for the author to supply. ServerGuide is
-  listed as an **optional** companion, not a hard dependency (narrative delivery only).
+  `https://github.com/yesu0725/Lost-Scrolls-II` (created via the GitHub API — no `gh` CLI
+  on the machine). `bin/`, `obj/`, and `Thunderstore files/*.zip` are gitignored.
+- **Wiki authored** (`wiki/` folder + pushed to the GitHub Wiki backing repo, modeled on
+  the sibling Valheim-ServerGuard wiki): a `Home` overview plus one player-facing page per
+  feature (recruiting, leveling, commands, chores, totems, duels) and a spoiler-free
+  `The-Story`. No lore reveal — the gospel allegory, the mirror thesis, and the
+  author-only roadmap stay out of all wiki copy.
+- **Two Thunderstore packages** under `Thunderstore files/`:
+  - **`Lost Scrolls II`** (base) — `manifest.json` (name `Lost_Scrolls_II`, v0.1.0),
+    `icon.png` (256×256, author-supplied), `README.md`, `CHANGELOG.md`, and the built
+    `LostScrollsII.dll`. Dependency: BepInEx only; **ServerGuide is optional** here
+    (narrative delivery only), not a hard dependency. Gameplay-only edition.
+  - **`Lost-Scrolls-II-Quest`** (complete pack) — a **content pack** that does **not**
+    bundle the DLL; it ships `icon.png` + the two guidance YAMLs under
+    `config/ValheimServerGuide/` (Thunderstore routes `config/` → `BepInEx/config/`, where
+    ServerGuide auto-merges them — no manual setup). Hard dependencies:
+    `denikson-BepInExPack_Valheim-5.4.2333`, `TaegukGaming-Lost_Scrolls_II-0.1.0` (the base
+    mod), and `TaegukGaming-ValheimServerGuide-0.7.1`. The single-player-ready edition.
+- **Upload order:** publish the base `Lost Scrolls II` package **first** — Thunderstore
+  validates the Quest pack's `TaegukGaming-Lost_Scrolls_II-0.1.0` dependency at publish
+  time, so the base must exist on Thunderstore before the Quest upload validates.
+- Both upload zips (`Lost_Scrolls_II_0.1.0.zip`, `Lost_Scrolls_II_Quest_0.1.0.zip`) are
+  built with all required files at the archive root (gitignored, rebuilt on demand).
 
 ## Companion Handbook — in-game gameplay guidance (2026-07-03)
 

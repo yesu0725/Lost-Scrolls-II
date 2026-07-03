@@ -33,6 +33,15 @@ dotnet build src/LostScrollsII.csproj -c Release -p:VALHEIM_INSTALL="C:\Path\To\
 
 The build publicizes `assembly_valheim` and deploys the DLL to your BepInEx/r2modman/dedicated-server plugin folders if they exist. See [`src/LostScrollsII.csproj`](src/LostScrollsII.csproj) for the override properties.
 
+## Releases (Thunderstore)
+
+Two packages ship from `Thunderstore files/` (see [`docs/Publishing.md`](docs/Publishing.md) for full detail and rebuild steps):
+
+- **Lost Scrolls II** — the base gameplay mod (companion system; BepInEx dependency only, ServerGuide optional).
+- **Lost-Scrolls-II-Quest** — the complete, single-player-ready pack: bundles the story + Companion Handbook and pulls in the base mod and ServerGuide as dependencies.
+
+Publish the base package first — Thunderstore validates the Quest pack's base-mod dependency at publish time.
+
 ## Optional companion mod
 
 The story and an in-game Companion Handbook are delivered through the separate mod **Valheim ServerGuide** (a soft dependency). Every gameplay feature works without it.
