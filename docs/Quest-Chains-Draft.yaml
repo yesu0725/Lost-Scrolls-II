@@ -1,0 +1,128 @@
+# SUPERSEDED (Phase 5, then reworked 2026-07-03): the real, schema-validated
+# content lives in E:\Valheim Modding\Valheim ServerGuide\examples\ —
+# guidance.lost-scrolls.yaml (lore) + guidance.companions.yaml (handbook), both
+# deployed to the test profile. The dvergr_recruited/dvergr_level_up/
+# dvergr_duel_won trigger types this draft was blocked on now exist, AND the
+# story itself was later reworked from this act structure into a biome-by-biome
+# DESCENT using `distance` triggers (see Lore.md "The Descent and the Mirror").
+# Kept here for history/comparison only.
+#
+# Draft guidance.yaml chain outline for the Lost Scrolls continuation story.
+#
+# DESIGN DRAFT ONLY — not wired up, not validated against ServerGuide's actual
+# schema at runtime. This belongs conceptually in ValheimServerGuide's
+# guidance.yaml, not in this repo; it lives here until Phase 5 because the
+# trigger types it depends on (dvergr_recruited, dvergr_level_up,
+# dvergr_duel_won) don't exist in ServerGuide yet.
+#
+# Maps 1:1 to docs/Quest-Script.md beats. Location/item identifiers below are
+# placeholders — see "Authoring Notes for Phase 5" in Quest-Script.md.
+#
+# Chains marked "READY NOW" use trigger types ServerGuide already supports
+# and could be drafted/tested in the real guidance.yaml immediately. Chains
+# marked "BLOCKED ON PHASE 5" need the new trigger types first.
+
+guidances:
+  # ---------------------------------------------------------------------
+  # Act 1 — The First Fragment            [READY NOW]
+  # ---------------------------------------------------------------------
+  - id: ls_act1_first_fragment
+    category: LostScrolls
+    title: "The First Fragment"
+    steps:
+      - trigger: { type: item_acquired, item: "TODO_ScrollFragment_BurialChambers" }
+        display: { mode: rune }
+        message: "Bound, not broken. The dark does not die — it waits in stone and root."
+      - trigger: { type: item_acquired, item: "TODO_ScrollFragment_SunkenCrypt" }
+        display: { mode: rune }
+        message: "The small folk knew a rite — not of binding, but of waking what sleeps true beneath what sleeps false."
+      - trigger: { type: timed, interval: 5, id: ls_act1_naming_delay }
+        display: { mode: intro, topic: "The Echo Named" }
+        message: "Damon's reign broke. But the shadow he served was old before his name — and it did not break. It settled where iron sleeps and embers cool."
+
+  # ---------------------------------------------------------------------
+  # Act 2 — The Sword of Truth            [READY NOW]
+  # ---------------------------------------------------------------------
+  - id: ls_act2_sword_of_truth
+    category: LostScrolls
+    title: "The Sword of Truth"
+    requires: [ls_act1_first_fragment]
+    steps:
+      - trigger: { type: item_acquired, item: "TODO_SwordOfTruth" }
+        display: { mode: rune }
+        message: "You did not make this, and it did not begin with you. It was true before the small folk, before the shadow, before the first lie."
+      - trigger: { type: equip, item: "TODO_SwordOfTruth" }
+        display: { mode: raven, topic: "Truth, Not Force" }
+        message: "Hold this where the corrupted kneel, not where they stand. Truth is offered, not forced."
+
+  # ---------------------------------------------------------------------
+  # Act 3 — Into Mistlands                [PARTIAL — last step BLOCKED]
+  # ---------------------------------------------------------------------
+  - id: ls_act3_into_mistlands
+    category: LostScrolls
+    title: "Into Mistlands"
+    requires: [ls_act2_sword_of_truth]
+    steps:
+      - trigger: { type: location, location: "TODO_Mistlands_BiomeEntry" }
+        display: { mode: raven, topic: "Weather, Not Shadow" }
+        message: "The shadow did not vanish. It became weather."
+      - trigger: { type: kill, creature: "TODO_DvergrCorrupted_Any" }   # fires on first encounter, not necessarily a kill — revisit trigger choice in Phase 5
+        display: { mode: message }
+        message: "Not cursed from without. Turned from within. It screams in a tongue too old for screaming."
+      # BLOCKED ON PHASE 5 — requires dvergr_recruited trigger type
+      - trigger: { type: dvergr_recruited, caste: Rogue }
+        display: { mode: intro, topic: "A Name Remembered" }
+        message: "The shadow's grip loosens. Something underneath remembers its own name."
+
+  # ---------------------------------------------------------------------
+  # Act 4 — Camps and Strongholds         [BLOCKED ON PHASE 5]
+  # ---------------------------------------------------------------------
+  - id: ls_act4_camps_and_strongholds
+    category: LostScrolls
+    title: "Camps and Strongholds"
+    requires: [ls_act3_into_mistlands]
+    steps:
+      - trigger: { type: dvergr_recruited, caste: FireMage }
+        display: { mode: raven }
+        message: "Its flame was a weapon. Before that, it was a hearth."
+      - trigger: { type: dvergr_recruited, caste: IceMage }
+        display: { mode: raven }
+        message: "It kept the cold from killing. The shadow taught it to kill with cold instead."
+      - trigger: { type: location, location: "TODO_Mistlands_Stronghold" }
+        display: { mode: rune }
+        message: "Here, once, the rite had keepers. Not warriors. Not smiths. Something else."
+
+  # ---------------------------------------------------------------------
+  # Act 5 — The Rite-Keepers              [BLOCKED ON PHASE 5]
+  # ---------------------------------------------------------------------
+  - id: ls_act5_rite_keepers
+    category: LostScrolls
+    title: "The Rite-Keepers"
+    requires: [ls_act4_camps_and_strongholds]
+    steps:
+      - trigger: { type: dvergr_recruited, caste: SupportMage }
+        display: { mode: intro, topic: "Taught Its Own Rite Back" }
+        message: "It taught the rite to others, once. Now it must be taught its own rite back."
+      - trigger: { type: timed, interval: 10, id: ls_act5_communion_explained_delay }
+        display: { mode: rune, topic: "What the Rite Asks" }
+        message: "Not a weapon turned inward. A question, asked of what remains. The freed answer for themselves."
+
+  # ---------------------------------------------------------------------
+  # Act 6 — The Shadow Thins (epilogue) [BLOCKED ON PHASE 5]
+  # ---------------------------------------------------------------------
+  # The Altar of Communion was DROPPED from the lore (gameplay reward only, no
+  # narrative weight — see docs/Lore.md). This capstone fires purely on the
+  # "all four castes freed" condition, not on entering any structure.
+  - id: ls_act6_shadow_thins
+    category: LostScrolls
+    title: "The Shadow Thins"
+    requires: [ls_act5_rite_keepers]
+    steps:
+      # All four castes recruited — exact gating mechanism (4 separate requires
+      # vs. a single aggregate flag) TBD in Phase 5; sketched here as an
+      # aggregate placeholder trigger. Recruitment is NOT order-gated, so the
+      # narrative order comes from the requires: chain between acts, not from a
+      # recruit restriction.
+      - trigger: { type: dvergr_recruited, caste: All }
+        display: { mode: intro, topic: "The Shadow Thins" }
+        message: "Four castes, freed — and not one of them freed itself. The shadow thins, but does not end. Something still stirs where the fog used to be the only thing watching."
