@@ -5,6 +5,7 @@
   "website_url": "https://github.com/yesu0725/Lost-Scrolls-II",
   "dependencies": [
     "denikson-BepInExPack_Valheim-5.4.2333",
+    "TaegukGaming-Lost_Scrolls_II-0.1.0",
     "TaegukGaming-ValheimServerGuide-0.7.1"
   ]
 }
