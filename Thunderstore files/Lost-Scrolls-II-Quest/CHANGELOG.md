@@ -4,7 +4,7 @@
 
 Initial release of the complete "Quest" pack.
 
-- Bundles the **Lost Scrolls II** plugin with its full in-game narrative, ready for single player — no manual guidance-file setup.
+- A content pack that pulls in the **Lost Scrolls II** gameplay mod as a dependency and adds its full in-game narrative, ready for single player — no manual guidance-file setup.
 - Requires **Valheim ServerGuide** (`TaegukGaming-ValheimServerGuide-0.7.1`), which delivers the story and Companion Handbook.
 - Ships two guidance files into `BepInEx/config/ValheimServerGuide/`:
   - `guidance.lost-scrolls.yaml` — the biome-by-biome story descent (Meadows → Ashlands).

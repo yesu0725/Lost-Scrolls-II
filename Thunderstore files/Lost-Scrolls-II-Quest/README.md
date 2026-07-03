@@ -8,7 +8,9 @@ This pack bundles the Lost Scrolls II mod together with its full in-game narrati
 
 ## What's included
 
-- **The Lost Scrolls II plugin** (`plugins/LostScrollsII.dll`) — recruitable, levelable Dvergr companions.
+This is a **content pack**: it ships the story and pulls in the gameplay mod and its story engine as dependencies. You don't install three things by hand — installing this one package brings all of it in.
+
+- **The base Lost Scrolls II mod** — the recruitable, levelable Dvergr companions, pulled in as a dependency (see Requirements).
 - **The story chains** (`config/ValheimServerGuide/guidance.lost-scrolls.yaml`) — a reflective descent from Meadows to Ashlands, told at landmarks across the world.
 - **The Companion Handbook** (`config/ValheimServerGuide/guidance.companions.yaml`) — in-game guidance teaching the command keys, per-caste chores, and how to adventure with your companions.
 
@@ -26,8 +28,11 @@ Both YAML files drop into `BepInEx/config/ValheimServerGuide/`, where ServerGuid
 
 ## Requirements
 
-- **BepInEx** for Valheim (`denikson-BepInExPack_Valheim`) — installed automatically.
-- **Valheim ServerGuide** (`TaegukGaming-ValheimServerGuide-0.7.1`) — installed automatically; delivers the story and handbook.
+All installed automatically as dependencies:
+
+- **BepInEx** for Valheim (`denikson-BepInExPack_Valheim`).
+- **Lost Scrolls II** — the base gameplay mod (the companion system).
+- **Valheim ServerGuide** (`TaegukGaming-ValheimServerGuide-0.7.1`) — delivers the story and handbook.
 
 ## Setup
 
