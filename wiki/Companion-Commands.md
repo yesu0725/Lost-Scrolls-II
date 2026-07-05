@@ -6,11 +6,11 @@ Everything you do with a companion is a **hover + hotkey** action — look at th
 |---|---|---|
 | `G` | Feed / heal (drink a health mead) | No — anyone can heal |
 | `E` | Cycle stance: Follow → Guard → Standby | Yes |
-| `Y` | Rename the companion | Yes |
+| `Y` | Open the companion's [inventory](Companion-Inventory) (also renames it) | Yes |
 | `H` | Assign to a chore (on a station) / recall (on the ally) | Yes |
 | `J` | Toggle duel mode | Yes |
 
-Hover your own companion and a crosshair tooltip shows its current **stance** plus the relevant hints (`[E] Cycle stance`, `[Y] Rename`, and `[H] Recall from chore` when it's working).
+Hover your own companion and a crosshair tooltip shows its current **stance** plus the relevant hints (`[E] Cycle stance`, `[Y] Inventory / rename`, and `[H] Recall from chore` when it's working).
 
 ## Feed / Heal
 
@@ -35,9 +35,11 @@ The companion speaks a short line describing what it can do in its new stance ea
 - **Follow** only turns on players the **owner** has attacked (briefly).
 - **Any stance** — a player who attacks the companion is retaliated against (briefly). Attacking a companion also turns it on the attacker's own companions.
 
-## Rename
+## Inventory & rename
 
-Press `Y` while hovering your companion to open the vanilla text box (the same one used for signs). The name persists across relogs and shows up on the floating name, the crosshair tooltip, and the "already working here" chore tooltip. Unnamed companions just read "Dvergr".
+Press `Y` while hovering your companion to open its **[inventory](Companion-Inventory)** — a chest-style panel with the companion's own 4×2 pack, your inventory, and crafting. The same panel carries a **name field**: type a new name and the companion answers to it from then on (persists across relogs, and shows on the floating name, the crosshair tooltip, and the "already working here" chore tooltip). Unnamed companions just read "Dvergr". While you're typing in the name field, your normal keys are suppressed so they only edit the name.
+
+See **[Companion Inventory](Companion-Inventory)** for what the pack does (pickup, food, meads, weight).
 
 ## Voiced companions
 
@@ -52,6 +54,6 @@ Your own companions show as **live pins on your minimap** so you can find them. 
 A **Follow**-stance companion comes along when you move between places:
 
 - **Ships** — it boards your ship (climbing a ladder if there is one) and then walks the deck freely, fighting and moving normally while the ship carries it. Companions otherwise avoid deep water. See more under ship riding in the [Home](Home) topics.
-- **Portals** — step through a portal and every nearby Follow-stance companion you own is teleported to the exit with you and keeps following.
+- **Portals** — step through a portal and every nearby Follow-stance companion you own is teleported to the exit with you and keeps following. Note: just like your own inventory, a wood portal won't let you through if one of these companions is carrying a **non-teleportable** item (ore, etc.) in its [pack](Companion-Inventory) — you'll be told which ally and item is blocking it.
 
 Only Follow-stance allies travel; a companion that's on a chore, guarding, on standby, dueling, or feral stays put.

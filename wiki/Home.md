@@ -9,6 +9,7 @@ Lost Scrolls II is a spiritual sequel to the deprecated Thunderstore mod **Lost 
 - **[Installation](Installation)** — get the mod running in a couple of minutes.
 - **[Recruiting Companions](Recruiting-Companions)** — the Communion Rite: how to free a corrupted Dvergr and make it your ally.
 - **[Companion Commands](Companion-Commands)** — the hotkeys: feed/heal, stance (Follow/Guard/Standby), rename, and travelling with you by ship and portal.
+- **[Companion Inventory](Companion-Inventory)** — each ally's own pack: open it with `Y`, and let it pick up loot, eat food, drink meads, and carry your gear (within a weight limit).
 - **[Companion Leveling](Companion-Leveling)** — how allies earn XP, grow stronger, and show their level.
 - **[Companion Chores](Companion-Chores)** — put allies to work at vanilla workstations: smelting, refining, cooking, brewing, farming, animal care, and hauling.
 - **[Dvergr Duels](Dvergr-Duels)** — non-lethal companion-vs-companion sparring between players.
@@ -17,7 +18,7 @@ Lost Scrolls II is a spiritual sequel to the deprecated Thunderstore mod **Lost 
 
 ## What this mod is
 
-A companion system built entirely on existing Valheim creatures and prefabs. Every recruitable Dvergr is a vanilla Dvergr with new behavior attached — no new models, textures, sounds, or asset bundles. Everything you do with a companion is a **hover + hotkey** interaction; there are no new menus or UI panels to learn.
+A companion system built entirely on existing Valheim creatures and prefabs. Every recruitable Dvergr is a vanilla Dvergr with new behavior attached — no new models, textures, sounds, or asset bundles. Almost everything you do with a companion is a **hover + hotkey** interaction; the one panel — a companion's [inventory](Companion-Inventory) — is just the game's own chest window, so there's nothing new to learn.
 
 ## What it isn't
 
