@@ -50,6 +50,7 @@ namespace LostScrollsII.Companions
         private const string KeyName = "DE_TotemName";       // custom name, empty = use default
         private const string KeyOwner = "DE_TotemOwner";
         private const string KeyOwnerName = "DE_TotemOwnerName";
+        private const string KeyInv = "DE_TotemInv";          // base64 of the sealed pack's items
 
         private static string _wispSharedName;
 
@@ -103,6 +104,16 @@ namespace LostScrollsII.Companions
             d[KeyOwner] = companion.OwnerId.ToString(CultureInfo.InvariantCulture);
             d[KeyOwnerName] = companion.OwnerName ?? string.Empty;
 
+            // Seal the companion's whole pack onto the totem so summoning restores it
+            // with all its items intact.
+            var invComp = companion.GetComponent<CompanionInventory>();
+            if (invComp != null && invComp.Inventory != null && invComp.Inventory.NrOfItems() > 0)
+            {
+                var pkg = new ZPackage();
+                invComp.Inventory.Save(pkg);
+                d[KeyInv] = pkg.GetBase64();
+            }
+
             ApplyTotemShared(item);
             return item;
         }
@@ -152,9 +163,35 @@ namespace LostScrollsII.Companions
             if (!string.IsNullOrEmpty(name))
                 go.GetComponent<DvergrCompanion>()?.SetName(name);
 
+            RestoreInventory(totem, go);
+
             PlaySummonVfx(go.transform.position);
             Plugin.Log.LogInfo($"[totem] Summoned {caste} (lv {level}) from totem for {player.GetPlayerName()}.");
             return true;
+        }
+
+        // Loads the sealed pack (if any) back into the summoned companion's
+        // Container and persists it to the ZDO so it survives from here on.
+        private static void RestoreInventory(ItemDrop.ItemData totem, GameObject go)
+        {
+            var b64 = GetStr(totem, KeyInv);
+            if (string.IsNullOrEmpty(b64)) return;
+
+            var invComp = go.GetComponent<CompanionInventory>();
+            if (invComp == null) invComp = go.AddComponent<CompanionInventory>();
+            invComp.EnsureContainer();
+            if (invComp.Inventory == null) return;
+
+            try
+            {
+                invComp.Inventory.Load(new ZPackage(b64));
+                invComp.Container?.Save();  // commit to the creature's ZDO
+                Plugin.Log.LogInfo($"[totem] Restored {invComp.Inventory.NrOfItems()} pack item(s) to the summoned companion.");
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning($"[totem] Failed to restore sealed pack: {e.Message}");
+            }
         }
 
         // VFX (vanilla effect prefabs) for the two ends of the system.

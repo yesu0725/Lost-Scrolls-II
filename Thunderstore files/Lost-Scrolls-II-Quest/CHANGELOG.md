@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0
+
+- Updated to depend on **Lost Scrolls II 0.2.0**, which adds the **companion inventory system** (per-companion 4×2 pack, item pickup, food/mead consumption, weight/encumbrance, death-drop, totem carry-over, wood-portal cargo block, ComfyQuickSlots compatibility). See the base mod's changelog for detail.
+- Story and Companion Handbook content unchanged.
+
 ## 0.1.0
 
 Initial release of the complete "Quest" pack.

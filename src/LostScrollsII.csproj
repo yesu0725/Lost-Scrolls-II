@@ -6,7 +6,7 @@
     <Nullable>disable</Nullable>
     <AssemblyName>LostScrollsII</AssemblyName>
     <RootNamespace>LostScrollsII</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <NoWarn>CS0436;NU1701</NoWarn>
@@ -46,6 +46,11 @@
       <HintPath>$(ManagedDir)\assembly_guiutils.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- GuiInputField (TextInput.m_inputField), cloned for the companion name field. -->
+    <Reference Include="gui_framework">
+      <HintPath>$(ManagedDir)\gui_framework.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine">
       <HintPath>$(ManagedDir)\UnityEngine.dll</HintPath>
       <Private>false</Private>
@@ -64,6 +69,11 @@
     </Reference>
     <Reference Include="UnityEngine.UI">
       <HintPath>$(ManagedDir)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- TMP_InputField (companion inventory name field) + TMP_Text access. -->
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(ManagedDir)\Unity.TextMeshPro.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">

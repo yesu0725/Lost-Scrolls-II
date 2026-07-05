@@ -16,7 +16,7 @@ namespace LostScrollsII
     {
         public const string PluginGuid = "com.lostscrollsii";
         public const string PluginName = "Lost Scrolls II";
-        public const string PluginVersion = "0.1.0";
+        public const string PluginVersion = "0.2.0";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -42,8 +42,10 @@ namespace LostScrollsII
         // Feature add: toggle a hovered companion's stance (Follow <-> Guard).
         public static ConfigEntry<KeyCode> StanceCycleKey { get; private set; }
 
-        // Feature add: rename a hovered companion (opens the vanilla text input).
-        public static ConfigEntry<KeyCode> RenameKey { get; private set; }
+        // Feature add: open a hovered companion's inventory (chest-like panel that
+        // also carries a rename field — req 3). See CompanionInventory /
+        // CompanionInventoryGui and docs/Ally-Inventory.md.
+        public static ConfigEntry<KeyCode> InventoryKey { get; private set; }
 
         // Feature add: show a live minimap pin at each of the local player's own
         // companions. Client-side, so other players never see your companions.
@@ -87,11 +89,11 @@ namespace LostScrollsII
                 KeyCode.E,
                 "Press while hovering your companion to cycle its stance: Follow -> Guard -> Standby.");
 
-            RenameKey = Config.Bind(
+            InventoryKey = Config.Bind(
                 "Companions",
-                "RenameKey",
+                "InventoryKey",
                 KeyCode.Y,
-                "Press while hovering your companion to rename it.");
+                "Press while hovering your companion to open its inventory (a chest-like panel that also lets you rename it).");
 
             ShowMapPins = Config.Bind(
                 "Companions",
@@ -112,6 +114,9 @@ namespace LostScrollsII
             // plugin GameObject so it persists across scene loads.
             gameObject.AddComponent<CompanionMapPins>();
 
+            // Manages the companion-inventory panel + injected rename field.
+            gameObject.AddComponent<CompanionInventoryGui>();
+
             Log.LogInfo($"{PluginName} v{PluginVersion} loaded.");
         }
 
@@ -130,6 +135,10 @@ namespace LostScrollsII
             // would trigger stance/rename/feed actions mid-edit.
             if (TextInput.IsVisible() || (Chat.instance != null && Chat.instance.HasFocus())) return;
             if (Console.IsVisible()) return;
+            // Suppress our keys while the player is typing in the companion inventory
+            // panel's name field (its GuiInputField isn't TextInput, so the checks
+            // above don't cover it).
+            if (Companions.CompanionInventoryGui.IsTyping) return;
 
             if (Input.GetKeyDown(CommunionKey.Value))
             {
@@ -151,13 +160,17 @@ namespace LostScrollsII
                 HandleStanceCycleInput(player);
             }
 
-            if (Input.GetKeyDown(RenameKey.Value))
+            if (Input.GetKeyDown(InventoryKey.Value))
             {
-                HandleRenameInput(player);
+                HandleInventoryInput(player);
             }
         }
 
-        private void HandleRenameInput(Player player)
+        // Opens the hovered companion's inventory (chest-like panel, req 15). The
+        // panel also carries a rename field, so this single key covers both the
+        // "open inventory" and "rename" jobs (req 3). Owner-gated like the other
+        // command keys.
+        private void HandleInventoryInput(Player player)
         {
             var hoverObject = player.GetHoverObject();
             if (hoverObject == null) return;
@@ -172,12 +185,10 @@ namespace LostScrollsII
                 return;
             }
 
-            // Vanilla rename UI — same text box used for signs / tamed creatures.
-            // The companion is the TextReceiver, so confirming writes its new name.
-            if (TextInput.instance != null)
-            {
-                TextInput.instance.RequestText(companion, "Rename companion", 24);
-            }
+            var inventory = companion.GetComponent<CompanionInventory>();
+            if (inventory == null) inventory = companion.gameObject.AddComponent<CompanionInventory>();
+
+            CompanionInventoryGui.Open(companion, inventory);
         }
 
         private void HandleCommunionInput(Player player)

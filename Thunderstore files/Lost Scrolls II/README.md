@@ -8,7 +8,8 @@ A spiritual sequel to the deprecated mod **Lost Scrolls** (TaegukGaming), rebuil
 
 - **Recruit companions** — perform the Communion Rite on a subdued Dvergr to free and recruit it. Rogue, Fire Mage, Ice Mage, and Support Mage castes.
 - **Level them up** — companions earn XP (1→10) and grow stronger, with per-caste bonuses. Progress saves on the creature and survives relogs.
-- **Command them** — hover + hotkey: feed/heal (`G`), cycle Follow/Guard/Standby stance (`E`), rename (`Y`), and see them on your private minimap.
+- **Command them** — hover + hotkey: feed/heal (`G`), cycle Follow/Guard/Standby stance (`E`), open its inventory + rename (`Y`), and see them on your private minimap.
+- **Give them a pack** — each companion carries its own 4×2 inventory (opens like a chest). It picks up loot it already carries, eats food for a temporary HP boost, drinks health/resistance meads, and gets encumbered if overloaded. Its pack rides along through totems and drops on death.
 - **Put them to work** — assign allies to vanilla stations by caste: smelting, refining, cooking, brewing, farming (plant + harvest), animal care, and hauling.
 - **Duel** — non-lethal companion-vs-companion sparring between players for bonus XP.
 - **Communion Totems** — seal a companion into a carriable totem (at an Incinerator, using Wisps) and summon it back later, level intact.
@@ -38,5 +39,5 @@ This mod is **free to use as is**. Voluntary support is appreciated.
 
 ---
 
-**Version:** 0.1.0
+**Version:** 0.2.0
 **Source / issues / wiki:** https://github.com/yesu0725/Lost-Scrolls-II

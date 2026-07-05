@@ -161,6 +161,7 @@ namespace LostScrollsII.Companions
             if (character != null) ApplyFreedState(character, owner != null ? owner.gameObject : null);
             if (go.GetComponent<DvergrCompanion>() == null) go.AddComponent<DvergrCompanion>();
             if (go.GetComponent<ShipRideAI>() == null) go.AddComponent<ShipRideAI>();
+            if (go.GetComponent<CompanionInventory>() == null) go.AddComponent<CompanionInventory>();
 
             Plugin.Log.LogInfo($"[admin] Spawned recruited {caste} (lv {level}) for {(owner != null ? owner.GetPlayerName() : "?")}.");
             return go;
@@ -197,6 +198,7 @@ namespace LostScrollsII.Companions
                 companion = target.gameObject.AddComponent<DvergrCompanion>();
             }
             if (target.GetComponent<ShipRideAI>() == null) target.gameObject.AddComponent<ShipRideAI>();
+            if (target.GetComponent<CompanionInventory>() == null) target.gameObject.AddComponent<CompanionInventory>();
             companion.SetCaste(caste);
             if (recruiter != null)
             {
@@ -249,6 +251,10 @@ namespace LostScrollsII.Companions
             if (target.GetComponent<ShipRideAI>() == null)
             {
                 target.gameObject.AddComponent<ShipRideAI>();
+            }
+            if (target.GetComponent<CompanionInventory>() == null)
+            {
+                target.gameObject.AddComponent<CompanionInventory>();
             }
 
             // Resume a persisted chore (survives relog / zone reload). ChoreAI's

@@ -45,7 +45,7 @@ Folder: `Thunderstore files/Lost Scrolls II/`
 
 | File | Purpose |
 |---|---|
-| `manifest.json` | name `Lost_Scrolls_II`, version `0.1.0` |
+| `manifest.json` | name `Lost_Scrolls_II`, version `0.2.0` |
 | `icon.png` | 256×256 RGBA PNG (author-supplied) |
 | `README.md` | Thunderstore listing copy |
 | `CHANGELOG.md` | per-release notes |
@@ -67,7 +67,7 @@ as dependencies. It does **not** bundle the DLL — the base mod arrives via dep
 
 ```
 Lost-Scrolls-II-Quest/
-  manifest.json        name Lost_Scrolls_II_Quest, version 0.1.0
+  manifest.json        name Lost_Scrolls_II_Quest, version 0.2.0
   icon.png             256×256 RGBA PNG (author-supplied)
   README.md
   CHANGELOG.md
@@ -80,7 +80,7 @@ Lost-Scrolls-II-Quest/
 **Dependencies (all installed automatically):**
 
 - `denikson-BepInExPack_Valheim-5.4.2333`
-- `TaegukGaming-Lost_Scrolls_II-0.1.0` — the base gameplay mod
+- `TaegukGaming-Lost_Scrolls_II-0.2.0` — the base gameplay mod
 - `TaegukGaming-ValheimServerGuide-0.7.1` — the story/handbook engine
 
 **Why `config/ValheimServerGuide/` works out of the box:** ServerGuide loads and
@@ -102,21 +102,21 @@ itself. From PowerShell:
 ```powershell
 # Base mod
 $src = "E:\Valheim Modding\Lost Scrolls II\Thunderstore files\Lost Scrolls II"
-Compress-Archive -Path "$src\*" -DestinationPath "$src\..\Lost_Scrolls_II_0.1.0.zip" -Force
+Compress-Archive -Path "$src\*" -DestinationPath "$src\..\Lost_Scrolls_II_0.2.0.zip" -Force
 
 # Quest pack (preserves the config/ subtree)
 $src = "E:\Valheim Modding\Lost Scrolls II\Thunderstore files\Lost-Scrolls-II-Quest"
-Compress-Archive -Path "$src\*" -DestinationPath "$src\..\Lost_Scrolls_II_Quest_0.1.0.zip" -Force
+Compress-Archive -Path "$src\*" -DestinationPath "$src\..\Lost_Scrolls_II_Quest_0.2.0.zip" -Force
 ```
 
 Produced zips (gitignored):
-- `Thunderstore files/Lost_Scrolls_II_0.1.0.zip`
-- `Thunderstore files/Lost_Scrolls_II_Quest_0.1.0.zip`
+- `Thunderstore files/Lost_Scrolls_II_0.2.0.zip`
+- `Thunderstore files/Lost_Scrolls_II_Quest_0.2.0.zip`
 
 ## Upload order (important)
 
 Thunderstore validates dependencies at publish time, so **publish the base
-`Lost Scrolls II` package first**. The Quest pack lists `TaegukGaming-Lost_Scrolls_II-0.1.0`
+`Lost Scrolls II` package first**. The Quest pack lists `TaegukGaming-Lost_Scrolls_II-0.2.0`
 as a dependency, which must already exist on Thunderstore for the Quest upload to
 validate.
 

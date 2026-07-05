@@ -7,6 +7,86 @@ marked passed** — assume "unverified in a live session" otherwise.
 
 ---
 
+## Companion inventory system (2026-07-05)
+
+Full detail in [Ally-Inventory.md](Ally-Inventory.md); test checklist in
+[Testing.md §16](Testing.md). Builds clean; **entirely unverified in a live session.**
+
+- **Per-companion 4×2 (8-slot) inventory** on every recruited Dvergr, built on a
+  vanilla `Container` placed on the creature and sharing its `ZNetView` — so ZDO
+  persistence, cross-client sync and a **chest-identical UI** (`InventoryGui.Show`:
+  player inventory + crafting + the container **total-weight readout**) all come for
+  free (`CompanionInventory`).
+- **`Y` opens the pack** (the key formerly used only for rename). The panel also
+  carries a **rename field** — a clone of the vanilla `TextInput` `GuiInputField`
+  reparented into the container panel — so the one key both opens the inventory and
+  renames (req 3). `CompanionContainerAccessPatch` suppresses the vanilla
+  `[E] Open` hover/interact for companion containers so the bag stays **owner-gated**.
+- **Pickup** — a radius sweep pulls in loose `ItemDrop`s of **types the companion
+  already carries**; an **empty pack collects nothing**; **combat takes priority**
+  (no gathering while alerted/targeting), and pickup is suspended on a chore or duel.
+- **Food** — eats **one at a time**; grants a temporary **max-HP buff** equal to the
+  food's `m_food` for its burn time, decaying over the back half (delta-based so it
+  never compounds); shows a **fed status icon** (the food's own sprite).
+- **Meads** — **health mead** sipped below **35%** HP and stopped above **90%**;
+  **poison/fire/frost resist meads** drunk on sight (applying the same `StatusEffect`
+  the player gets) and re-drunk while any remain. Classified by the consume effect's
+  behavior (`CompanionConsumables`), so stamina meads are ignored.
+- **Weight cap 150** — over the cap the companion stops picking up and **won't attack**
+  (target dropped each tick) but can still **move**, and shows the vanilla
+  **Encumbered** status icon. The panel shows the pack's total weight (req 14).
+- Behavior runs on the companion's **ZDO-owner client** only (`CompanionInventoryAI`,
+  1 Hz), matching the chore system. Status icons are real game sprites injected into
+  the `EnemyHud` element (`CompanionStatusIconPatch`).
+
+**Feedback pass (2026-07-05, after first live test):** §16b (pickup) passed; the rest
+got fixes.
+- **Name field moved** out from under the panel title to the top-left (was overlapping).
+- **Encumbrance now actually stops attacks** — enforced **every frame** via
+  `DvergrCompanion.ApplyEncumbrance` (drop target + go passive, alert range 0), instead
+  of only on the 1 Hz tick where the AI re-acquired between ticks.
+- **HP readout added** to the pack panel next to the name (`HP cur / max`, gold while
+  fed) so the food max-HP buff is verifiable.
+- **Health mead latch** — it now keeps sipping across the whole **35% → 90%** window
+  instead of stopping after the first gulp.
+- **Resistance is now shown** — active resist effects render as icons above the
+  companion **and** in the pack panel (icons + names), so you can confirm which mead's
+  resistance is live (`CompanionConsumables.ActiveResistEffects`). The resistance
+  itself applies through the shared `SEMan.ModifyDamageMods` path that runs for every
+  `Character` in `RPC_Damage`, so it genuinely reduces that damage type.
+
+**Feedback pass 2 (2026-07-05):**
+- **Resist status removed from the pack panel** — it now shows only above the
+  companion in-world (the panel keeps just the name field + HP readout).
+- **Pack drops on death** — a companion that dies spills its whole pack to the ground
+  (`CompanionDeathDropPatch`, owner-gated, `Character.OnDeath`). Sealing into a totem
+  destroys the creature directly (not via death), so it doesn't drop — those items
+  ride the totem instead.
+- **Name-field typing suppresses hotkeys** — `Plugin.Update` now bails while the
+  injected rename field is focused (`CompanionInventoryGui.IsTyping`), so typed letters
+  don't fire stance/feed/chore/etc. bindings. **Follow-up:** that only covered *our*
+  keys; the game still reacted to raw binds through `ZInput` (e.g. `InventoryGui.Update`
+  closes the container on the `"Use"` bind = E). A `ZInput.GetButtonDown` prefix now
+  swallows vanilla button actions while the field is focused (mirroring how chat/console
+  suppress input), so typing E no longer closes the panel
+  (`CompanionTypingButtonDownPatch`).
+- **ComfyQuickSlots compatibility** — with CQS active the player inventory gains a 5th
+  (armor/quickslot) row that extended down behind the pack panel. While our pack is
+  open we now push the shared container panel (`InventoryGui.m_container`) down by the
+  extra rows' height (`(GetHeight() − 4) × elementSpace` + a small clearance), so that
+  row stays visible — the same `m_container` shift BiomeLords uses. Restored when our
+  panel closes, so vanilla chests are untouched. Driven purely by row count, so it also
+  covers other mods that grow the player grid downward.
+- **Totems carry the pack** — the sealed companion's inventory is serialized into the
+  totem's `m_customData` (`DE_TotemInv`) and restored into the summoned companion
+  (`TotemConversionService`), so items survive seal → summon.
+- **Wood portal blocks prohibited companion cargo** — if a **Follow** companion that
+  would teleport with you carries a non-teleportable item, the **`portal_wood`** refuses
+  to send you (even with a clean personal inventory), with a message naming the ally +
+  item (`CompanionPortalBlockPatch`). Scoped to `portal_wood`; other portals unaffected.
+
+---
+
 ## Repo publish + Thunderstore packaging (2026-07-03)
 
 Full detail and rebuild/upload steps now live in [Publishing.md](Publishing.md).

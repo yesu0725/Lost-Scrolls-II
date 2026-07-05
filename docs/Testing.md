@@ -20,6 +20,10 @@ Persistent checklist for verifying Lost Scrolls II in a live Valheim session. Wo
 
 **2026-07-03 — PvP/duel batch.** Fixed the "losing companion can't be healed by mead after a duel" bug (ownership: the feed's `SetHealth` is a no-op off-owner, and the cross-client subdue had left the loser's ZDO owned by the winner's client — feeding now claims ownership first). Added: (1) a player-struck companion now also turns on the *attacker's* companions, not just the attacking player; (2) when one player attacks another (both PvP on), the attacked player's companions turn on the aggressor **and** its companions; (3) a duel win is now broadcast as a chat shout; (4) a `[J]` duel hint shows on your companion when another player's companion is in range. **These four are unverified in a live session — need a two-player pass (see §7c/§9).**
 
+**2026-07-05 — companion inventory pass.** The new per-companion inventory system (§16) was built and iterated over three feedback rounds, all confirmed in-game:
+- **Passed:** §16b pickup; §16c food (eats one at a time, fed icon, HP readout confirms the max-HP bump); §16e2 the **ComfyQuickSlots** panel-gap fix ("inventory gap test passed"); §16f drop-pack-on-death; §16h totem carries the pack; §16i wood-portal block on prohibited companion cargo; resist status removed from the pack panel (shown above the companion only).
+- **Fixed during the pass:** name field moved out from under the panel title; encumbrance now truly stops attacks (enforced every frame); health mead now keeps sipping across the full 35%→90% window; resist meads now show an icon (hud) and genuinely resist; **and the `Y`-rename field now suppresses all game binds while focused** (a `ZInput.GetButtonDown` prefix — the earlier gate only blocked our own keys, so pressing `E` still closed the panel).
+
 ## Setup
 
 1. Build deploys to all three targets automatically (Steam `BepInEx/plugins/LostScrollsII`, the r2modman profile, and the dedicated server). Launch whichever you're testing.
@@ -34,7 +38,7 @@ Persistent checklist for verifying Lost Scrolls II in a live Valheim session. Wo
 | `H` | Assign nearest companion to a workstation chore (within 10 m) |
 | `J` | Select companion for a duel |
 | `E` | Cycle stance: Follow → Guard → Standby (owner-only) |
-| `Y` | Rename a companion (owner-only) |
+| `Y` | Open a companion's **inventory** (chest-like panel that also renames it) (owner-only) |
 | *(item use)* | Use a **companion totem** from the hotbar/inventory to summon it back; seal companions via the **Incinerator** + Wisps (no key) |
 
 ---
@@ -567,6 +571,92 @@ gets yanked along; another player's ally teleported.
 **MP (needs two clients):** only the teleporting player's own companions come; the
 other client should see them arrive correctly (position synced), and player B's
 companions shouldn't move when player A portals.
+
+---
+
+## 16. Companion inventory system
+
+Full design in [Ally-Inventory.md](Ally-Inventory.md). All items below are **unverified in a live session.** Recruit a companion first. Keys use the `Y` inventory key.
+
+### 16a. Open the inventory + rename (reqs 1-3, 14, 15)
+1. Hover **your own** companion. The crosshair tooltip should read `[Y] Inventory / rename`.
+2. Press **`Y`**. A **chest-style panel** opens: the companion's **4×2 (8-slot)** grid on top, **your own inventory + crafting panel** below — exactly like opening a chest.
+3. The panel shows a **total-weight readout** for the companion's grid.
+4. A **name field** sits in the top-left of the container panel (below the title, no longer overlapping it), prefilled with the companion's name. Type a new name and press Enter → the floating name updates; reopen to confirm it stuck.
+4b. Next to the name is a live **HP readout** (`HP cur / max`) that updates while the panel is open. (Active resistances are shown **above the companion in the world**, not in this panel.)
+7. While the **name field is focused**, none of the mod hotkeys fire — typing "e", "g", "h", "j", "y", etc. edits the name and does **not** cycle stance / feed / assign chores / open the panel again.
+5. Hover **another player's** companion and press `Y` → refused ("answers to another").
+6. Put items in the grid, close, **relog / reload the zone** → the items are still there (Container ZDO persistence).
+
+**Pass:** chest-like panel with the 8-slot grid + player inventory + crafting + weight; rename field works; contents persist.
+**Fail signals:** no panel; grid wrong size; pressing the interact key on the companion opens the bag ungated (the hover/interact suppression failed); name field missing (check the log for "Could not build companion name field").
+
+### 16b. Pickup (reqs 4-6)  ✅ PASSED
+1. Put, say, **1 Wood** in the companion's pack. Drop a stack of Wood on the ground within ~8 m.
+2. In **Follow** with no enemies near, the companion pulls the matching Wood straight into its pack (radius sweep — it does not walk to each item).
+3. Drop an item type it does **not** carry → it's ignored.
+4. **Empty the pack entirely** → it picks up nothing (req 5).
+5. Aggro a monster near it (or start a fight) → it **fights and does not gather** while alerted (req 6); gathering resumes once combat ends.
+
+**Pass:** only already-held item types are collected; empty pack = no pickup; combat suspends pickup.
+
+### 16c. Food (reqs 7-10)  ✅ PASSED
+1. Put a cooked **food** (e.g. grilled meat) in the pack. Within ~1 s the companion eats **one**, and a **fed icon** (the food's own icon) appears above its health bar.
+2. **Confirm the HP bump:** open the pack (`Y`) and watch the **`HP cur / max`** readout by the name — **max** should jump by roughly the food's HP value while fed (shown in gold), then decay back over the food's burn time.
+3. It will **not** eat a second food while the first is active (req 8).
+4. The bonus **decays** over the burn time and the fed icon clears at the end (req 9/10).
+
+**Pass:** exactly one food at a time; the HP readout's max rises then decays; fed icon shows then clears.
+
+### 16d. Meads (reqs 11-12)
+1. **Health mead:** put a healing mead in the pack and damage the companion below **35%** HP → it starts drinking and **keeps drinking until above 90%** HP, then stops (req 11 — the latch fix).
+2. **Resist mead** (fire/frost/poison barley-wine or resist mead): put one in the pack → it drinks it. **Confirm the effect landed:** the matching **resistance icon** appears above its health bar **and** in the pack panel under the name (with the resistance name). It **keeps drinking** more as long as any remain (req 12).
+3. **Confirm it really resists:** with, e.g., fire resistance active, expose the companion to fire (a Surtling / fire staff) → it should take noticeably reduced fire damage vs. an un-medded ally.
+4. A **stamina** mead is ignored (no health, no resistance icon).
+
+**Pass:** health mead runs the full 35%→90% window; resist meads consumed on sight, the resistance is shown (hud + panel) and demonstrably reduces that damage type; stamina meads ignored.
+
+### 16e. Weight cap / encumbrance (reqs 13-14)
+1. Load the pack past **150 weight** (the panel weight readout crosses 150).
+2. The companion shows an **encumbered icon** above its health bar, **stops picking up**, and **will not attack** — it drops its target and goes passive **every frame**, so it no longer swings at enemies — but can still **move / follow**.
+3. Drop below 150 → it returns to normal (attacks, gathers again).
+
+**Pass:** over-150 = encumbered icon + genuinely no attacking + no pickup but still mobile; clearing weight restores normal behavior.
+
+**MP note:** pickup/consumption/food run on the companion's **ZDO-owner** client only; the encumbered icon is derived from the replicated container weight so it shows for everyone, but the **fed** icon is owner-client local.
+
+### 16e2. ComfyQuickSlots compatibility  ✅ PASSED
+1. With **ComfyQuickSlots** installed, open a companion's pack (`Y`).
+2. The player inventory's extra bottom row (armor/quickslots) is **fully visible** — not hidden behind the pack panel; the pack panel sits just below it.
+3. Close and open a **vanilla chest** → its layout is unchanged (the shift only applies to the companion pack).
+
+**Pass:** the CQS extra row is never covered by the pack UI; vanilla chests unaffected. (Tunable: `ContainerClearancePx` / `VanillaInventoryHeight` in `CompanionInventoryGui`.)
+
+### 16f. Drop pack on death  ✅ PASSED
+1. Put items in a companion's pack, then let it **die** (e.g. in combat).
+2. All pack items **spill onto the ground** at the death spot (a small scatter), recoverable like any drop.
+
+**Pass:** every item in the pack drops on death; nothing is silently lost. (Sealing into a totem does **not** drop — those items ride the totem instead, see §16h.)
+
+### 16g. Name-field key suppression  ✅ PASSED
+With the rename field focused, **all** binds are suppressed — not just the mod's own
+hotkeys but every vanilla button action (a `ZInput.GetButtonDown` prefix), so typing
+`E` no longer closes the panel and typed letters don't fire hotbar/use/etc.
+
+### 16h. Totem carries the pack  ✅ PASSED
+1. Put a few items in a companion's pack.
+2. **Seal** it into a Communion Totem (Incinerator + Wisps, §12).
+3. **Summon** it back from the totem (use the totem item).
+4. The summoned companion's pack still holds **exactly those items**.
+
+**Pass:** sealed companion's inventory round-trips through the totem intact (watch for the `[totem] Restored N pack item(s)` log line).
+
+### 16i. Portal block on prohibited companion cargo (wood portal only)  ✅ PASSED
+1. Give a **Follow**-stance companion a **non-teleportable** item (e.g. Copper/Tin/an ore) in its pack. Keep your **own** inventory clean of prohibited items.
+2. Walk into a connected **`portal_wood`** with the companion nearby → **you do not teleport**, and a center message names the ally and the item ("<name> is carrying <item> — you can't take it through the portal.").
+3. Remove the item from the companion's pack (or send it away / change its stance) → you can now teleport normally, and it comes with you (§15).
+
+**Pass:** a following ally's prohibited cargo blocks the wood portal even when your own inventory is clean; the notification names the ally + item; clearing it unblocks. Non-wood/modded portals are unaffected.
 
 ---
 

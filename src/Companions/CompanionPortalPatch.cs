@@ -16,8 +16,13 @@ namespace LostScrollsII.Companions
     [HarmonyPatch(typeof(TeleportWorld), nameof(TeleportWorld.Teleport))]
     public static class CompanionPortalPatch
     {
-        public static void Postfix(Player player)
+        // __runOriginal is false when a prefix (the block below) skipped the vanilla
+        // teleport — in that case the player didn't go through, so don't drag
+        // companions anywhere.
+        public static void Postfix(Player player, bool __runOriginal)
         {
+            if (!__runOriginal) return;
+
             // Only when the portal actually teleported this player (a portal with no
             // connected target does nothing), and only for the local client's own
             // player — each client brings its own companions.
@@ -28,12 +33,85 @@ namespace LostScrollsII.Companions
         }
     }
 
+    // Blocks a WOOD portal (portal_wood only, per requirement) when one of the
+    // player's following companions is carrying a non-teleportable item — even if
+    // the player's own inventory is clean — since that companion would be dragged
+    // through. Notifies the player which ally is holding what.
+    [HarmonyPatch(typeof(TeleportWorld), nameof(TeleportWorld.Teleport))]
+    public static class CompanionPortalBlockPatch
+    {
+        private static float _lastMsg = -999f;
+
+        public static bool Prefix(TeleportWorld __instance, Player player)
+        {
+            if (player == null || player != Player.m_localPlayer) return true;
+
+            // Scope strictly to the wood portal (its GameObject is "portal_wood(Clone)").
+            if (__instance == null ||
+                __instance.name.IndexOf("portal_wood", System.StringComparison.OrdinalIgnoreCase) < 0)
+                return true;
+
+            if (CompanionTeleport.TryFindPortalBlocker(player, out var companionName, out var itemName))
+            {
+                // Throttle — Teleport can be retried repeatedly while the player
+                // stands in the portal, so don't spam the notification.
+                if (Time.time - _lastMsg > 2.5f)
+                {
+                    _lastMsg = Time.time;
+                    player.Message(MessageHud.MessageType.Center,
+                        $"{companionName} is carrying {itemName} — you can't take it through the portal.");
+                }
+                return false; // skip the vanilla teleport
+            }
+            return true;
+        }
+    }
+
     internal static class CompanionTeleport
     {
         // Sanity bound: only companions loaded near the owner (i.e. actually
         // following) are brought. Loaded companions are within a couple of zones of
         // the player anyway, so this rarely excludes anything.
         private const float GatherRange = 60f;
+
+        // Is any of the owner's would-be-teleporting companions (Follow, owned,
+        // in range) carrying a non-teleportable item? Returns the first offender's
+        // display name + the localized item name so the player can be told exactly
+        // what's blocking the portal.
+        public static bool TryFindPortalBlocker(Player owner, out string companionName, out string itemName)
+        {
+            companionName = null;
+            itemName = null;
+            if (owner == null) return false;
+            long ownerId = owner.GetPlayerID();
+            var from = owner.transform.position;
+
+            foreach (var comp in DvergrCompanion.All)
+            {
+                if (comp == null) continue;
+                if (comp.Stance != CompanionStance.Follow) continue;
+                if (comp.OwnerId == 0L || comp.OwnerId != ownerId) continue;
+                if (comp.ChoreActive || comp.DuelMode || comp.IsFeral) continue;
+
+                var ch = comp.GetComponent<Character>();
+                if (ch == null || ch.IsDead()) continue;
+                if (Vector3.Distance(ch.transform.position, from) > GatherRange) continue;
+
+                var inv = comp.GetComponent<CompanionInventory>();
+                var inventory = inv != null ? inv.Inventory : null;
+                if (inventory == null) continue;
+
+                foreach (var item in inventory.GetAllItems())
+                {
+                    if (item?.m_shared == null || item.m_shared.m_teleportable) continue;
+                    companionName = comp.DisplayName;
+                    itemName = Localization.instance != null
+                        ? Localization.instance.Localize(item.m_shared.m_name) : item.m_shared.m_name;
+                    return true;
+                }
+            }
+            return false;
+        }
 
         public static void FollowOwnerThroughPortal(Player owner)
         {

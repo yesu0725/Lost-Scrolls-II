@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0
+
+**Companion inventory** — each recruited Dvergr now carries its own pack.
+
+- **Own 4×2 inventory**, opened with `Y` while hovering your companion — a chest-style panel (your inventory + crafting + weight readout) that also carries a rename field and a live HP readout.
+- **Picks up loot** it already carries (empty pack = nothing); **combat takes priority** over gathering.
+- **Eats food** one at a time for a temporary max-HP boost (with a fed icon), **drinks a health mead** when hurt (below 35% HP, until 90%), and **drinks poison/fire/frost resist meads** for the matching resistance (shown as an icon above it).
+- **150 weight cap** — over it the companion stops picking up and won't attack (but still moves), with an encumbered icon.
+- **Drops its whole pack on death**, and its pack **rides along when sealed into a Communion Totem** (restored on summon).
+- **Wood portals** won't send you if a following companion is carrying a non-teleportable item (with a message naming the ally + item).
+- **ComfyQuickSlots compatible** — the pack panel no longer hides the extra inventory row.
+
 ## 0.1.0
 
 Initial release.

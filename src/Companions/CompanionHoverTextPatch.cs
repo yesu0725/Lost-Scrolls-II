@@ -27,7 +27,7 @@ namespace LostScrollsII.Patches
             __result +=
                 $"\n<color=#9FD0FF>Stance: {stance}</color>" +
                 $"\n<color=yellow>[{Plugin.StanceCycleKey.Value}] Cycle stance</color>" +
-                $"\n<color=yellow>[{Plugin.RenameKey.Value}] Rename</color>";
+                $"\n<color=yellow>[{Plugin.InventoryKey.Value}] Inventory / rename</color>";
 
             // Only advertise the chore recall while the ally is actually on a chore.
             if (__instance.GetComponent<ChoreAI>()?.IsAssigned == true)

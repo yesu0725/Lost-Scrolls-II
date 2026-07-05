@@ -226,12 +226,53 @@ namespace LostScrollsII.Companions
         // proactive target acquisition — only retaliation. ChoreAI toggles it.
         public bool ChoreActive { get; set; }
 
+        // Inventory status flags, set each tick by CompanionInventoryAI (on the
+        // ZDO-owner client) and read by the name-badge / status-icon patches.
+        //  * IsEncumbered — over the pack weight cap (req 13). Any client can also
+        //    derive this straight from the replicated container weight.
+        //  * IsFed — a food HP buff is currently active (req 10).
+        public bool IsEncumbered { get; set; }
+        public bool IsFed { get; set; }
+
+        // The icon of the food currently buffing this companion (its item icon),
+        // shown by the status-icon patch while IsFed. Set by CompanionInventoryAI.
+        public Sprite FedIcon { get; set; }
+
         // Suppresses/restores proactive target acquisition by zeroing the alert
         // range (passive) or restoring the captured base.
         public void SetPassive(bool passive)
         {
             if (_ai == null) return;
             _ai.m_alertRange = passive ? 0f : (_baseAlertRangeCaptured ? _baseAlertRange : _ai.m_alertRange);
+        }
+
+        private bool _encumbranceActive;
+
+        // req 13: an over-weight ally won't attack but can still move. Enforced
+        // every frame (from CompanionInventoryAI) so it truly stops fighting rather
+        // than re-acquiring between 1 Hz ticks: drop any target, go passive (alert
+        // range 0 so it can't acquire a new one), and don't retaliate. Restores the
+        // correct stance behavior when the load drops back under the cap.
+        public void ApplyEncumbrance(bool encumbered)
+        {
+            IsEncumbered = encumbered;
+            if (_ai == null) return;
+
+            if (encumbered)
+            {
+                if (!_baseAlertRangeCaptured) { _baseAlertRange = _ai.m_alertRange; _baseAlertRangeCaptured = true; }
+                _ai.SetTarget(null);
+                _ai.SetAlerted(false);
+                _ai.m_alertRange = 0f;
+                _encumbranceActive = true;
+            }
+            else if (_encumbranceActive)
+            {
+                _encumbranceActive = false;
+                // A chore worker stays passive; otherwise return to the stance's range.
+                if (ChoreActive) SetPassive(true);
+                else RestoreAlertRangeForStance();
+            }
         }
 
         // ---- Naming -----------------------------------------------------------
