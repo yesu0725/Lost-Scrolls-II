@@ -47,7 +47,8 @@ namespace LostScrollsII.Companions
             if (_timer < UpdateInterval) return;
             _timer = 0f;
 
-            var icon = PinIcon();
+            var color = PinColor();
+            float scale = Mathf.Clamp(Plugin.CompanionPinScale.Value, 0.2f, 2f);
             _seen.Clear();
 
             foreach (var c in DvergrCompanion.All)
@@ -61,12 +62,20 @@ namespace LostScrollsII.Companions
                 {
                     pin.m_pos = c.transform.position;
                     if (pin.m_name != c.DisplayName) pin.m_name = c.DisplayName; // reflect renames
-                    if (pin.m_type != icon) pin.m_type = icon;                    // reflect config change
                 }
                 else
                 {
-                    _pins[c] = map.AddPin(c.transform.position, icon, c.DisplayName, false, false, 0L, default);
+                    // Uses the vanilla PLAYER icon so allies read like little players;
+                    // the tint + smaller scale (applied below) set them apart from the
+                    // local player's own marker.
+                    pin = map.AddPin(c.transform.position, Minimap.PinType.Player, c.DisplayName, false, false, 0L, default);
+                    _pins[c] = pin;
                 }
+
+                // Re-apply the tint + scale each refresh (the icon UI element is
+                // created lazily by Minimap.UpdatePins, so it may be null the first
+                // tick after AddPin). Cheap and keeps the look stable across zooms.
+                StylePin(pin, color, scale);
             }
 
             // Drop pins for companions that despawned or are no longer ours.
@@ -85,17 +94,37 @@ namespace LostScrollsII.Companions
             _pins.Clear();
         }
 
-        // Map the configured 0-4 index to one of the vanilla map-pin sprites.
-        private static Minimap.PinType PinIcon()
+        // Tint + shrink a pin's rendered icon. m_iconElement is the vanilla pin's
+        // UI Image (publicized); it's instantiated by Minimap.UpdatePins one frame
+        // after AddPin, so this no-ops until then.
+        private static void StylePin(Minimap.PinData pin, Color color, float scale)
         {
-            switch (Mathf.Clamp(Plugin.MapPinIcon.Value, 0, 4))
-            {
-                case 0: return Minimap.PinType.Icon0;
-                case 1: return Minimap.PinType.Icon1;
-                case 2: return Minimap.PinType.Icon2;
-                case 4: return Minimap.PinType.Icon4;
-                default: return Minimap.PinType.Icon3;
-            }
+            var icon = pin != null ? pin.m_iconElement : null;
+            if (icon == null) return;
+            icon.color = color;
+            icon.rectTransform.localScale = new Vector3(scale, scale, 1f);
+        }
+
+        private static Color PinColor()
+        {
+            var hex = Plugin.CompanionPinColor.Value ?? string.Empty;
+            if (!hex.StartsWith("#")) hex = "#" + hex;
+            return ColorUtility.TryParseHtmlString(hex, out var c) ? c : new Color(1f, 0.72f, 0.30f);
+        }
+
+        // Drops a persistent (saved) death marker on the LOCAL player's map at the
+        // spot a companion fell, labelled with its name. Client-side like the live
+        // pins, so only the owner sees it. Called from the death patch.
+        public static void AddDeathMarker(string companionName, Vector3 pos)
+        {
+            if (Plugin.ShowDeathMarker == null || !Plugin.ShowDeathMarker.Value) return;
+            var map = Minimap.instance;
+            if (map == null) return;
+            var label = string.IsNullOrEmpty(companionName) ? "Fallen companion" : companionName;
+            // save = true so it persists across sessions like a tombstone marker,
+            // until the player removes it by clicking the pin.
+            map.AddPin(pos, Minimap.PinType.Death, label, true, false, 0L, default);
+            Plugin.Log.LogInfo($"[map] death marker placed for '{label}'.");
         }
     }
 }

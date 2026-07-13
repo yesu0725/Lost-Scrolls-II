@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+**Competitive suite** — duel rankings, party duels, party rankings, and tournaments — plus map improvements and compatibility fixes.
+
+- **Duel ladder (1v1)** — every companion-vs-companion duel win is recorded on a persistent, server-authoritative ladder. Each companion has an Elo rating (shown as a rank on its name tag), with wins/losses, streaks, and seasons. `de_ladder` shows the standings; `de_season_reset` (host) starts a new season.
+- **Party duels** — gather your nearby Follow-stance companions into a team (`K`) and fight another player's team. Non-lethal (members are benched, not killed); win by attrition, with team-size-scaled XP.
+- **Party ladder** — a separate persistent ladder for team duels, keyed by owner with the companions that fought for it (`de_party_ladder`).
+- **Tournaments** — a server-run bracket for both 1v1 and party formats (`de_tournament start|join|begin|bracket|forfeit|cancel`). Re-seeded single elimination, ordinary player-run matches, a champion prize, and a Hall of Champions (`de_champions`).
+- **Map pins** — companion pins now use the player icon, tinted and smaller, so allies are easy to tell apart from your own marker (configurable color/size).
+- **Death markers** — when one of your companions dies (with items or not), a named skull marker is dropped on your map where it fell.
+- **Fixes** — the duel "double win" (a win could be announced/counted twice) is fixed; and the companion pack no longer conflicts with **BiomeLords'** chest-UI positioning (it now defers to BiomeLords, with a manual toggle).
+
+Story, rankings and tournament guidance, and the Companion Handbook are delivered through the optional companion mod **Valheim ServerGuide** (bundled in the "Quest" pack).
+
 ## 0.2.0
 
 **Companion inventory** — each recruited Dvergr now carries its own pack.

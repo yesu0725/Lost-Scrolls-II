@@ -18,11 +18,20 @@ namespace LostScrollsII.Companions
         public const string ZdoKeyOwner = "DE_Owner";
         public const string ZdoKeyOwnerName = "DE_OwnerName";
         public const string ZdoKeyName = "DE_Name";
+        // Stable per-companion identity for the duel ladders (docs/Ranking.md).
+        // A GUID assigned at recruit and carried through the Communion Totem's
+        // m_customData — unlike a ZDOID, it survives seal/summon and relog, so it
+        // can key a durable ranking record.
+        public const string ZdoKeyCompanionId = "DE_CompanionId";
         // Duel mode is stored on the ZDO so the state replicates to every client
         // (the cross-client IsEnemy check needs BOTH duelists' flags visible on a
         // single machine to pair them up). Cleared on spawn so a relog ends any
         // duel — see req 5 / docs/Duel-Arena.md.
         public const string ZdoKeyDuel = "DE_Duel";
+        // Party-duel mode (docs/Party-Duels.md) — a team-vs-team variant. Same
+        // replication + spawn-clear contract as ZdoKeyDuel. A companion is never
+        // in both modes at once.
+        public const string ZdoKeyPartyDuel = "DE_PartyDuel";
 
         // ---- Duel mode (docs/Duel-Arena.md) -----------------------------------
         // A duel is no longer a scripted 1v1 driven by a controller — it's a
@@ -107,6 +116,10 @@ namespace LostScrollsII.Companions
         // Player-given name (empty = use the default localized creature name).
         private string _customName;
 
+        // Stable ladder identity (see ZdoKeyCompanionId). Lazily generated the
+        // first time it's needed if the companion predates the id (legacy allies).
+        private string _companionId;
+
         // Owner (the recruiting player's id) and transient per-player hostility.
         private long _ownerId;
         private string _ownerName;
@@ -118,6 +131,43 @@ namespace LostScrollsII.Companions
         private bool _duelEngaged;   // has actually seen a rival this session
         private float _duelWaitTimer;
         private float _duelScanTimer;
+
+        // Idempotency latch for the subdue. Once a companion has been subdued in
+        // a bout it must NOT be re-declared a loser: the damage prefix caps HP at
+        // the 5% floor, but vanilla Character/MonsterAI health regen ticks it back
+        // above the floor within a frame or two while the winner's AI is still
+        // swinging (state hasn't replicated yet), so a second hit would fire
+        // AwardDuelWin again — a double announcement and, worse, a double point
+        // award once the ranking system lands. Set true on subdue, reset only
+        // when the companion re-enters duel mode. In-memory (immediate) so it
+        // guards even before the ZDO DuelMode flag propagates across clients.
+        private bool _duelResolved;
+        public bool IsDuelResolved => _duelResolved;
+
+        // Party-duel runtime state (transient; docs/Party-Duels.md). Mirrors the
+        // 1v1 fields but a team fight ends by attrition (win when no enemy team
+        // member remains) rather than a single subdue. _partyPeakEnemies records
+        // the largest enemy-team size seen during the bout so the winner's XP can
+        // be scaled by team sizes at stand-down (the losers are gone by then).
+        private bool _partyEngaged;
+        private float _partyWaitTimer;
+        private float _partyScanTimer;
+        private int _partyPeakEnemies;
+
+        // Rosters accumulated over the bout (companionId -> "caste:level") so the
+        // winner can report BOTH teams to the party ladder even though the losers
+        // are benched (and gone from the live set) by the time it stands down. Plus
+        // the opponent owner, captured on first sighting.
+        private readonly Dictionary<string, string> _partyAllySnap = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> _partyEnemySnap = new Dictionary<string, string>();
+        private long _partyOpponentOwner;
+        private string _partyOpponentOwnerName;
+
+        // Report once per (winnerOwner, loserOwner) match: every surviving winner
+        // runs AwardPartyWin, but they share the same owner -> same authority client,
+        // so a static latch here dedups the ladder report + the party_duel_won event.
+        private static readonly Dictionary<string, float> s_partyReportLatch = new Dictionary<string, float>();
+        private const float PartyReportWindow = 15f;
 
         // "Feral": hit with a butcher knife, the companion turns on ALL players
         // (owner included) — a deliberate betrayal/release action. In-memory only.
@@ -145,6 +195,31 @@ namespace LostScrollsII.Companions
                 }
             }
         }
+
+        // Party-duel flag — ZDO-backed for the same cross-client reasons as DuelMode.
+        private bool _partyDuelLocal;
+        public bool PartyDuelMode
+        {
+            get
+            {
+                if (_znv != null && _znv.IsValid()) return _znv.GetZDO().GetBool(ZdoKeyPartyDuel, false);
+                return _partyDuelLocal;
+            }
+            private set
+            {
+                _partyDuelLocal = value;
+                if (_znv != null && _znv.IsValid())
+                {
+                    _znv.ClaimOwnership();
+                    _znv.GetZDO().Set(ZdoKeyPartyDuel, value);
+                }
+            }
+        }
+
+        // In either competitive mode — used by the targeting/damage patches to
+        // treat 1v1 and party duelists uniformly where the rules coincide (PvP
+        // immunity, the non-lethal floor).
+        public bool InAnyDuelMode => DuelMode || PartyDuelMode;
 
         // Owner's display name for the floating name tag (req 4). Prefer the
         // persisted name (works even when the owner is offline / out of range);
@@ -192,6 +267,7 @@ namespace LostScrollsII.Companions
                 _ownerId = _znv.GetZDO().GetLong(ZdoKeyOwner, 0L);
                 _ownerName = _znv.GetZDO().GetString(ZdoKeyOwnerName, null);
                 _customName = _znv.GetZDO().GetString(ZdoKeyName, null);
+                _companionId = _znv.GetZDO().GetString(ZdoKeyCompanionId, null);
 
                 // Re-apply the persisted level on load — Character.SetLevel isn't
                 // itself persisted by vanilla for non-star creatures, so this
@@ -199,8 +275,12 @@ namespace LostScrollsII.Companions
                 ApplyLevelToCharacter();
 
                 // A relog/reload ends any in-progress duel (req 5): clear the
-                // replicated flag on spawn so a companion never comes back dueling.
-                if (_znv.IsOwner()) _znv.GetZDO().Set(ZdoKeyDuel, false);
+                // replicated flags on spawn so a companion never comes back dueling.
+                if (_znv.IsOwner())
+                {
+                    _znv.GetZDO().Set(ZdoKeyDuel, false);
+                    _znv.GetZDO().Set(ZdoKeyPartyDuel, false);
+                }
             }
 
             if (_ai != null)
@@ -309,6 +389,44 @@ namespace LostScrollsII.Companions
                 Chat.instance.SetNpcText(gameObject, Vector3.up * 2.2f, 20f, 4f, string.Empty, $"I'll answer to {DisplayName} now.", false);
         }
 
+        // ---- Ladder identity (docs/Ranking.md) --------------------------------
+
+        // The current id (may be null for a legacy companion that never got one).
+        // Reads the ZDO directly so a bystander client sees the replicated id even
+        // when its own _companionId cache is empty.
+        public string CompanionId
+        {
+            get
+            {
+                if (!string.IsNullOrEmpty(_companionId)) return _companionId;
+                if (_znv != null && _znv.IsValid())
+                {
+                    var v = _znv.GetZDO().GetString(ZdoKeyCompanionId, null);
+                    if (!string.IsNullOrEmpty(v)) _companionId = v;
+                }
+                return _companionId;
+            }
+        }
+
+        // Returns the id, assigning + persisting a fresh GUID if there isn't one.
+        public string EnsureCompanionId()
+        {
+            var existing = CompanionId;
+            if (!string.IsNullOrEmpty(existing)) return existing;
+            _companionId = System.Guid.NewGuid().ToString("N");
+            if (_znv != null && _znv.IsValid()) _znv.GetZDO().Set(ZdoKeyCompanionId, _companionId);
+            return _companionId;
+        }
+
+        // Adopt a specific id (used by the Communion Totem so a summoned companion
+        // keeps its ladder record across seal/summon).
+        public void SetCompanionId(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return;
+            _companionId = id;
+            if (_znv != null && _znv.IsValid()) _znv.GetZDO().Set(ZdoKeyCompanionId, id);
+        }
+
         public void SetOwner(long ownerId)
         {
             _ownerId = ownerId;
@@ -372,6 +490,7 @@ namespace LostScrollsII.Companions
             if (_feral) return;
             _feral = true;
             if (DuelMode) ExitDuelMode(DuelExitReason.OwnerStopped);
+            if (PartyDuelMode) ExitPartyDuelMode(DuelExitReason.OwnerStopped);
 
             if (_ai != null)
             {
@@ -446,16 +565,18 @@ namespace LostScrollsII.Companions
             // In Standby OR while doing a chore the companion does nothing
             // proactively — drop any target that isn't a player it's actively
             // retaliating against, so it won't wander off to fight monsters.
-            if (!DuelMode && (Stance == CompanionStance.Standby || ChoreActive) && _ai != null)
+            if (!InAnyDuelMode && (Stance == CompanionStance.Standby || ChoreActive) && _ai != null)
             {
                 var tgt = _ai.GetTargetCreature();
                 if (tgt != null && !(tgt is Player p && IsHostileTo(p))) _ai.SetTarget(null);
             }
 
-            // Drive the duel only on the instance that owns the ZDO (also runs
-            // the MonsterAI), so transitions/targeting aren't duplicated across
-            // clients. Bystander clients just read the replicated DuelMode flag.
-            if (DuelMode && (_znv == null || !_znv.IsValid() || _znv.IsOwner())) TickDuel();
+            // Drive a duel only on the instance that owns the ZDO (also runs the
+            // MonsterAI), so transitions/targeting aren't duplicated across clients.
+            // Bystander clients just read the replicated flags.
+            bool authority = _znv == null || !_znv.IsValid() || _znv.IsOwner();
+            if (DuelMode && authority) TickDuel();
+            else if (PartyDuelMode && authority) TickPartyDuel();
 
             // Occasionally prune expired hostility so the dictionary doesn't grow.
             _pruneTimer += Time.deltaTime;
@@ -667,10 +788,11 @@ namespace LostScrollsII.Companions
         public bool EnterDuelMode()
         {
             if (DuelMode) return true;
-            if (ChoreActive || _feral) return false;
+            if (ChoreActive || _feral || PartyDuelMode) return false;
 
             DuelMode = true;
             _duelEngaged = false;
+            _duelResolved = false; // fresh bout — allow exactly one subdue
             _duelWaitTimer = 0f;
             _duelScanTimer = 0f;
 
@@ -716,12 +838,49 @@ namespace LostScrollsII.Companions
             }
         }
 
-        // Winner reward path: flat XP bonus + a ServerGuide event. Called from the
-        // damage patch when this companion lands the subduing blow on a rival.
+        // Idempotent subdue resolution — the single entry point the damage prefix
+        // uses when a duelist is knocked to the HP floor. Guarantees a bout
+        // resolves exactly once even if several near-simultaneous hits (or a regen
+        // tick nudging HP back above the floor mid-swing) reach the prefix before
+        // the ExitDuelMode flag replicates. Returns true only on the first call;
+        // the caller should skip the damage regardless.
+        public bool ResolveSubdue(DvergrCompanion winner)
+        {
+            if (_duelResolved) return false;
+            _duelResolved = true;
+            winner?.AwardDuelWin(this);
+            ExitDuelMode(DuelExitReason.Defeated);
+            return true;
+        }
+
+        // Winner reward path: flat XP bonus + a ServerGuide event. Called from
+        // ResolveSubdue (never directly from the damage patch) so the double-win
+        // guard is always in force.
         public void AwardDuelWin(DvergrCompanion loser)
         {
             AddXp(DuelWinXpBonus);
             ServerGuideBridge.RaiseDuelWon(Caste, loser != null ? loser.Caste : Caste);
+
+            // Ranking (docs/Ranking.md): report the result to the server-authoritative
+            // ladder. Only rank real, different-owner bouts (the same rule the duel
+            // targeting already enforces); a legacy ally with no stable id / owner is
+            // skipped. The loser's id is read from its replicated ZDO (assigned at
+            // recruit), so we don't need to own its ZDO here.
+            if (loser != null && _ownerId != 0L && loser._ownerId != 0L && _ownerId != loser._ownerId)
+            {
+                var winnerId = EnsureCompanionId();
+                var loserId = loser.CompanionId;
+                if (!string.IsNullOrEmpty(winnerId) && !string.IsNullOrEmpty(loserId))
+                {
+                    Ranking.LeaderboardSync.ReportDuel(new Ranking.DuelResult
+                    {
+                        WinnerId = winnerId, WinnerOwnerId = _ownerId, WinnerOwnerName = OwnerName ?? string.Empty,
+                        WinnerName = DisplayName, WinnerCaste = (int)Caste,
+                        LoserId = loserId, LoserOwnerId = loser._ownerId, LoserOwnerName = loser.OwnerName ?? string.Empty,
+                        LoserName = loser.DisplayName, LoserCaste = (int)loser.Caste,
+                    });
+                }
+            }
             Announce($"{DisplayName} wins the bout! (+{DuelWinXpBonus:0} XP)");
 
             // Setting 3: broadcast the result to everyone via a chat shout. This
@@ -798,6 +957,243 @@ namespace LostScrollsII.Companions
             }
             return best;
         }
+
+        // ---- Party-duel mode (docs/Party-Duels.md) ----------------------------
+
+        // Owner toggled this companion into the team fight. Refused while on a
+        // chore, feral, or already in a 1v1 duel. Targeting is left entirely to
+        // vanilla MonsterAI + the IsEnemy patch (which lets it see every OTHER
+        // player's party-duel companion), so a team member freely engages any
+        // enemy — no single-rival lock like 1v1.
+        public bool EnterPartyDuelMode()
+        {
+            if (PartyDuelMode) return true;
+            if (ChoreActive || _feral || DuelMode) return false;
+
+            PartyDuelMode = true;
+            _duelResolved = false;   // fresh bout — allow exactly one bench
+            _partyEngaged = false;
+            _partyWaitTimer = 0f;
+            _partyScanTimer = 0f;
+            _partyPeakEnemies = 0;
+            _partyAllySnap.Clear();
+            _partyEnemySnap.Clear();
+            _partyOpponentOwner = 0L;
+            _partyOpponentOwnerName = null;
+
+            if (_ai != null)
+            {
+                if (!_baseAlertRangeCaptured) { _baseAlertRange = _ai.m_alertRange; _baseAlertRangeCaptured = true; }
+                _ai.m_alertRange = DuelDetectRange;
+                _ai.SetAlerted(true);
+            }
+
+            Announce($"{DisplayName} joins the melee — a party duel!");
+            return true;
+        }
+
+        // Leaves party-duel mode and restores the stance's alert range. Idempotent.
+        // Reason drives the notification; Defeated = benched (subdued), the others
+        // = the bout ended for this member.
+        public void ExitPartyDuelMode(DuelExitReason reason)
+        {
+            if (!PartyDuelMode) return;
+            PartyDuelMode = false;
+            _partyEngaged = false;
+
+            if (_ai != null)
+            {
+                _ai.SetTarget(null);
+                _ai.SetAlerted(false);
+                RestoreAlertRangeForStance();
+            }
+
+            switch (reason)
+            {
+                case DuelExitReason.Defeated:
+                    Announce($"{DisplayName} is subdued and steps out of the melee."); break;
+                case DuelExitReason.NoOpponents:
+                    Announce($"{DisplayName}'s side stands victorious!"); break;
+                case DuelExitReason.OwnerGone:
+                    Announce($"{DisplayName} loses sight of its owner and withdraws."); break;
+                case DuelExitReason.OwnerStopped:
+                    Announce($"{DisplayName} lowers its guard and leaves the melee."); break;
+            }
+        }
+
+        // Idempotent bench on subdue — the party counterpart to ResolveSubdue. A
+        // benched member leaves party mode (so it's no longer an enemy to anyone
+        // and stops fighting), but the MATCH continues; the surviving side wins by
+        // attrition when no enemy remains (see TickPartyDuel). No direct XP award
+        // here — winners are paid at their victorious stand-down.
+        public bool ResolvePartySubdue()
+        {
+            if (_duelResolved) return false;
+            _duelResolved = true;
+            ExitPartyDuelMode(DuelExitReason.Defeated);
+            return true;
+        }
+
+        // Per-second party-duel bookkeeping (authority instance only):
+        //  - owner leash: owner gone / >vision range -> this member forfeits.
+        //  - lock onto the nearest enemy team member when idle (vanilla AI then
+        //    fights it; any enemy is valid, not one fixed rival).
+        //  - win by attrition: once engaged, if NO enemy-team party-duel companion
+        //    remains anywhere loaded, this surviving member stands down a winner
+        //    and is paid team-size-scaled XP. A never-engaged member times out.
+        private void TickPartyDuel()
+        {
+            var owner = OwnerPlayer();
+            if (owner == null || Vector3.Distance(owner.transform.position, transform.position) > OwnerVisionRange)
+            {
+                ExitPartyDuelMode(DuelExitReason.OwnerGone);
+                return;
+            }
+
+            _partyScanTimer += Time.deltaTime;
+            if (_partyScanTimer < DuelScanInterval) return;
+            _partyScanTimer = 0f;
+
+            int enemies = ScanParty();
+            if (enemies > _partyPeakEnemies) _partyPeakEnemies = enemies;
+
+            if (enemies > 0)
+            {
+                _partyEngaged = true;
+                _partyWaitTimer = 0f;
+                if (_ai != null)
+                {
+                    var cur = _ai.GetTargetCreature();
+                    if (cur == null || cur.IsDead() || cur.GetComponent<DvergrCompanion>() == null
+                        || !cur.GetComponent<DvergrCompanion>().PartyDuelMode)
+                    {
+                        var rival = FindNearestPartyRival();
+                        if (rival != null) { _ai.SetTarget(rival.GetComponent<Character>()); _ai.SetAlerted(true); }
+                    }
+                }
+                return;
+            }
+
+            // No enemy team members left.
+            if (_partyEngaged)
+            {
+                AwardPartyWin();
+                ExitPartyDuelMode(DuelExitReason.NoOpponents);
+                return;
+            }
+            _partyWaitTimer += DuelScanInterval;
+            if (_partyWaitTimer >= DuelWaitTimeout) ExitPartyDuelMode(DuelExitReason.NoOpponents);
+        }
+
+        // Winner payout at a victorious stand-down. XP is scaled by team sizes so a
+        // bigger, riskier win pays more per head and winning by outnumbering pays
+        // less: base * loserTeamSize / winnerTeamSize (both floored at 1). The
+        // loser team is gone by now, so its size is the accumulated enemy roster
+        // (fallback: peak enemy count). Every surviving winner is paid its own XP,
+        // but the ladder report + ServerGuide event fire ONCE per match (static
+        // latch — all winners share this owner/authority).
+        private void AwardPartyWin()
+        {
+            int winnerSize = Mathf.Max(1, _partyAllySnap.Count);
+            int loserSize = Mathf.Max(1, _partyEnemySnap.Count > 0 ? _partyEnemySnap.Count : _partyPeakEnemies);
+            float xp = DuelWinXpBonus * loserSize / winnerSize;
+            AddXp(xp);
+            Announce($"{DisplayName} wins the party duel! (+{xp:0} XP)");
+
+            // Once-per-match: report to the party ladder (Phase D) and fire the
+            // ServerGuide party-win event, deduped by the owner pair.
+            if (_partyOpponentOwner == 0L || _ownerId == 0L) return;
+            var key = _ownerId <= _partyOpponentOwner
+                ? $"{_ownerId}|{_partyOpponentOwner}" : $"{_partyOpponentOwner}|{_ownerId}";
+            if (s_partyReportLatch.TryGetValue(key, out var t) && Time.time - t < PartyReportWindow) return;
+            s_partyReportLatch[key] = Time.time;
+
+            var result = new Ranking.PartyDuelResult
+            {
+                WinnerOwnerId = _ownerId,
+                WinnerOwnerName = OwnerName ?? string.Empty,
+                LoserOwnerId = _partyOpponentOwner,
+                LoserOwnerName = _partyOpponentOwnerName ?? string.Empty,
+                MvpCaste = (int)Caste,
+                WinnerMembers = SnapToList(_partyAllySnap),
+                LoserMembers = SnapToList(_partyEnemySnap),
+            };
+            Ranking.LeaderboardSync.ReportPartyDuel(result);
+            ServerGuideBridge.RaisePartyDuelWon(OwnerName ?? string.Empty, winnerSize,
+                _partyOpponentOwnerName ?? string.Empty, (int)Caste);
+        }
+
+        private static List<Ranking.PartyMemberSnap> SnapToList(Dictionary<string, string> snap)
+        {
+            var list = new List<Ranking.PartyMemberSnap>(snap.Count);
+            foreach (var kv in snap)
+            {
+                var parts = kv.Value.Split(':');
+                int caste = 0, level = 1;
+                if (parts.Length >= 2) { int.TryParse(parts[0], out caste); int.TryParse(parts[1], out level); }
+                list.Add(new Ranking.PartyMemberSnap { companionId = kv.Key, caste = caste, level = level });
+            }
+            return list;
+        }
+
+        // Single scan over the loaded companion set: accumulates BOTH team rosters
+        // (so the winner can report them after the losers are benched) and returns
+        // the count of enemy-team members still active. No range filter on the
+        // count — a temporarily-distant enemy still means the match is ongoing;
+        // only a fully gone/benched side ends it.
+        private int ScanParty()
+        {
+            // Always keep self in the ally roster.
+            var myId = CompanionId;
+            if (!string.IsNullOrEmpty(myId)) _partyAllySnap[myId] = $"{(int)Caste}:{Level}";
+
+            int enemies = 0;
+            foreach (var other in s_all)
+            {
+                if (other == null || other == this || !other.PartyDuelMode) continue;
+                if (_ownerId == 0L || other._ownerId == 0L) continue;
+                var oc = other._character;
+                if (oc == null || oc.IsDead()) continue;
+
+                var oid = other.CompanionId;
+                if (other._ownerId == _ownerId)
+                {
+                    if (!string.IsNullOrEmpty(oid)) _partyAllySnap[oid] = $"{(int)other.Caste}:{other.Level}";
+                }
+                else
+                {
+                    enemies++;
+                    if (!string.IsNullOrEmpty(oid)) _partyEnemySnap[oid] = $"{(int)other.Caste}:{other.Level}";
+                    if (_partyOpponentOwner == 0L)
+                    {
+                        _partyOpponentOwner = other._ownerId;
+                        _partyOpponentOwnerName = other.OwnerName;
+                    }
+                }
+            }
+            return enemies;
+        }
+
+        private DvergrCompanion FindNearestPartyRival()
+        {
+            DvergrCompanion best = null;
+            float bestDist = float.MaxValue;
+            foreach (var other in s_all)
+            {
+                if (other == null || other == this || !other.PartyDuelMode) continue;
+                if (other._ownerId == _ownerId) continue;
+                if (_ownerId == 0L || other._ownerId == 0L) continue;
+                var oc = other._character;
+                if (oc == null || oc.IsDead()) continue;
+                float d = Vector3.Distance(transform.position, other.transform.position);
+                if (d < bestDist) { bestDist = d; best = other; }
+            }
+            return best;
+        }
+
+        // Drives the "[K] Party duel" hover hint — another player's companion is
+        // near enough that gathering a team here would find a fight.
+        public bool HasPotentialPartyRivalNearby() => HasPotentialDuelRivalNearby();
 
         private void RestoreAlertRangeForStance()
         {

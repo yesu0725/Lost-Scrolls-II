@@ -46,6 +46,53 @@ namespace LostScrollsII.Companions
         private const float ContainerClearancePx = 22f;
         private static float _baseContainerY = float.NaN;
 
+        // BiomeLords ALSO repositions the shared InventoryGui.m_container panel (and
+        // exposes a config to move the chest UI). Our shift is the same technique —
+        // borrowed from BiomeLords — so when BiomeLords is loaded the two fight and
+        // its "move chest UI" setting stops working. Since our companion pack uses
+        // that same container panel, BiomeLords' own repositioning already covers it,
+        // so we defer entirely to BiomeLords and skip our shift. Cached: the plugin
+        // set is fixed for the session. (-1 unknown, 0 absent, 1 present.)
+        private static int _biomeLordsLoaded = -1;
+        private static bool BiomeLordsLoaded()
+        {
+            if (_biomeLordsLoaded < 0)
+            {
+                _biomeLordsLoaded = 0;
+                foreach (var kv in BepInEx.Bootstrap.Chainloader.PluginInfos)
+                {
+                    var key = kv.Key ?? string.Empty;
+                    var name = kv.Value?.Metadata?.Name ?? string.Empty;
+                    if (key.IndexOf("biomelord", System.StringComparison.OrdinalIgnoreCase) >= 0
+                        || name.IndexOf("biomelord", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        _biomeLordsLoaded = 1;
+                        break;
+                    }
+                }
+            }
+            return _biomeLordsLoaded == 1;
+        }
+
+        // Whether we should reposition the shared container panel at all. Off if the
+        // user disabled it, or if BiomeLords is present (it owns that panel and our
+        // shift would fight its "move chest UI" behaviour). Logged once so the
+        // BepInEx log states exactly what was decided if a conflict is reported.
+        private static bool _shiftDecisionLogged;
+        private static bool ShouldAdjustContainer()
+        {
+            bool cfgOn = Plugin.AdjustContainerPanel == null || Plugin.AdjustContainerPanel.Value;
+            bool biome = BiomeLordsLoaded();
+            bool adjust = cfgOn && !biome;
+            if (!_shiftDecisionLogged)
+            {
+                _shiftDecisionLogged = true;
+                Plugin.Log.LogInfo($"[inventory] container-panel shift: {(adjust ? "ON" : "OFF")} " +
+                    $"(config={cfgOn}, BiomeLords={biome}). BiomeLords/config off ⇒ we leave the chest UI position alone.");
+            }
+            return adjust;
+        }
+
         // True while the player is typing in the companion name field, so
         // Plugin.Update can suppress every hotkey/bind-key (the typed letters must
         // not fire stance/feed/chore/etc.).
@@ -126,6 +173,8 @@ namespace LostScrollsII.Companions
         // 4 rows) leaves it exactly at its base position.
         private void ApplyContainerShift()
         {
+            if (!ShouldAdjustContainer()) return;
+
             var gui = InventoryGui.instance;
             var player = Player.m_localPlayer;
             if (gui == null || player == null || gui.m_container == null || gui.m_playerGrid == null) return;
@@ -144,6 +193,8 @@ namespace LostScrollsII.Companions
 
         private void RestoreContainerShift()
         {
+            // Never touched the panel (BiomeLords/config off), so nothing to restore.
+            if (!ShouldAdjustContainer()) return;
             if (float.IsNaN(_baseContainerY)) return;
             var container = InventoryGui.instance != null ? InventoryGui.instance.m_container : null;
             if (container == null) return;

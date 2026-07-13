@@ -75,10 +75,25 @@ If feeding still doesn't detect a potion you're holding, `MeadFeedingService.Try
   map save file; they rebuild cleanly when the `Minimap` is recreated
   (entering/leaving a world). The pin label follows the companion's display name
   (renames included).
-- **Config** (`Companions` section): `ShowMapPins` (default on) and `MapPinIcon`
-  (which vanilla 0-4 pin sprite to use, default 3).
+- **Player-icon look (2026-07-13).** Live companion pins use the vanilla **player
+  pin sprite**, then tint + shrink its icon element (`StylePin`) so allies read as
+  small players but stay distinct from your own marker. `Config` (`Companions`):
+  `CompanionPinColor` (hex, default `FFB84D`) and `CompanionPinScale` (default 0.7),
+  alongside `ShowMapPins` (default on). *(The old `MapPinIcon` 0-4 setting was
+  removed.)*
 - Vanilla-assets-only: reuses `Minimap.AddPin` / the stock pin sprites — no custom
   icons.
+
+## Death markers — where an ally fell
+
+- **When one of your companions dies** (whether or not its pack held items), a
+  persistent **skull** pin (vanilla `PinType.Death`) labelled with the companion's
+  name is dropped on your map at the death position.
+- **Owner-only + client-side**, like the live pins: added from the
+  `Character.OnDeath` patch on the owner's client (`CompanionMapPins.AddDeathMarker`),
+  gated to the local player being the owner, so other players don't see it.
+- **Persistent** (`save = true`) — it stays like a tombstone marker until you click
+  it away. Config `ShowDeathMarker` (default on).
 
 ## Travelling with the owner — ships & portals
 

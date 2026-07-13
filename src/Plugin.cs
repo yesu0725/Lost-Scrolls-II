@@ -16,7 +16,7 @@ namespace LostScrollsII
     {
         public const string PluginGuid = "com.lostscrollsii";
         public const string PluginName = "Lost Scrolls II";
-        public const string PluginVersion = "0.2.0";
+        public const string PluginVersion = "0.3.0";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -39,6 +39,12 @@ namespace LostScrollsII
         // See docs/Duel-Arena.md.
         public static ConfigEntry<KeyCode> DuelSelectKey { get; private set; }
 
+        // Phase C: press while hovering YOUR OWN companion to toggle a PARTY duel —
+        // gathers your nearby Follow-stance companions into a team that fights
+        // another player's party-duel team. See docs/Party-Duels.md.
+        public static ConfigEntry<KeyCode> PartyDuelKey { get; private set; }
+        public static ConfigEntry<int> MaxPartySize { get; private set; }
+
         // Feature add: toggle a hovered companion's stance (Follow <-> Guard).
         public static ConfigEntry<KeyCode> StanceCycleKey { get; private set; }
 
@@ -50,7 +56,25 @@ namespace LostScrollsII
         // Feature add: show a live minimap pin at each of the local player's own
         // companions. Client-side, so other players never see your companions.
         public static ConfigEntry<bool> ShowMapPins { get; private set; }
-        public static ConfigEntry<int> MapPinIcon { get; private set; }
+        // Companion map pins use the vanilla PLAYER icon, tinted + scaled so they
+        // read as "your allies" but stay distinct from your own player marker.
+        public static ConfigEntry<string> CompanionPinColor { get; private set; }
+        public static ConfigEntry<float> CompanionPinScale { get; private set; }
+        // A persistent death marker (skull) is dropped on the owner's map when a
+        // companion dies, labelled with its name.
+        public static ConfigEntry<bool> ShowDeathMarker { get; private set; }
+
+        // When open, the companion pack nudges the shared container panel down to
+        // clear a mod-added inventory row (ComfyQuickSlots). Auto-disabled when
+        // BiomeLords is present (it manages the same panel). This is the manual
+        // off-switch if the chest UI position ever looks wrong.
+        public static ConfigEntry<bool> AdjustContainerPanel { get; private set; }
+
+        // Ranking (docs/Ranking.md). K-factor controls Elo volatility; the per-pair
+        // cooldown blocks two players padding each other's rating with repeat wins.
+        public static ConfigEntry<int> RankingKFactor { get; private set; }
+        public static ConfigEntry<float> RankingPairCooldown { get; private set; }
+        public static ConfigEntry<bool> ShowRankOnNameTag { get; private set; }
 
         private Harmony _harmony;
 
@@ -83,6 +107,18 @@ namespace LostScrollsII
                 KeyCode.J,
                 "Press while hovering your own recruited companion to toggle its duel mode. A duel-mode companion fights other players' duel-mode companions and ignores everyone else.");
 
+            PartyDuelKey = Config.Bind(
+                "Duels",
+                "PartyDuelKey",
+                KeyCode.K,
+                "Press while hovering your own recruited companion to toggle a party duel: your nearby Follow-stance companions form a team that fights another player's party-duel team.");
+
+            MaxPartySize = Config.Bind(
+                "Duels",
+                "MaxPartySize",
+                4,
+                "Maximum number of your companions that join a party duel when you toggle it on.");
+
             StanceCycleKey = Config.Bind(
                 "Companions",
                 "StanceCycleKey",
@@ -101,11 +137,47 @@ namespace LostScrollsII
                 true,
                 "Show a live minimap pin at each of your own recruited companions. Pins are client-side — other players never see your companions, and you never see theirs.");
 
-            MapPinIcon = Config.Bind(
+            CompanionPinColor = Config.Bind(
                 "Companions",
-                "MapPinIcon",
-                3,
-                "Which vanilla map-pin icon (0-4) to use for companion pins.");
+                "CompanionPinColor",
+                "FFB84D",
+                "Hex tint (RRGGBB) for companion map pins, which use the player icon in a smaller size. Distinguishes your allies from your own marker.");
+
+            CompanionPinScale = Config.Bind(
+                "Companions",
+                "CompanionPinScale",
+                0.7f,
+                "Size multiplier for companion map pins (1 = full player-icon size). Smaller keeps them from crowding your own marker.");
+
+            ShowDeathMarker = Config.Bind(
+                "Companions",
+                "ShowDeathMarker",
+                true,
+                "Drop a persistent death marker (skull) on your map, labelled with the companion's name, when one of your companions dies.");
+
+            AdjustContainerPanel = Config.Bind(
+                "Companions",
+                "AdjustContainerPanel",
+                true,
+                "While a companion's pack is open, nudge the shared chest/container UI panel down to clear ComfyQuickSlots' extra inventory row. Automatically skipped when BiomeLords is installed (it repositions the same panel itself). Set to false if the chest UI position looks wrong.");
+
+            RankingKFactor = Config.Bind(
+                "Ranking",
+                "EloKFactor",
+                32,
+                "Elo K-factor for the duel ladder — higher means bigger rating swings per match.");
+
+            RankingPairCooldown = Config.Bind(
+                "Ranking",
+                "PairCooldownSeconds",
+                300f,
+                "Seconds before the same two companions can move each other's rating again (W/L still count). Anti friend-farming.");
+
+            ShowRankOnNameTag = Config.Bind(
+                "Ranking",
+                "ShowRankOnNameTag",
+                true,
+                "Append the ladder rank (e.g. #3) to a companion's floating name when it has one.");
 
             _harmony = new Harmony(PluginGuid);
             _harmony.PatchAll();
@@ -153,6 +225,11 @@ namespace LostScrollsII
             if (Input.GetKeyDown(DuelSelectKey.Value))
             {
                 HandleDuelInput(player);
+            }
+
+            if (Input.GetKeyDown(PartyDuelKey.Value))
+            {
+                HandlePartyDuelInput(player);
             }
 
             if (Input.GetKeyDown(StanceCycleKey.Value))
@@ -424,6 +501,80 @@ namespace LostScrollsII
             }
         }
 
+        // Toggles a PARTY duel on the hovered companion's owner (must be the local
+        // player). Entering gathers the player's nearby Follow-stance companions
+        // into a team; pressing again stands the whole team down. See
+        // docs/Party-Duels.md.
+        private void HandlePartyDuelInput(Player player)
+        {
+            var hoverObject = player.GetHoverObject();
+            if (hoverObject == null) return;
+
+            var target = hoverObject.GetComponentInParent<Character>();
+            var hovered = target != null ? target.GetComponent<DvergrCompanion>() : null;
+            if (hovered == null)
+            {
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "That is not an ally you can send to a party duel.");
+                return;
+            }
+            if (!hovered.IsOwner(player))
+            {
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Only its owner can send this companion to duel.");
+                return;
+            }
+
+            long ownerId = player.GetPlayerID();
+
+            // Already in a party duel: stand the whole team down.
+            bool anyInParty = false;
+            foreach (var c in DvergrCompanion.All)
+                if (c != null && c.OwnerId == ownerId && c.PartyDuelMode) { anyInParty = true; break; }
+            if (anyInParty)
+            {
+                int stood = 0;
+                foreach (var c in DvergrCompanion.All)
+                    if (c != null && c.OwnerId == ownerId && c.PartyDuelMode)
+                    { c.ExitPartyDuelMode(DvergrCompanion.DuelExitReason.OwnerStopped); stood++; }
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, $"Your party ({stood}) stands down.");
+                return;
+            }
+
+            // Gather the player's nearby, free, Follow-stance companions into a team.
+            const float gatherRadius = 25f;
+            var nearby = new List<Character>();
+            Character.GetCharactersInRange(player.transform.position, gatherRadius, nearby);
+
+            var team = new List<DvergrCompanion>();
+            foreach (var ch in nearby)
+            {
+                var c = ch.GetComponent<DvergrCompanion>();
+                if (c == null || c.OwnerId != ownerId) continue;
+                if (c.Stance != CompanionStance.Follow) continue;
+                if (ch.GetComponent<ChoreAI>()?.IsAssigned == true) continue;
+                if (c.DuelMode || c.IsFeral) continue;
+                team.Add(c);
+            }
+            if (team.Count == 0)
+            {
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center,
+                    "No free Follow-stance allies of yours nearby to form a party.");
+                return;
+            }
+
+            // Nearest-first, capped at MaxPartySize.
+            team.Sort((a, b) => Vector3.Distance(player.transform.position, a.transform.position)
+                .CompareTo(Vector3.Distance(player.transform.position, b.transform.position)));
+            int cap = Mathf.Max(1, MaxPartySize.Value);
+            int joined = 0;
+            foreach (var c in team)
+            {
+                if (joined >= cap) break;
+                if (c.EnterPartyDuelMode()) joined++;
+            }
+            MessageHud.instance.ShowMessage(MessageHud.MessageType.Center,
+                $"Your party ({joined}) squares up — waiting for a rival party.");
+        }
+
         private void HandleStanceCycleInput(Player player)
         {
             var hoverObject = player.GetHoverObject();
@@ -439,7 +590,7 @@ namespace LostScrollsII
                 return;
             }
 
-            if (target.GetComponent<ChoreAI>()?.IsAssigned == true || companion.DuelMode)
+            if (target.GetComponent<ChoreAI>()?.IsAssigned == true || companion.InAnyDuelMode)
             {
                 MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Ally is busy — unassign it first.");
                 return;

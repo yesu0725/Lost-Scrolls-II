@@ -132,7 +132,7 @@ namespace LostScrollsII.Companions
         // position, owned by `owner`, at an optional level. Used by the de_spawn
         // console command. Writes the companion ZDO flags before the behavior
         // component reads them, so caste/level/owner are picked up on Awake.
-        public static GameObject SpawnRecruited(DvergrCaste caste, int level, Player owner, Vector3 pos, float xp = 0f)
+        public static GameObject SpawnRecruited(DvergrCaste caste, int level, Player owner, Vector3 pos, float xp = 0f, string companionId = null)
         {
             if (ZNetScene.instance == null) return null;
 
@@ -156,6 +156,9 @@ namespace LostScrollsII.Companions
                     zdo.Set(DvergrCompanion.ZdoKeyOwner, owner.GetPlayerID());
                     zdo.Set(DvergrCompanion.ZdoKeyOwnerName, owner.GetPlayerName());
                 }
+                // Preserve the ladder identity when summoning from a totem; a fresh
+                // admin spawn leaves it unset (assigned lazily if it ever duels).
+                if (!string.IsNullOrEmpty(companionId)) zdo.Set(DvergrCompanion.ZdoKeyCompanionId, companionId);
             }
 
             if (character != null) ApplyFreedState(character, owner != null ? owner.gameObject : null);
@@ -205,6 +208,8 @@ namespace LostScrollsII.Companions
                 companion.SetOwner(recruiter.GetPlayerID());
                 companion.SetOwnerName(recruiter.GetPlayerName());
             }
+            // Stable ladder identity from the moment of recruit (docs/Ranking.md).
+            companion.EnsureCompanionId();
 
             var znv = target.GetComponent<ZNetView>();
             if (znv != null && znv.IsValid())

@@ -40,6 +40,13 @@ namespace LostScrollsII.Patches
                 __result += $"  <color=#B0B0B0>({owner})</color>";
 
             __result += $"  <color=#FFD24A>★{companion.Level}</color>";
+
+            // Optional ladder rank (docs/Ranking.md) — read off the client snapshot.
+            if (Plugin.ShowRankOnNameTag != null && Plugin.ShowRankOnNameTag.Value)
+            {
+                var rank = Ranking.LeaderboardStore.RankOf(companion.CompanionId);
+                if (rank > 0) __result += $"  <color=#7FD0FF>#{rank}</color>";
+            }
         }
     }
 

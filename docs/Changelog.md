@@ -7,6 +7,186 @@ marked passed** — assume "unverified in a live session" otherwise.
 
 ---
 
+## Companion map pins reworked + death markers (2026-07-13)
+
+- **Live pins** now use the vanilla **player icon**, **tinted** and **scaled down**
+  so allies read as little players but stay distinct from your own marker. New
+  config `Companions/CompanionPinColor` (hex, default `FFB84D`) and
+  `CompanionPinScale` (default `0.7`). The old `MapPinIcon` (0-4) config is removed.
+- **Death markers**: when one of your companions dies — with items or not — a
+  persistent **skull** pin labelled with the companion's name is dropped on your
+  map at the spot it fell (`CompanionMapPins.AddDeathMarker`, hooked in the
+  `Character.OnDeath` patch, owner-gated + client-side like the live pins). Config
+  `Companions/ShowDeathMarker` (default on).
+
+## BiomeLords container-UI hardening (2026-07-13)
+
+Follow-up to the earlier BiomeLords fix, which was reported still not working.
+
+- The container-panel shift now goes through one `ShouldAdjustContainer()` gate:
+  **off** when the user disables it *or* when BiomeLords is present (unchanged
+  intent, single code path). BiomeLords is matched by `biomelord` in its plugin id
+  (`com.taeguk.BiomeLords`) or name.
+- Added a **manual off-switch** — `Companions/AdjustContainerPanel` (default on) —
+  as a guaranteed workaround if detection ever misses.
+- Added a **one-time diagnostic log** (`[inventory] container-panel shift: ON/OFF …`)
+  so the BepInEx log states exactly what LSII decided, to pinpoint any residual
+  conflict. (The deployed post-fix DLL already defers to BiomeLords; if the issue
+  persists after a clean relaunch, this log confirms whether LSII is even touching
+  the panel.)
+
+---
+
+## BiomeLords container-UI compatibility (2026-07-13)
+
+Fixed a conflict where BiomeLords' "move chest UI" setting stopped working while
+Lost Scrolls II was enabled.
+
+- Root cause: our companion-pack panel shifts `InventoryGui.m_container` down to
+  clear mod-added inventory rows (the CQS/BiomeLords technique) every frame it's
+  open. BiomeLords repositions the **same** panel, so the two fought and BiomeLords'
+  setting was overridden.
+- Fix: `CompanionInventoryGui` now **detects BiomeLords** (scans `Chainloader.PluginInfos`
+  for a `biomelord` id/name, cached) and **skips its own container shift entirely**
+  when BiomeLords is loaded — the companion pack uses that same panel, so BiomeLords'
+  own repositioning already covers it. Without BiomeLords, behavior is unchanged.
+- Also: the local **dedicated-server** build now deploys the DLL to
+  `…\BepInEx\plugins\TaegukGaming-Lost_Scrolls_II` (was `…\plugins\LostScrollsII`);
+  the stale old folder was removed to avoid a double-load.
+
+---
+
+## Tournaments — Phase E (2026-07-09)
+
+Server-authoritative bracket runner for both 1v1 and party, completing the
+competitive suite. Builds clean; unverified — see [Tournaments.md](Tournaments.md)
++ [Testing.md](Testing.md) §20.
+
+- `TournamentService` + `TournamentState` (persisted per world, resumed on load):
+  phases idle→registration→running→complete; re-seeded single elimination with byes.
+- **No remote-driven combat** — the server announces pairings and resolves each
+  match from the same `LSII_ReportDuel`/`LSII_ReportParty` report the ladders get
+  (`NotifyDuelResult`/`NotifyPartyResult`). Tournament fights are ordinary duels.
+- Commands: `de_tournament start|join|begin|bracket|forfeit|cancel` + `de_champions`.
+  Admin subcommands host-gated; `join` registers the hovered companion (1v1) or the
+  player's party (party), seeded from the ladder rating. State syncs to clients.
+- Three ServerGuide triggers (`dvergr_tournament_joined` / `_match` / `_won`) fired
+  on the relevant player's client (match/won broadcast with target name embedded)
+  so rewards land correctly; `guidance.tournaments.yaml` carries the pairing notice
+  + champion prize bundle.
+- Hall of Champions archive (`champions.<world>.json`, `de_champions`).
+- Deviations for robustness: player-run matches (no teleport/auto-start), arena
+  ward + teleport not enforced (convention only), admin subcommands host-only.
+
+---
+
+## Party ranking — Phase D (2026-07-09)
+
+Party bouts now feed a persistent ladder on the same store/sync as the 1v1 ladder.
+Builds clean; unverified — see [Party-Duels.md](Party-Duels.md) + [Testing.md](Testing.md) §19.
+
+- New `PartyRecord` keyed by **ownerId** with a `memberSnapshot` (companion
+  id/caste/level) — the "owner + companions" record. Team Elo (owner-vs-owner),
+  W/L, best team size, season; stored in the per-world JSON `parties` list.
+- Report-once-per-match: every surviving winner runs `AwardPartyWin`, but a static
+  owner-pair latch dedups the ladder report + ServerGuide event (all winners share
+  the owner/authority client). Rosters are accumulated over the bout (`ScanParty`)
+  so both teams are known even after the losers are benched.
+- Server path `LSII_ReportParty` → `ApplyPartyDuel` → broadcast → top-3 climb sends
+  `LSII_PartyRankEvt` → `dvergr_party_rank_changed`; the win fires
+  `dvergr_party_duel_won` locally with `winSize`/`opponentOwner`/`mvpCaste`.
+- `de_party_ladder` command + party Codex pages (reference, per-win notice, top-3
+  milestone) in `guidance.rankings.yaml`.
+
+---
+
+## Party duels — Phase C (2026-07-09)
+
+Team-vs-team companion sparring, built on the verified 1v1 duel spine. Mechanics
+only — party bouts don't feed a ladder yet (Phase D). Builds clean; unverified —
+see [Party-Duels.md](Party-Duels.md) + [Testing.md](Testing.md) §18.
+
+- New `DE_PartyDuel` ZDO flag + `PartyDuelMode`/`InAnyDuelMode` on `DvergrCompanion`
+  (replicated, spawn-cleared, mutually exclusive with 1v1 duel).
+- `CompanionIsEnemyPatch` generalized: enemy only to another player's duelist in
+  the **same** mode with a different non-zero owner — scales 1v1 and N-vs-M.
+- `CompanionDamagePatch` floor branches: 1v1 credits the striker (`ResolveSubdue`),
+  party **benches** the member (`ResolvePartySubdue`) reusing the `_duelResolved`
+  latch, and the match plays on.
+- `TickPartyDuel` (authority-gated): owner leash / forfeit, nearest-enemy targeting,
+  and win-by-attrition with **team-size-scaled XP**.
+- New `K` party key (`Duels/PartyDuelKey`, `MaxPartySize` = 4) gathers nearby free
+  Follow-stance allies into a team and toggles them down; owner-gated + `[K]` hint.
+
+---
+
+## Duel ladder — Phase A + B (2026-07-09)
+
+The 1v1 duel ranking, built end-to-end (foundations + ladder). Both projects build
+clean; unverified in a live session — see [Ranking.md](Ranking.md) + [Testing.md](Testing.md) §17.
+
+- **Foundations (Phase A):** a stable `DE_CompanionId` GUID (recruit → ZDO →
+  carried through the Communion Totem); `Rating` (Elo, start 1000); a
+  server-authoritative `LeaderboardStore` persisting **one JSON file per world**
+  next to the save (`UnityEngine.JsonUtility`; added the `JSONSerializeModule`
+  reference); a `LeaderboardSync` RPC layer mirroring ServerGuide's `GuidanceSync`;
+  and the `dvergr_rank_changed` ServerGuide bridge trigger + templating vars.
+- **1v1 ladder (Phase B):** `AwardDuelWin` reports each decided bout to the server,
+  which applies Elo (with a per-pair anti-farm cooldown), persists, broadcasts the
+  table, and fires `dvergr_rank_changed` on the winner's client when it climbs into
+  the top 3. Records key on companion id + owner (W/L, streaks, rating, season).
+- **Display/UX:** `de_ladder [caste] [count]` and admin `de_season_reset` commands;
+  an optional `#rank` on the companion name tag (`Ranking.ShowRankOnNameTag`); and a
+  ServerGuide `guidance.rankings.yaml` Codex page + top-3 milestone reward, deployed
+  to the examples, Quest pack, and test profile.
+- New config section `Ranking` (`EloKFactor`, `PairCooldownSeconds`, `ShowRankOnNameTag`).
+
+---
+
+## Competitive suite design + duel double-win fix (2026-07-08)
+
+Design docs for a planned four-part competitive suite, plus a prerequisite bug fix
+shipped first because the point systems depend on a clean single win event.
+
+- **Bug fix (code):** the duel **double-win**. Capping a subdued duelist's HP at the
+  5% floor left it sitting on the threshold; vanilla `Character`/`MonsterAI` regen
+  ticked it back above the floor within a frame or two — while the winner was still
+  swinging and before `ExitDuelMode` replicated — so a second hit re-fired the win
+  (double announcement, and would double-award ranking points). Fixed with an
+  in-memory idempotency latch: subdue now routes through the idempotent
+  `DvergrCompanion.ResolveSubdue(winner)`, and `CompanionDamagePatch` swallows further
+  hits on an already-resolved duelist (`IsDuelResolved`). See [Duel-Arena.md](Duel-Arena.md).
+- **Design (docs only):** [Ranking.md](Ranking.md), [Party-Duels.md](Party-Duels.md),
+  [Tournaments.md](Tournaments.md) — 1v1 ladder, party duels, party ladder, and a
+  tournament bracket runner. All server-authoritative, persisted to a **JSON file next
+  to the world save**, synced over a new `LeaderboardSync` RPC, keyed on a new stable
+  `DE_CompanionId` GUID + owner, rated by **Elo** with seasons, and delivered/​rewarded
+  through ServerGuide (new `dvergr_*` triggers + the existing `RewardDispatcher`).
+- **Build order:** Phase A (foundations) + Phase B (1v1 ladder) end-to-end, verify in a
+  2-player session, then party (C/D) and tournaments (E).
+
+---
+
+## Companion Handbook: inventory guidance (2026-07-08)
+
+Documentation/packaging only — no code change. Brought the ServerGuide **Companion
+Handbook** (`guidance.companions.yaml`) up to date with the
+[companion inventory system](Ally-Inventory.md).
+
+- Added a **"Your Companion's Pack"** guidance (`ls_companion_inventory`, fires on
+  `dvergr_recruited`, `requires: [ls_companion_commands]`): opening the 8-slot pack
+  with `[Y]`, auto-pickup of matching loot, self-feeding (food → temporary max-HP),
+  health-mead sipping and poison/fire/frost resist meads, the **150 weight cap**
+  (overloaded allies won't fight), death-drop, and totem carry-over.
+- Fixed the stale `[Y]` description in **"Commanding Your Companion"** — `Y` now opens
+  the pack (which holds the rename field) rather than only renaming.
+- Applied to both copies (the sibling ServerGuide `examples/` source and the
+  `Lost-Scrolls-II-Quest` Thunderstore pack), and **rebuilt `Lost_Scrolls_II_Quest_0.2.0.zip`
+  in place — no version bump**. Updated the Quest pack's own `CHANGELOG.md` 0.2.0 entry
+  to note the handbook change.
+
+---
+
 ## Companion inventory system (2026-07-05)
 
 Full detail in [Ally-Inventory.md](Ally-Inventory.md); test checklist in

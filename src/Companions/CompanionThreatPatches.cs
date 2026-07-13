@@ -29,14 +29,19 @@ namespace LostScrollsII.Patches
             var ca = a.GetComponent<DvergrCompanion>();
             var cb = b.GetComponent<DvergrCompanion>();
 
-            // Duel mode overrides the normal relationship entirely.
-            if ((ca != null && ca.DuelMode) || (cb != null && cb.DuelMode))
+            // Either duel mode (1v1 or party) overrides the normal relationship
+            // entirely. A competitive duelist is an enemy ONLY to another player's
+            // duelist in the SAME mode; a non-enemy (ignored + immune) to everyone
+            // and everything else. Same-mode + different non-zero owners is the
+            // single rule that makes 1v1 rivals and party teams find each other
+            // while ignoring players, creatures, and same-owner allies.
+            if ((ca != null && ca.InAnyDuelMode) || (cb != null && cb.InAnyDuelMode))
             {
                 __result =
                     ca != null && cb != null &&
-                    ca.DuelMode && cb.DuelMode &&
                     ca.OwnerId != 0L && cb.OwnerId != 0L &&
-                    ca.OwnerId != cb.OwnerId;
+                    ca.OwnerId != cb.OwnerId &&
+                    ((ca.DuelMode && cb.DuelMode) || (ca.PartyDuelMode && cb.PartyDuelMode));
                 return;
             }
 
@@ -69,23 +74,38 @@ namespace LostScrollsII.Patches
 
             if (victimComp != null)
             {
-                // A companion in duel mode:
-                if (victimComp.DuelMode)
+                // A companion in either duel mode (1v1 or party):
+                if (victimComp.InAnyDuelMode)
                 {
                     // req 6: players cannot damage a dueling companion, even with PvP on.
                     if (attackerPlayer != null) return false;
 
+                    // Already resolved this bout (subdued in 1v1 / benched in party):
+                    // swallow any further hits that land before the exit flag
+                    // replicates or while HP regen has nudged the loser back above
+                    // the floor. Without this the winner keeps swinging and the bout
+                    // would resolve (and be announced / point-awarded) more than once.
+                    // See DvergrCompanion._duelResolved.
+                    if (victimComp.IsDuelResolved) return false;
+
                     // Companion-vs-companion: enforce the non-lethal floor. A blow
                     // that would drop the duelist to/below the subdue floor is
-                    // capped; the loser leaves duel mode and the striker (if it is
-                    // itself a companion) is credited the win.
+                    // capped, then resolved idempotently: 1v1 credits the striker the
+                    // win and ends the bout; party benches this member and lets the
+                    // match play on (winners are paid at their stand-down).
                     float floor = __instance.GetMaxHealth() * DvergrCompanion.SubdueFloorHealthFraction;
                     if (__instance.GetHealth() - hit.GetTotalDamage() <= floor)
                     {
                         __instance.SetHealth(floor);
-                        var winner = attackerChar != null ? attackerChar.GetComponent<DvergrCompanion>() : null;
-                        winner?.AwardDuelWin(victimComp);
-                        victimComp.ExitDuelMode(DvergrCompanion.DuelExitReason.Defeated);
+                        if (victimComp.PartyDuelMode)
+                        {
+                            victimComp.ResolvePartySubdue();
+                        }
+                        else
+                        {
+                            var winner = attackerChar != null ? attackerChar.GetComponent<DvergrCompanion>() : null;
+                            victimComp.ResolveSubdue(winner);
+                        }
                         return false; // skip the lethal damage
                     }
                     return true; // sub-lethal duel hit lands normally

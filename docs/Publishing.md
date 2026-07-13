@@ -45,7 +45,7 @@ Folder: `Thunderstore files/Lost Scrolls II/`
 
 | File | Purpose |
 |---|---|
-| `manifest.json` | name `Lost_Scrolls_II`, version `0.2.0` |
+| `manifest.json` | name `Lost_Scrolls_II`, version `0.3.0` |
 | `icon.png` | 256×256 RGBA PNG (author-supplied) |
 | `README.md` | Thunderstore listing copy |
 | `CHANGELOG.md` | per-release notes |
@@ -67,7 +67,7 @@ as dependencies. It does **not** bundle the DLL — the base mod arrives via dep
 
 ```
 Lost-Scrolls-II-Quest/
-  manifest.json        name Lost_Scrolls_II_Quest, version 0.2.0
+  manifest.json        name Lost_Scrolls_II_Quest, version 0.3.0
   icon.png             256×256 RGBA PNG (author-supplied)
   README.md
   CHANGELOG.md
@@ -75,12 +75,23 @@ Lost-Scrolls-II-Quest/
     ValheimServerGuide/
       guidance.lost-scrolls.yaml    (the biome-descent story)
       guidance.companions.yaml      (the Companion Handbook)
+      guidance.rankings.yaml        (duel + party ladder pages, rank milestones)   [0.3.0]
+      guidance.tournaments.yaml     (tournament announcements + champion prize)     [0.3.0]
 ```
+
+> **ServerGuide version caveat (0.3.0):** `guidance.rankings.yaml` and
+> `guidance.tournaments.yaml` use template variables (`{rank}`, `{rating}`,
+> `{winSize}`, `{round}`, `{opponent}`, `{mode}`, `{bracketSize}`, …) that were added
+> to ServerGuide's dispatcher alongside the competitive suite. The triggers still
+> fire on older ServerGuide (its default match returns true), but those placeholders
+> render literally until ServerGuide is rebuilt/republished with the new templating.
+> Publish a matching ServerGuide release for full templating; the Quest dependency
+> string can then be bumped from `TaegukGaming-ValheimServerGuide-0.7.1`.
 
 **Dependencies (all installed automatically):**
 
 - `denikson-BepInExPack_Valheim-5.4.2333`
-- `TaegukGaming-Lost_Scrolls_II-0.2.0` — the base gameplay mod
+- `TaegukGaming-Lost_Scrolls_II-0.3.0` — the base gameplay mod
 - `TaegukGaming-ValheimServerGuide-0.7.1` — the story/handbook engine
 
 **Why `config/ValheimServerGuide/` works out of the box:** ServerGuide loads and
@@ -102,21 +113,21 @@ itself. From PowerShell:
 ```powershell
 # Base mod
 $src = "E:\Valheim Modding\Lost Scrolls II\Thunderstore files\Lost Scrolls II"
-Compress-Archive -Path "$src\*" -DestinationPath "$src\..\Lost_Scrolls_II_0.2.0.zip" -Force
+Compress-Archive -Path "$src\*" -DestinationPath "$src\..\Lost_Scrolls_II_0.3.0.zip" -Force
 
 # Quest pack (preserves the config/ subtree)
 $src = "E:\Valheim Modding\Lost Scrolls II\Thunderstore files\Lost-Scrolls-II-Quest"
-Compress-Archive -Path "$src\*" -DestinationPath "$src\..\Lost_Scrolls_II_Quest_0.2.0.zip" -Force
+Compress-Archive -Path "$src\*" -DestinationPath "$src\..\Lost_Scrolls_II_Quest_0.3.0.zip" -Force
 ```
 
 Produced zips (gitignored):
-- `Thunderstore files/Lost_Scrolls_II_0.2.0.zip`
-- `Thunderstore files/Lost_Scrolls_II_Quest_0.2.0.zip`
+- `Thunderstore files/Lost_Scrolls_II_0.3.0.zip`
+- `Thunderstore files/Lost_Scrolls_II_Quest_0.3.0.zip`
 
 ## Upload order (important)
 
 Thunderstore validates dependencies at publish time, so **publish the base
-`Lost Scrolls II` package first**. The Quest pack lists `TaegukGaming-Lost_Scrolls_II-0.2.0`
+`Lost Scrolls II` package first**. The Quest pack lists `TaegukGaming-Lost_Scrolls_II-0.3.0`
 as a dependency, which must already exist on Thunderstore for the Quest upload to
 validate.
 

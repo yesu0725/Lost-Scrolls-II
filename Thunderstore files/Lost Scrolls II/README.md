@@ -11,9 +11,12 @@ A spiritual sequel to the deprecated mod **Lost Scrolls** (TaegukGaming), rebuil
 - **Command them** — hover + hotkey: feed/heal (`G`), cycle Follow/Guard/Standby stance (`E`), open its inventory + rename (`Y`), and see them on your private minimap.
 - **Give them a pack** — each companion carries its own 4×2 inventory (opens like a chest). It picks up loot it already carries, eats food for a temporary HP boost, drinks health/resistance meads, and gets encumbered if overloaded. Its pack rides along through totems and drops on death.
 - **Put them to work** — assign allies to vanilla stations by caste: smelting, refining, cooking, brewing, farming (plant + harvest), animal care, and hauling.
-- **Duel** — non-lethal companion-vs-companion sparring between players for bonus XP.
+- **Duel** — non-lethal companion-vs-companion sparring between players for bonus XP (`J`), or gather a **party** and fight team-vs-team (`K`).
+- **Rankings** — every duel win feeds a persistent, server-wide **duel ladder** (Elo rating shown on the companion's name), with a separate **party ladder** for team fights. Seasons reset the boards.
+- **Tournaments** — run a bracket for 1v1 or party duels (`de_tournament …`), with a champion prize and a Hall of Champions.
 - **Communion Totems** — seal a companion into a carriable totem (at an Incinerator, using Wisps) and summon it back later, level intact.
 - **Travel together** — Follow-stance allies board your ship and teleport through portals with you.
+- **Find & remember them** — companions show as tinted player-icon pins on your private map, and leave a named death marker where they fall.
 
 ## Setup
 
@@ -39,5 +42,5 @@ This mod is **free to use as is**. Voluntary support is appreciated.
 
 ---
 
-**Version:** 0.2.0
+**Version:** 0.3.0
 **Source / issues / wiki:** https://github.com/yesu0725/Lost-Scrolls-II

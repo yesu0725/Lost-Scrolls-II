@@ -38,8 +38,12 @@ namespace LostScrollsII.Patches
             // stand-down hint instead while already dueling.
             if (companion.DuelMode)
                 __result += $"\n<color=yellow>[{Plugin.DuelSelectKey.Value}] Stand down from duel</color>";
+            else if (companion.PartyDuelMode)
+                __result += $"\n<color=yellow>[{Plugin.PartyDuelKey.Value}] Stand your party down</color>";
             else if (companion.HasPotentialDuelRivalNearby())
-                __result += $"\n<color=yellow>[{Plugin.DuelSelectKey.Value}] Duel a rival companion nearby</color>";
+                __result +=
+                    $"\n<color=yellow>[{Plugin.DuelSelectKey.Value}] Duel a rival companion nearby</color>" +
+                    $"\n<color=yellow>[{Plugin.PartyDuelKey.Value}] Party duel (gather your team)</color>";
         }
     }
 }

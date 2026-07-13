@@ -527,21 +527,34 @@ See the "Minimap pins" section of [Ally-Commands.md](Ally-Commands.md).
 2. **Rename** it (`Y`) → the pin label should update to the new name.
 3. Recruit several → **one pin each**. Send one far away (e.g. a chore across the
    base) → its pin tracks it there.
-4. Companion **despawns** (dies, or you seal it into a totem) → its pin **disappears**.
-5. **Config:** set `ShowMapPins = false` → all companion pins vanish; set it back →
-   they reappear. Change `MapPinIcon` (0-4) → the pin sprite changes.
-6. **Save file:** relog → pins are recreated live (they're transient); confirm the
-   map save file didn't accumulate stale companion pins.
+4. Companion **despawns** (sealed into a totem, or unloaded) → its **live** pin
+   disappears.
+5. **Player-icon look (2026-07-13, ✅ verified):** live pins use the **player icon**,
+   **tinted** (`CompanionPinColor`, default amber) and **smaller** (`CompanionPinScale`,
+   default 0.7) — visually distinct from your own player marker. Adjust the config →
+   color/size change.
+6. **Config:** set `ShowMapPins = false` → all companion pins vanish; set it back →
+   they reappear.
+7. **Save file:** relog → live pins are recreated (they're transient, `save = false`);
+   confirm the map save file didn't accumulate stale companion pins.
 
-**Pass:** exactly your own companions are pinned, pins follow them, labels match
-names, pins clear on despawn, toggle works.
-**Fail signals:** a pin left behind after a companion moved/died (position not
-refreshed / not removed); pins written to the save (should be `save = false`);
-duplicate pins after relog (Minimap-rebind logic).
+**Pass:** exactly your own companions are pinned as tinted, smaller player icons,
+pins follow them, labels match names, pins clear on despawn, toggle works.
+
+### 14b. Death markers (2026-07-13)  ✅ PASSED
+
+1. A companion of yours **dies** (killed by a monster) — **with items in its pack
+   or empty**. A persistent **skull** pin labelled with the companion's **name** is
+   placed on your map where it fell.
+2. The marker **persists** across relog (`save = true`) until you click it away.
+3. **Owner-only:** only the companion's owner sees the marker; other players don't.
+4. **Config:** `ShowDeathMarker = false` → no marker is placed.
+
+**Pass:** every companion death drops a named skull marker on the owner's map,
+regardless of pack contents; it persists and is clickable-to-remove.
 
 **MP (needs two clients):** each player should see **only their own** companions'
-pins — confirm player B's companions do **not** appear on player A's map, and vice
-versa.
+pins/markers — confirm player B's do **not** appear on player A's map, and vice versa.
 
 ---
 
@@ -632,6 +645,13 @@ Full design in [Ally-Inventory.md](Ally-Inventory.md). All items below are **unv
 
 **Pass:** the CQS extra row is never covered by the pack UI; vanilla chests unaffected. (Tunable: `ContainerClearancePx` / `VanillaInventoryHeight` in `CompanionInventoryGui`.)
 
+### 16e3. BiomeLords compatibility (2026-07-13)  ✅ PASSED
+1. With **BiomeLords** installed (which repositions the same container panel), open a companion pack and a regular chest.
+2. BiomeLords' own "move chest UI" behaviour works normally — LSII **defers** to it (its shift is skipped when BiomeLords is detected; the BepInEx log shows `[inventory] container-panel shift: OFF (…, BiomeLords=True)`).
+3. Manual override: `Companions/AdjustContainerPanel = false` disables LSII's shift regardless of what's installed.
+
+**Pass:** with BiomeLords present the chest UI position is owned entirely by BiomeLords; LSII no longer fights it. Without BiomeLords, the CQS gap fix (§16e2) still applies.
+
 ### 16f. Drop pack on death  ✅ PASSED
 1. Put items in a companion's pack, then let it **die** (e.g. in combat).
 2. All pack items **spill onto the ground** at the death spot (a small scatter), recoverable like any drop.
@@ -657,6 +677,169 @@ hotkeys but every vanilla button action (a `ZInput.GetButtonDown` prefix), so ty
 3. Remove the item from the companion's pack (or send it away / change its stance) → you can now teleport normally, and it comes with you (§15).
 
 **Pass:** a following ally's prohibited cargo blocks the wood portal even when your own inventory is clean; the notification names the ally + item; clearing it unblocks. Non-wood/modded portals are unaffected.
+
+---
+
+## 17. Duel ladder & ranking (requires **two players**)  ⬜ UNVERIFIED
+
+Phase A/B of the competitive suite (docs/Ranking.md). The duel **double-win fix**
+(single subdue) is a prerequisite — verify it here too.
+
+**Setup:** two players (ideally a listen host + one client), each with at least one
+recruited companion. On a fresh world the ladder file starts empty.
+
+1. **Single subdue (bug fix, §9 revisit):** run a duel to its end. The win is
+   announced **exactly once** — one "wins the bout!" bubble, one chat shout, one
+   center message. No double announcement even though the loser sits at ~5% HP and
+   regens. (Was the double-win bug.)
+2. **Record created:** after the first decided duel, run **`de_ladder`** in the
+   console. Both companions appear — winner with `1W/0L`, loser `0W/1L` — each row
+   showing `#rank  rating  name (owner)  W/L`. The winner's rating is above 1000,
+   the loser's below.
+3. **Owner + companion in the record:** the row's name is the companion's display
+   name and the owner name in parentheses matches the recruiting player — even if
+   that player is offline/out of range (names are snapshotted).
+4. **Name-tag rank:** with `ShowRankOnNameTag` on (default), a ranked companion's
+   floating name shows a blue `#rank` after the `★level` badge. Toggle the config
+   off → the rank disappears (owner tag + star remain).
+5. **Persistence:** relog / restart the world → `de_ladder` still shows the same
+   standings (JSON file under `<save>/LostScrollsII/ladder.<world>.json`).
+6. **Totem carry-through (identity):** seal a ranked companion into a Communion
+   Totem and summon it back (§12). Win another duel with it → its **existing**
+   record advances (same row, `2W`), not a new duplicate row. (Confirms
+   `DE_CompanionId` survives seal/summon.)
+7. **Anti-farm cooldown:** immediately re-duel the **same two** companions and let
+   the same one win again within `PairCooldownSeconds` (default 300). The W/L still
+   increments, but the **ratings do not move** the second time. After the cooldown,
+   ratings move again.
+8. **Client snapshot:** the **non-host** player runs `de_ladder` and sees the same
+   standings (pushed from the server on join/spawn and after each match).
+9. **`dvergr_rank_changed` reward:** when a companion climbs into the top 3, the
+   winning player sees the ServerGuide "Among the Champions" message
+   (`ls_ladder_top3`) + the chat broadcast, and the buff is granted **to that
+   player**. (Confirms the rank event routes to the winner's client, not the server.)
+10. **Season reset (host):** run **`de_season_reset`** on the host → `de_ladder`
+    is empty, and a `ladder.<world>.season1.json` archive appears next to the live
+    file.
+
+**Watch:** ratings should be server-authoritative — a client can't move the ladder
+except by reporting a real duel win it actually landed. On a **dedicated** server
+(no local player) the rank-changed reward path still routes to the winner client;
+confirm it fires there too.
+
+---
+
+## 18. Party duels (requires **two players**)  ⬜ UNVERIFIED
+
+Phase C of the competitive suite (docs/Party-Duels.md). Mechanics only — party
+bouts do **not** feed a ladder yet (that's Phase D).
+
+**Setup:** two players, each with **2+** recruited **Follow**-stance companions
+nearby (so both sides field a real team). Default party key is **`K`**.
+
+1. **Form a team:** Player A hovers **their own** companion and presses `K` →
+   "Your party (N) squares up…" and every eligible nearby Follow ally enters party
+   mode ("joins the melee"). Confirm the count respects `MaxPartySize` (default 4).
+2. **Both sides in:** Player B does the same → the two teams seek each other and
+   fight; a companion targets **any** enemy-team member, not one fixed rival.
+3. **Non-lethal bench (bug-fix reuse):** a member knocked to ~5% HP is **benched**
+   once ("subdued and steps out of the melee") — it stops fighting and can't be
+   re-hit into the match (no double bench even as its HP regens). The **rest of the
+   match continues**.
+4. **Win by attrition:** when one side has **no un-benched members left**, each
+   surviving winner stands down ("side stands victorious!" / "wins the party
+   duel!") and gains **team-size-scaled XP** — verify a lone winner over a bigger
+   team gets more, and members of a team that won by outnumbering get less each.
+5. **Owner-only + toggle-off:** pressing `K` on **another player's** companion is
+   refused. Pressing `K` again on your own (while your party is up) stands the
+   **whole team** down ("Your party (N) stands down").
+6. **Owner leash / forfeit:** if Player A logs out or walks >40 m away mid-melee,
+   A's team withdraws ("loses sight of its owner") and B's side wins by attrition.
+7. **Immunity:** while in a party duel, members ignore and are immune to players
+   (even with PvP on), creatures, and same-owner allies — only enemy-team members.
+8. **Mode exclusivity:** a companion already on a chore / in a 1v1 duel / feral is
+   not pulled into the party; `K` and `J` and stance-cycle are mutually blocked
+   while busy.
+9. **Relog ends it:** logging out mid-melee and back in leaves companions **not**
+   in party mode (the `DE_PartyDuel` flag clears on spawn).
+
+**Watch:** the cross-client bench → win-detection chain (a benched member on one
+client must drop out of the other client's enemy count). Two players / a listen
+host + client is the real test.
+
+---
+
+## 19. Party ladder & ranking (requires **two players**, ideally 2v2+)  ⬜ UNVERIFIED
+
+Phase D of the competitive suite (docs/Party-Duels.md). Builds on §18 (party
+mechanics) + §17 (the shared ladder store/sync).
+
+1. **Record created:** run a party duel (§18) to a decision. Afterward run
+   **`de_party_ladder`** → both owners appear (winner `1W/0L` above 1000, loser
+   below), each row showing `#rank  rating  owner  W/L  (team N)`.
+2. **Owner + companions record:** the winning row's team size matches the number of
+   companions that fought for it, and the owner name is the winning player. (Under
+   the hood the record snapshots each member's companion id/caste/level.)
+3. **One report per match:** with **multiple** winners (a 2v1 or 2v2 you win with 2+
+   survivors), the ladder moves **once** — winner `1W`, not `2W`; a single "Party
+   Victory" ServerGuide message, not one per surviving companion.
+4. **Team Elo:** beating a **higher-rated** party moves your rating more than
+   beating a lower-rated one; the loser drops.
+5. **`dvergr_party_duel_won` reward:** the winning player sees the "Party Victory"
+   notice ("Your party of N bested <opponent>'s team!") on each win.
+6. **`dvergr_party_rank_changed` reward:** climbing into the top 3 shows the "A
+   Renowned Company" message + chat broadcast + buff, granted **to the winning
+   player**.
+7. **Persistence:** relog/restart → `de_party_ladder` unchanged (same per-world JSON
+   as the 1v1 ladder; a `parties` list).
+8. **Season reset:** `de_season_reset` (host) clears the party ladder too.
+9. **Client view:** the non-host player's `de_party_ladder` matches the host's.
+
+**Watch:** the once-per-match latch (step 3) is the key correctness point — if you
+ever see a party win double-count, the owner-pair dedup window needs tuning. Also
+confirm the loser roster is captured (the winner accumulates it during the fight,
+before the losers are benched).
+
+---
+
+## 20. Tournaments (requires **3–4+ players**)  ⬜ UNVERIFIED
+
+Phase E (docs/Tournaments.md). Server-authoritative bracket; matches are ordinary
+player-run duels the server watches. Test on a listen host + clients.
+
+**1v1 tournament:**
+1. **Start (host):** `de_tournament start 1v1` → "open for registration". Each
+   player runs **`de_tournament join`** while hovering the companion they'll field
+   → "Registered '<name>' (N)" and the ServerGuide "Entered the Tournament" raven.
+2. **Bracket:** `de_tournament bracket` lists entrants with seed ratings (from the
+   duel ladder). `de_tournament begin` (host) seeds by rating, builds round 1, and
+   each paired player gets the "Round 1: you face <opponent>" center message. An
+   odd entrant count gives the **top seed a bye** (shown in the bracket).
+3. **Play a match:** the two paired players duel (`J`) **with their registered
+   companion**. When the duel resolves, the bracket advances — `de_tournament
+   bracket` shows the winner and the next round's pairings, with new match messages.
+4. **Champion:** the final winner gets the "Tournament Champion" intro beat + the
+   prize bundle (chat shout, buff, coins) and is written to the **Hall of
+   Champions** (`de_champions`). Only the champion is rewarded.
+5. **Forfeit / no-show:** `de_tournament forfeit <playerName>` (host) advances that
+   player's opponent. `de_tournament cancel` (host) clears everything.
+
+**Party tournament:** repeat with `de_tournament start party`; each player runs
+`de_tournament join` (registers their **owner**, seeded from the party ladder),
+and plays each match as a party duel (`K`). The `dvergr_party_duel_won` report
+resolves the bracket match.
+
+**Persistence:** with a tournament mid-round, restart the world → it **resumes** at
+the same phase/round (`tournament.<world>.json`).
+
+**Watch:**
+- A match only advances if the two paired entrants actually duel with the
+  **registered** entrant (1v1: the registered companion; party: any of the owner's
+  companions). A duel between non-entrants must **not** touch the bracket.
+- Match/champion messages must reach the **correct** player only (broadcast is
+  name-filtered client-side).
+- **Deviations (by design, not bugs):** no auto-teleport to an arena, no enforced
+  arena ward, and admin subcommands only work on the host/server console.
 
 ---
 

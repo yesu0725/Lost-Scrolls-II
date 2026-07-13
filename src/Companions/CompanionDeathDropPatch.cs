@@ -15,7 +15,16 @@ namespace LostScrollsII.Patches
         public static void Prefix(Character __instance)
         {
             if (__instance == null) return;
-            if (__instance.GetComponent<DvergrCompanion>() == null) return;
+            var companion = __instance.GetComponent<DvergrCompanion>();
+            if (companion == null) return;
+
+            // Death marker on the OWNER's map (client-side like the live pins), placed
+            // whether or not the pack held items. OnDeath runs on the ZDO owner, which
+            // for a player's companion is normally the owner's client — so its local
+            // player matches and the marker lands on the right map.
+            var localOwner = Player.m_localPlayer;
+            if (localOwner != null && companion.OwnerId != 0L && companion.IsOwner(localOwner))
+                CompanionMapPins.AddDeathMarker(companion.DisplayName, __instance.transform.position);
 
             var inv = __instance.GetComponent<CompanionInventory>();
             var inventory = inv != null ? inv.Inventory : null;

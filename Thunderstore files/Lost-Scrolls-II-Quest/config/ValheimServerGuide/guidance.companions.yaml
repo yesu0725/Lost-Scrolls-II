@@ -33,8 +33,24 @@ guidances:
     display:
       mode: raven
       topic: "Commanding Your Companion"
-    message: "A freed Dvergr follows and fights at your side, and shows on your map. Hover it and press — [E] to cycle stance: Follow (comes with you, even onto ships and through portals), Guard (holds a spot and fights nearby threats), Standby (waits quietly, won't fight unless struck); [Y] to rename; [G] to feed it a health mead and heal it; [J] to duel another player's companion. Press [H] on a workstation to put it to work, or [H] on the companion to call it back. (Default keys — rebindable in the config.) Re-read all of this in the Guide Codex (F3)."
-    summary: "Hover your companion: [E] stance (Follow/Guard/Standby) · [Y] rename · [G] feed a health mead to heal · [J] duel. [H] on a station to work / on the companion to recall. It shows on your map."
+    message: "A freed Dvergr follows and fights at your side, and shows on your map. Hover it and press — [E] to cycle stance: Follow (comes with you, even onto ships and through portals), Guard (holds a spot and fights nearby threats), Standby (waits quietly, won't fight unless struck); [Y] to open its pack (an 8-slot inventory, with a rename field inside); [G] to feed it a health mead and heal it; [J] to duel another player's companion. Press [H] on a workstation to put it to work, or [H] on the companion to call it back. (Default keys — rebindable in the config.) Re-read all of this in the Guide Codex (F3)."
+    summary: "Hover your companion: [E] stance (Follow/Guard/Standby) · [Y] open pack + rename · [G] feed a health mead to heal · [J] duel. [H] on a station to work / on the companion to recall. It shows on your map."
+
+  # -------------------------------------------------------------------
+  # Companion INVENTORY — the 8-slot pack, feeding, and weight.
+  # -------------------------------------------------------------------
+  - id: ls_companion_inventory
+    category: Companions
+    title: "Your Companion's Pack"
+    version: 1
+    requires: [ls_companion_commands]
+    trigger:
+      type: dvergr_recruited
+    display:
+      mode: raven
+      topic: "Your Companion's Pack"
+    message: "Every companion carries its own pack — press [Y] while hovering it to open an 8-slot inventory (just like a chest, and where you rename it too). Stock it and the companion looks after itself: it PICKS UP loose loot of kinds it already carries; EATS food you leave in it, one at a time, for a temporary max-HP boost; SIPS a health mead when badly hurt; and DRINKS poison/fire/frost resist meads to shrug off those hazards. But the pack has a 150 weight cap — overload it and the companion won't fight (though it still follows), so don't turn your ally into a pack mule mid-battle. It drops everything if it falls, and a sealed Communion Totem keeps the pack for when you summon it back."
+    summary: "[Y] opens a companion's 8-slot pack (and rename). Leave food/meads in it and it self-feeds, self-heals and resists; picks up matching loot. 150-weight cap — overloaded allies won't fight. Drops its pack on death; totems keep it."
 
   # -------------------------------------------------------------------
   # Caste-specific CHORES — each fires when you free that caste.

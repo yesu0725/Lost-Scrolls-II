@@ -51,6 +51,7 @@ namespace LostScrollsII.Companions
         private const string KeyOwner = "DE_TotemOwner";
         private const string KeyOwnerName = "DE_TotemOwnerName";
         private const string KeyInv = "DE_TotemInv";          // base64 of the sealed pack's items
+        private const string KeyId = "DE_TotemId";            // stable ladder identity (docs/Ranking.md)
 
         private static string _wispSharedName;
 
@@ -103,6 +104,8 @@ namespace LostScrollsII.Companions
             d[KeyName] = companion.HasCustomName ? companion.DisplayName : string.Empty;
             d[KeyOwner] = companion.OwnerId.ToString(CultureInfo.InvariantCulture);
             d[KeyOwnerName] = companion.OwnerName ?? string.Empty;
+            // Carry the ladder identity so a summoned companion keeps its record.
+            d[KeyId] = companion.EnsureCompanionId() ?? string.Empty;
 
             // Seal the companion's whole pack onto the totem so summoning restores it
             // with all its items intact.
@@ -156,8 +159,10 @@ namespace LostScrollsII.Companions
             int level = Mathf.Clamp(GetInt(totem, KeyLevel, 1), 1, DvergrCompanion.MaxLevel);
             float xp = GetFloat(totem, KeyXp, 0f);
             string name = GetStr(totem, KeyName);
+            string companionId = GetStr(totem, KeyId);
 
-            var go = CommunionService.SpawnRecruited(caste, level, player, pos + Vector3.up * 0.5f, xp);
+            var go = CommunionService.SpawnRecruited(caste, level, player, pos + Vector3.up * 0.5f, xp,
+                string.IsNullOrEmpty(companionId) ? null : companionId);
             if (go == null) return false;
 
             if (!string.IsNullOrEmpty(name))

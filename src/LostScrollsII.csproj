@@ -6,7 +6,7 @@
     <Nullable>disable</Nullable>
     <AssemblyName>LostScrollsII</AssemblyName>
     <RootNamespace>LostScrollsII</RootNamespace>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <NoWarn>CS0436;NU1701</NoWarn>
@@ -20,7 +20,10 @@
     <R2ModmanInstallDir>$(R2MODMAN_PROFILE_DIR)\BepInEx\plugins\LostScrollsII</R2ModmanInstallDir>
     <!-- Override on other machines: dotnet build -p:VALHEIM_DEDICATED_SERVER_DIR="..." -->
     <VALHEIM_DEDICATED_SERVER_DIR Condition=" '$(VALHEIM_DEDICATED_SERVER_DIR)' == '' ">C:\Program Files (x86)\Steam\steamapps\common\Valheim dedicated server</VALHEIM_DEDICATED_SERVER_DIR>
-    <DedicatedServerInstallDir>$(VALHEIM_DEDICATED_SERVER_DIR)\BepInEx\plugins\LostScrollsII</DedicatedServerInstallDir>
+    <DedicatedServerInstallDir>$(VALHEIM_DEDICATED_SERVER_DIR)\BepInEx\plugins\TaegukGaming-Lost_Scrolls_II</DedicatedServerInstallDir>
+    <!-- Override on other machines: dotnet build -p:HEARTHBOUND_TEST_PROFILE_DIR="..." -->
+    <HEARTHBOUND_TEST_PROFILE_DIR Condition=" '$(HEARTHBOUND_TEST_PROFILE_DIR)' == '' ">C:\Users\yesu0725\AppData\Roaming\r2modmanPlus-local\Valheim\profiles\Hearthbound Valheim - Test</HEARTHBOUND_TEST_PROFILE_DIR>
+    <HearthboundTestInstallDir>$(HEARTHBOUND_TEST_PROFILE_DIR)\BepInEx\plugins\TaegukGaming-Lost_Scrolls_II</HearthboundTestInstallDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -57,6 +60,11 @@
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(ManagedDir)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- JsonUtility (ladder JSON persistence, see Ranking/LeaderboardStore.cs). -->
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>$(ManagedDir)\UnityEngine.JSONSerializeModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.PhysicsModule">
@@ -121,6 +129,12 @@
     <MakeDir Directories="$(DedicatedServerInstallDir)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(DedicatedServerInstallDir)" />
     <Message Text="Deployed LostScrollsII to $(DedicatedServerInstallDir)" Importance="high" />
+  </Target>
+
+  <Target Name="DeployToHearthboundTest" AfterTargets="Build" Condition="Exists('$(HEARTHBOUND_TEST_PROFILE_DIR)')">
+    <MakeDir Directories="$(HearthboundTestInstallDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(HearthboundTestInstallDir)" />
+    <Message Text="Deployed LostScrollsII to $(HearthboundTestInstallDir)" Importance="high" />
   </Target>
 
 </Project>
