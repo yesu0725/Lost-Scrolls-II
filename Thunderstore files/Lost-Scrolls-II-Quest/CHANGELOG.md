@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0
+
+- Updated to depend on **Lost Scrolls II 0.4.0** (in-game ranking board `F6`, tournament panel `F7`, totem-based tournament entry with auto-summon, party names, admin controls) and on **ValheimServerGuide 0.9.0**, which adds the message templating and Discord support these guidance files rely on.
+- **Moved into their own subfolder** — the bundled guidance now installs to `BepInEx/config/ValheimServerGuide/**LostScrollsII/**` instead of the top level, so it stays separate from any guidance your server already runs and is easy to remove. ServerGuide loads its config folder recursively (0.8.0+), so nothing else changes.
+- **New guidance file**:
+  - `guidance.duels.yaml` — broadcasts **every duel win** (1v1 and party, tournament matches included) to server chat and Discord.
+- **Updated** `guidance.rankings.yaml` — added "new #1" entries for both ladders (a companion or party reaching the top of the board), with Discord announcements.
+- **Updated** `guidance.tournaments.yaml` — the champion announcement now posts a fully templated message to Discord.
+- Story and Companion Handbook content unchanged.
+
+> ⚠️ **Upgrading from 0.3.0:** delete the old **top-level** `guidance.lost-scrolls.yaml`, `guidance.companions.yaml`, `guidance.rankings.yaml` and `guidance.tournaments.yaml` from `BepInEx/config/ValheimServerGuide/`. Mod managers don't delete files a new version stopped shipping, so leaving them loads the guidance twice (duplicate ids).
+
+> **Rankings & tournaments require ValheimServerGuide 0.9.0+** — these guidance files are what announces and rewards them (rank-ups, "new #1", tournament pairings, champion prizes, Discord). Without ServerGuide the ladders still record and `F6` still shows the standings, but nothing announces or rewards them.
+
+> **Discord is optional.** These announcements only post if the **server** sets `DiscordWebhookUrl` in the ServerGuide config. Without it the in-game chat/messages still fire and the webhook step is skipped.
+
 ## 0.3.0
 
 - Updated to depend on **Lost Scrolls II 0.3.0**, which adds the **competitive suite** — 1v1 duel rankings, party duels, party rankings, and tournaments — plus player-icon map pins and companion death markers. See the base mod's changelog for detail.

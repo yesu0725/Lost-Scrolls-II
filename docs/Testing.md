@@ -843,6 +843,76 @@ the same phase/round (`tournament.<world>.json`).
 
 ---
 
+## 21. Ranking & tournament UI + Discord + party naming + escrow (competitive UI batch)  ⬜ UNVERIFIED
+
+New player-facing UI, Discord broadcasting, party naming, and escrow-based
+tournament entry (docs/Ranking.md, docs/Party-Duels.md, docs/Tournaments.md).
+Built but **unverified**; needs 2 players (4 for a full bracket) and a configured
+Discord webhook for the announcement checks.
+
+### 21a. Ranking board UI (`F6`)
+1. Press **`F6`** → a darkened rune-panel "Dvergr Rankings" listing the **Duel
+   Ladder** (rank, rating, companion, owner·caste, W/L) and the **Party Ladder**
+   (rank, rating, party name/owner, W/L, team size). Escape closes it.
+2. It must **match** `de_ladder` / `de_party_ladder`, and update after a duel
+   (reopen to refresh). Empty ladders show a hint line, not an error.
+
+### 21b. Party naming
+1. `de_party_name The Ironhands` → "Your party is now named 'The Ironhands'."
+2. The name shows on **`de_party_ladder`**, the F6 board's party section, and in
+   party-duel / party-rank announcements (`{partyName}`). Confirm it **persists**
+   across a relog (it lives in the server-side `PartyRecord`).
+
+### 21c0. Guidance loads from the `LostScrollsII/` subfolder
+1. Confirm the guidance YAMLs sit in `BepInEx/config/ValheimServerGuide/**LostScrollsII/**`
+   (both the dedicated server and the client profile) and that **no stale flat copies**
+   remain at the top level — two copies = duplicate ids.
+2. On load, the ServerGuide log should list the entries from the subfolder (recursive
+   loading, ServerGuide 0.8.0+). If nothing fires at all, this is the first thing to check.
+
+### 21c. Discord announcements (needs a webhook set in ServerGuide config)
+With `DiscordWebhookUrl` set on the server, each of these posts **once**:
+1. Any **1v1 duel win** → "⚔️ <companion> (<player>'s <caste>) won a duel against
+   <opponent>!" (tournament matches count too — same trigger).
+2. Any **party duel win** → "🛡️ <partyName> (led by <player>, N strong) won…".
+3. A companion **reaching #1** on the duel ladder → "👑 … claimed #1 …" (fires only
+   on a genuine climb to first — `dvergr_rank_first`). Party #1 likewise.
+4. A **tournament champion** → "🏆 <player> is the <mode> champion…".
+   With **no** webhook set: the chat lines still fire and the log notes the skip.
+5. Reward-message templating: confirm `{companionName}`/`{rank}`/`{winSize}`/`{mode}`
+   now expand in chat_message/discord rewards (previously only `{player_name}` did).
+
+### 21d. Tournament panel + totem-slot registration (`F7`)  — escrow & auto-summon
+1. Seal a companion at the Incinerator (§12) so you hold a **Communion Totem**.
+2. Admin: press **`F7`** → the tournament panel; click **[Admin] Start 1v1**.
+3. Each player opens `F7`, clicks **Lock Totem → Enter** → the totem **leaves the
+   inventory** and the entry appears ("You are entered as '<name>'"). Console
+   fallback: `de_tournament join` (seals the **hovered** live companion).
+4. **Withdraw** (button or `de_tournament withdraw`) returns the totem to the bag.
+   **Admin release** (`de_tournament release <name>`) returns another player's totem.
+5. Admin **[Admin] Begin** → bracket built. Admin **[Admin] Activate Round** →
+   each pairing's companions are **auto-summoned** beside their owners in duel mode.
+6. Confirm each summoned companion fights **only its assigned opponent** (run two
+   matches at once → no cross-targeting). Winner is subdued-resolved as usual.
+7. On match resolve the companions **despawn back into their totems** (reseal); the
+   winner advances (next **Activate Round** re-summons the leveled-up companion).
+   Losers are eliminated but their totem is **returned at tournament end / cancel**.
+8. **Party tournament:** Start Party; each player locks up to `MaxPartySize` totems
+   (or `de_tournament join` seals nearby Follow allies); Activate Round summons the
+   whole team; it fights as a party; team reseals on resolve.
+
+**Watch:**
+- Totems must never be **lost**: a rejected join, withdraw, release, cancel, and
+  tournament completion all return the totem(s) (bag, or dropped at your feet if full).
+- Admin buttons appear only for **admins/host** and the server **re-verifies** admin
+  on the RPC (a non-admin crafting `LSII_AdminCmd` is denied + logged).
+- While the `F7` panel is open, input is taken over like a vanilla menu: the mouse
+  **cursor is free** to click the buttons, and the **camera + all player controls**
+  (move / look / attack / use / jump / hotbar) are **blocked** underneath it
+  (`Player.TakeInput` + `GameCamera.UpdateMouseCapture` patches). Confirm the camera
+  doesn't drift while clicking, and that Escape / `F7` closes it and **restores**
+  normal play + the captured cursor.
+
 ## Highest-risk items to watch
 
 - **Duel mode cross-client engagement** (#9) — the reworked `DE_Duel` ZDO flag must replicate so two different players' duelists actually pair up; confirm they seek each other (needs two players). Non-lethal now rides on the confirmed `Character.Damage` prefix, so that specific error risk is gone.
@@ -853,3 +923,6 @@ the same phase/round (`tournament.<world>.json`).
 - **Ship riding** (#13) — the boarding lift and "free to walk the deck" behavior are static-analysis designs; confirm the ally boards through the ladder, stays on the moving hull, and avoids water otherwise.
 - **Portal follow** (#15) — the risky bit is the ZDO position commit vs. zone-unload timing: confirm the ally is really at the destination after loading, not left at the origin. Two clients for the owner-scoping check.
 - **Minimap pins** (#14) — confirm pins track/clear and, in multiplayer, each player sees only their own companions' pins.
+- **Tournament escrow round-trip** (#21d) — the riskiest new path: a totem must never be lost. Verify the summon→duel→reseal→despawn cycle and that every exit (reject/withdraw/release/cancel/complete) returns the totem. The `F7` panel now takes input over like a vanilla menu (free cursor + camera/keyboard blocked via `Player.TakeInput` / `GameCamera.UpdateMouseCapture` patches) — confirm buttons are clickable, the camera is frozen, and play is restored on close.
+- **Assigned-opponent targeting** (#21d) — with two matches active at once, each summoned companion must engage ONLY its bracket opponent (the `MatchesDuelAssignment` gate in `CompanionIsEnemyPatch`).
+- **Discord de-dup** (#21c) — each duel/party/#1/champion event should post exactly one webhook message; watch for doubles on cross-client resolution.

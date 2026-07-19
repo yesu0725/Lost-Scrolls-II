@@ -41,7 +41,11 @@ namespace LostScrollsII.Patches
                     ca != null && cb != null &&
                     ca.OwnerId != 0L && cb.OwnerId != 0L &&
                     ca.OwnerId != cb.OwnerId &&
-                    ((ca.DuelMode && cb.DuelMode) || (ca.PartyDuelMode && cb.PartyDuelMode));
+                    ((ca.DuelMode && cb.DuelMode) || (ca.PartyDuelMode && cb.PartyDuelMode)) &&
+                    // Tournament pairing: if either side was summoned with an assigned
+                    // opponent, both must accept the other, so simultaneous bracket
+                    // matches don't cross-target. Casual duels have no assignment.
+                    ca.MatchesDuelAssignment(cb) && cb.MatchesDuelAssignment(ca);
                 return;
             }
 

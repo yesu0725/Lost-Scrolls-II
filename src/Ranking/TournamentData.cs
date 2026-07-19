@@ -20,6 +20,15 @@ namespace LostScrollsII.Ranking
         public int caste;        // 1v1: winner caste for triggers; party: -1
         public int seedRating;
         public bool eliminated;
+
+        // Escrow (docs/Tournaments.md — escrow & auto-summon). The companion(s) are
+        // sealed into their Communion Totem(s) at registration and held here for the
+        // whole tournament: the server summons them for a match and reseals them
+        // afterward. Each payload is a totem's serialized m_customData (the same
+        // format TotemConversionService writes). 1v1 uses `totemPayload`; a party
+        // uses `teamPayloads` (one per member, up to MaxPartySize).
+        public string totemPayload;
+        public List<string> teamPayloads = new List<string>();
     }
 
     // One bracket match. A bye is a match whose bId is empty and whose winnerId is

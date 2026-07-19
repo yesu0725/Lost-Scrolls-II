@@ -12,8 +12,9 @@ A spiritual sequel to the deprecated mod **Lost Scrolls** (TaegukGaming), rebuil
 - **Give them a pack** — each companion carries its own 4×2 inventory (opens like a chest). It picks up loot it already carries, eats food for a temporary HP boost, drinks health/resistance meads, and gets encumbered if overloaded. Its pack rides along through totems and drops on death.
 - **Put them to work** — assign allies to vanilla stations by caste: smelting, refining, cooking, brewing, farming (plant + harvest), animal care, and hauling.
 - **Duel** — non-lethal companion-vs-companion sparring between players for bonus XP (`J`), or gather a **party** and fight team-vs-team (`K`).
-- **Rankings** — every duel win feeds a persistent, server-wide **duel ladder** (Elo rating shown on the companion's name), with a separate **party ladder** for team fights. Seasons reset the boards.
-- **Tournaments** — run a bracket for 1v1 or party duels (`de_tournament …`), with a champion prize and a Hall of Champions.
+- **Rankings** — every duel win feeds a persistent, server-wide **duel ladder** (Elo rating shown on the companion's name), with a separate **party ladder** for team fights. Open the **ranking board with `F6`** to read both. Name your team with `de_party_name`, and seasons reset the boards.
+- **Tournaments** — open the **tournament panel with `F7`**: enter by locking a companion's **Communion Totem** into a slot, and it's held safely until the bracket is done. When an admin starts a round your companion is **summoned automatically** to fight its assigned opponent, then sealed back into its totem with any XP it earned. Single-elimination brackets for 1v1 or party, a champion prize, and a Hall of Champions. Admins get every control as a button — start, begin, activate the round, forfeit, release a totem, cancel.
+- **Discord announcements** *(optional)* — duel wins, a new #1 on either ladder, and tournament champions can be posted to your server's Discord (needs the ServerGuide companion mod + a webhook).
 - **Communion Totems** — seal a companion into a carriable totem (at an Incinerator, using Wisps) and summon it back later, level intact.
 - **Travel together** — Follow-stance allies board your ship and teleport through portals with you.
 - **Find & remember them** — companions show as tinted player-icon pins on your private map, and leave a named death marker where they fall.
@@ -26,9 +27,17 @@ A spiritual sequel to the deprecated mod **Lost Scrolls** (TaegukGaming), rebuil
 
 Install on the server and on every client in multiplayer. Some features (duels) are multiplayer by design.
 
-## Optional companion mod
+## Companion mod — required for rankings & tournaments
 
-The mod's **story** and an in-game **Companion Handbook** are delivered through the separate mod **Valheim ServerGuide**. It's optional — install it for the narrative and the how-to guidance; every gameplay feature works fully without it.
+> **Install [Valheim ServerGuide](https://thunderstore.io/c/valheim/p/TaegukGaming/ValheimServerGuide/) (0.9.0 or newer) if you want the ranking and tournament features.**
+
+Lost Scrolls II uses ServerGuide as its messaging and reward engine. **Without it the ranking and tournament systems are effectively silent** — no rank-up announcements, no milestone or champion rewards, no tournament join/pairing/result messages, and no Discord posts. Also install the guidance files (easiest: use the **Lost Scrolls II — Quest** pack, which bundles them).
+
+To be precise about what still works without ServerGuide: the ladders themselves keep recording, and `F6` / `de_ladder` still show the standings — you just lose everything that *tells* players about it.
+
+ServerGuide also delivers the mod's **story** and the in-game **Companion Handbook**. All the non-competitive gameplay (recruiting, leveling, chores, totems, travel) works fully on its own.
+
+**Discord announcements** additionally need the **server** to set `DiscordWebhookUrl` in the ServerGuide config.
 
 ## Documentation
 
@@ -42,5 +51,5 @@ This mod is **free to use as is**. Voluntary support is appreciated.
 
 ---
 
-**Version:** 0.3.0
+**Version:** 0.4.0
 **Source / issues / wiki:** https://github.com/yesu0725/Lost-Scrolls-II

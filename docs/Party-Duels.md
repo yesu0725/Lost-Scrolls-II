@@ -6,6 +6,14 @@ party. Non-lethal, consented, multiplayer-only — the same spirit as the 1v1
 [Duel-Arena.md](Duel-Arena.md), scaled to N-vs-M. Includes its own persistent
 **party ranking** (this doc), a sibling of the 1v1 [Ranking.md](Ranking.md).
 
+> **Party naming + Discord update (2026-07-17, unverified).** You can **name your
+> party** with `de_party_name <name>` (or from the tournament registration panel);
+> the name persists in the server-side `PartyRecord` and shows on the party ladder,
+> the `F6` ranking board, and in party announcements (`{partyName}`). Every **party
+> duel win** and every **new #1** party (`dvergr_party_rank_first`) now **broadcast
+> to Discord** through ServerGuide. See [Changelog.md](Changelog.md) (2026-07-17)
+> and [Testing.md](Testing.md) §21.
+
 > **Status: Phase C + D built (2026-07-09), unverified.** Party mechanics
 > (`DE_PartyDuel`, the `K` key, team-aware `IsEnemy`, bench-on-subdue reusing the
 > `ResolveSubdue`/`_duelResolved` latch, win-by-attrition, team-size-scaled XP) and

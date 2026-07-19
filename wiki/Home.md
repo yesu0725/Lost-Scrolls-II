@@ -13,18 +13,20 @@ Lost Scrolls II is a spiritual sequel to the deprecated Thunderstore mod **Lost 
 - **[Companion Leveling](Companion-Leveling)** — how allies earn XP, grow stronger, and show their level.
 - **[Companion Chores](Companion-Chores)** — put allies to work at vanilla workstations: smelting, refining, cooking, brewing, farming, animal care, and hauling.
 - **[Dvergr Duels](Dvergr-Duels)** — non-lethal companion-vs-companion sparring between players.
+- **[Rankings](Rankings)** — the persistent duel and party ladders, the `F6` board, and party names.
+- **[Tournaments](Tournaments)** — bracket competitions: enter by locking a companion's totem into a slot (`F7`).
 - **[Communion Totems](Communion-Totems)** — seal an ally into a carriable totem and summon it back later, level intact.
 - **[The Story](The-Story)** — what to expect from the mod's lore (no spoilers).
 
 ## What this mod is
 
-A companion system built entirely on existing Valheim creatures and prefabs. Every recruitable Dvergr is a vanilla Dvergr with new behavior attached — no new models, textures, sounds, or asset bundles. Almost everything you do with a companion is a **hover + hotkey** interaction; the one panel — a companion's [inventory](Companion-Inventory) — is just the game's own chest window, so there's nothing new to learn.
+A companion system built entirely on existing Valheim creatures and prefabs. Every recruitable Dvergr is a vanilla Dvergr with new behavior attached — no new models, textures, sounds, or asset bundles. Almost everything you do with a companion is a **hover + hotkey** interaction. There are only three screens: a companion's [inventory](Companion-Inventory) (`Y`, the game's own chest window), the [ranking board](Rankings) (`F6`), and the [tournament panel](Tournaments) (`F7`).
 
 ## What it isn't
 
 - **Not** a new-creature mod — it reuses the four vanilla Dvergr types (Rogue, Fire Mage, Ice Mage, Support Mage).
 - **Not** a "tame with food" system — you *free* a corrupted Dvergr through a rite, you don't domesticate a wild animal.
-- **Not** a quest-text mod on its own — the optional story beats are delivered through the sibling mod **Valheim ServerGuide** (see [The Story](The-Story)). The companion mechanics work fully without it.
+- **Not** a quest-text mod on its own — the story beats are delivered through the sibling mod **Valheim ServerGuide** (see [The Story](The-Story)). The core companion mechanics work fully without it, though the [ranking](Rankings) and [tournament](Tournaments) systems need it to announce and reward anything.
 
 ## Vanilla assets only
 

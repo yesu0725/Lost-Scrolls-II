@@ -144,6 +144,35 @@ namespace LostScrollsII.Companions
         private bool _duelResolved;
         public bool IsDuelResolved => _duelResolved;
 
+        // Tournament pairing (docs/Tournaments.md — escrow & auto-summon). When a
+        // companion is summoned for a bracket match it is assigned a SPECIFIC
+        // opponent so that multiple matches running at once don't cross-target.
+        // Transient: set at summon, cleared on duel exit. 1v1 uses the opponent
+        // companion id; a party uses the opponent OWNER id. Unset = casual duel
+        // (any rival allowed, the pre-tournament behaviour).
+        public string DuelOpponentId;
+        public long DuelOpponentOwner;
+
+        // True if `other` is a permitted duel target given any tournament pairing on
+        // THIS companion. No assignment = any rival (casual duel).
+        public bool MatchesDuelAssignment(DvergrCompanion other)
+        {
+            if (other == null) return false;
+            if (!string.IsNullOrEmpty(DuelOpponentId)) return other.CompanionId == DuelOpponentId;
+            if (DuelOpponentOwner != 0L) return other.OwnerId == DuelOpponentOwner;
+            return true;
+        }
+
+        // Removes this companion from the world — used when its state is (re)sealed
+        // into a tournament escrow totem after a match. Mirrors the incinerator seal
+        // despawn (claim ownership so the destroy replicates).
+        public void DespawnToTotem()
+        {
+            var znv = GetComponent<ZNetView>();
+            if (znv != null && znv.IsValid()) { znv.ClaimOwnership(); ZNetScene.instance.Destroy(gameObject); }
+            else UnityEngine.Object.Destroy(gameObject);
+        }
+
         // Party-duel runtime state (transient; docs/Party-Duels.md). Mirrors the
         // 1v1 fields but a team fight ends by attrition (win when no enemy team
         // member remains) rather than a single subdue. _partyPeakEnemies records
@@ -817,6 +846,8 @@ namespace LostScrollsII.Companions
             if (!DuelMode) return;
             DuelMode = false;
             _duelEngaged = false;
+            DuelOpponentId = null;
+            DuelOpponentOwner = 0L;
 
             if (_ai != null)
             {
@@ -859,7 +890,8 @@ namespace LostScrollsII.Companions
         public void AwardDuelWin(DvergrCompanion loser)
         {
             AddXp(DuelWinXpBonus);
-            ServerGuideBridge.RaiseDuelWon(Caste, loser != null ? loser.Caste : Caste);
+            ServerGuideBridge.RaiseDuelWon(Caste, loser != null ? loser.Caste : Caste,
+                DisplayName, loser != null ? loser.DisplayName : null);
 
             // Ranking (docs/Ranking.md): report the result to the server-authoritative
             // ladder. Only rank real, different-owner bouts (the same rule the duel
@@ -1000,6 +1032,8 @@ namespace LostScrollsII.Companions
             if (!PartyDuelMode) return;
             PartyDuelMode = false;
             _partyEngaged = false;
+            DuelOpponentId = null;
+            DuelOpponentOwner = 0L;
 
             if (_ai != null)
             {
@@ -1108,6 +1142,10 @@ namespace LostScrollsII.Companions
             if (s_partyReportLatch.TryGetValue(key, out var t) && Time.time - t < PartyReportWindow) return;
             s_partyReportLatch[key] = Time.time;
 
+            // The winner's chosen party name (from the synced ladder record) rides
+            // along so the ladder + announcements show it.
+            var partyName = Ranking.LeaderboardStore.FindParty(_ownerId)?.partyName;
+
             var result = new Ranking.PartyDuelResult
             {
                 WinnerOwnerId = _ownerId,
@@ -1117,10 +1155,11 @@ namespace LostScrollsII.Companions
                 MvpCaste = (int)Caste,
                 WinnerMembers = SnapToList(_partyAllySnap),
                 LoserMembers = SnapToList(_partyEnemySnap),
+                WinnerPartyName = partyName ?? string.Empty,
             };
             Ranking.LeaderboardSync.ReportPartyDuel(result);
             ServerGuideBridge.RaisePartyDuelWon(OwnerName ?? string.Empty, winnerSize,
-                _partyOpponentOwnerName ?? string.Empty, (int)Caste);
+                _partyOpponentOwnerName ?? string.Empty, (int)Caste, partyName);
         }
 
         private static List<Ranking.PartyMemberSnap> SnapToList(Dictionary<string, string> snap)

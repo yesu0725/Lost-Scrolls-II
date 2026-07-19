@@ -6,6 +6,18 @@ formats. Seeds from the ladder ratings ([Ranking.md](Ranking.md)), runs the
 actual fights by reusing the existing duel / party-duel modes, and delivers every
 prompt and prize through ServerGuide.
 
+> **UI + escrow update (2026-07-17, unverified).** Entry is now a **UI** action:
+> press **`F7`** to open the tournament panel and **Lock Totem → Enter** (or
+> `de_tournament join` in the console). Registering **escrows** the companion's
+> **Communion Totem** (it leaves your inventory); on the admin's **Activate Round**
+> the server **auto-summons** each pairing's companion(s) beside their owner in duel
+> mode against the **assigned** opponent, then **reseals + despawns** them when the
+> match resolves. Totems are returned on withdraw / **admin release** / cancel /
+> completion. Admin controls run through an **admin-authenticated RPC** (works from
+> a remote admin client, not just the host). The champion + every match win also
+> **broadcast to Discord**. See [Changelog.md](Changelog.md) (2026-07-17) and
+> [Testing.md](Testing.md) §21 for the full flow and test steps.
+
 > **Status: Phase E built (2026-07-09), unverified.** The bracket runner
 > (`TournamentService` + `TournamentState`), the `de_tournament`
 > `start`/`join`/`begin`/`bracket`/`forfeit`/`cancel` commands, `de_champions`,

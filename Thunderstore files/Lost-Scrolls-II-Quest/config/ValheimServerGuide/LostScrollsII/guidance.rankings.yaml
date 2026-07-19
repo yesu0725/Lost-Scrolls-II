@@ -55,9 +55,30 @@ guidances:
         duration_override: 120
       - type: chat_message
         message: "{player_name}'s companion {companionName} is now rank #{rank} on the Duel Ladder!"
-    # A reigning-champion title / trophy is a natural next reward, but needs a
-    # rank==1 filter to avoid firing for #2 and #3 too — deferred until the mod
-    # exposes a rank filter on dvergr_rank_changed (see docs/Ranking.md open items).
+  # -------------------------------------------------------------------
+  # New #1 — a companion reaches the TOP of the Duel Ladder. Fires on the
+  # dedicated dvergr_rank_first trigger (only ever fires at rank #1, on a genuine
+  # climb), so it can carry a Discord "new champion" broadcast without a rank
+  # filter. Requires the server to have set DiscordWebhookUrl in the ServerGuide
+  # config; the discord reward is a no-op (logged) if the webhook is empty.
+  # -------------------------------------------------------------------
+  - id: ls_ladder_first
+    category: Rankings
+    title: "Duel Ladder Champion"
+    version: 1
+    once: false
+    cooldown: 30
+    trigger:
+      type: dvergr_rank_first
+    display:
+      mode: intro
+      topic: "Duel Ladder Champion"
+    message: "{companionName} stands at the very top of the Duel Ladder — rank #1, rating {rating}. The finest companion on the server."
+    rewards:
+      - type: chat_message
+        message: "👑 {player_name}'s companion {companionName} is now the #1 duelist on the server (rating {rating})!"
+      - type: discord
+        message: "👑 **{companionName}** ({ownerName}'s {caste}) has claimed **#1** on the Duel Ladder — rating {rating}!"
 
   # -------------------------------------------------------------------
   # Party ladder reference page — fires on the first party duel win.
@@ -111,3 +132,26 @@ guidances:
         duration_override: 120
       - type: chat_message
         message: "{player_name}'s party is now rank #{rank} on the Party Ladder!"
+
+  # -------------------------------------------------------------------
+  # New #1 party — reaches the TOP of the Party Ladder (dvergr_party_rank_first).
+  # Broadcasts to Discord like the 1v1 champion. {partyName} falls back to the
+  # owner's name when no party name has been set.
+  # -------------------------------------------------------------------
+  - id: ls_party_first
+    category: Rankings
+    title: "Party Ladder Champions"
+    version: 1
+    once: false
+    cooldown: 30
+    trigger:
+      type: dvergr_party_rank_first
+    display:
+      mode: intro
+      topic: "Party Ladder Champions"
+    message: "{partyName} stands atop the Party Ladder — the #1 company on the server, rating {rating}."
+    rewards:
+      - type: chat_message
+        message: "👑 {partyName} is now the #1 party on the server (rating {rating})!"
+      - type: discord
+        message: "👑 **{partyName}** ({ownerName}) has claimed **#1** on the Party Ladder — rating {rating}!"

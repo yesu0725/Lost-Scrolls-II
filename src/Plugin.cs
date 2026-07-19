@@ -16,7 +16,7 @@ namespace LostScrollsII
     {
         public const string PluginGuid = "com.lostscrollsii";
         public const string PluginName = "Lost Scrolls II";
-        public const string PluginVersion = "0.3.0";
+        public const string PluginVersion = "0.4.0";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -75,6 +75,12 @@ namespace LostScrollsII
         public static ConfigEntry<int> RankingKFactor { get; private set; }
         public static ConfigEntry<float> RankingPairCooldown { get; private set; }
         public static ConfigEntry<bool> ShowRankOnNameTag { get; private set; }
+
+        // Opens the read-only ranking board (duel + party ladders) — see RankingBoard.
+        public static ConfigEntry<KeyCode> RankingUiKey { get; private set; }
+
+        // Opens the tournament board (status/registration/bracket) — see TournamentBoard.
+        public static ConfigEntry<KeyCode> TournamentUiKey { get; private set; }
 
         private Harmony _harmony;
 
@@ -179,6 +185,18 @@ namespace LostScrollsII
                 true,
                 "Append the ladder rank (e.g. #3) to a companion's floating name when it has one.");
 
+            RankingUiKey = Config.Bind(
+                "Ranking",
+                "RankingUiKey",
+                KeyCode.F6,
+                "Opens the ranking board — a read-only view of the duel and party ladders. Close it with Escape, like reading a runestone. (de_ladder / de_party_ladder still work in the console.)");
+
+            TournamentUiKey = Config.Bind(
+                "Tournaments",
+                "TournamentUiKey",
+                KeyCode.F7,
+                "Opens the tournament board — status, registration (lock a companion's Communion Totem into a slot to enter), the bracket, and admin controls. (de_tournament still works in the console.)");
+
             _harmony = new Harmony(PluginGuid);
             _harmony.PatchAll();
 
@@ -188,6 +206,13 @@ namespace LostScrollsII
 
             // Manages the companion-inventory panel + injected rename field.
             gameObject.AddComponent<CompanionInventoryGui>();
+
+            // Client-side tournament driver: summons escrowed companions for a match
+            // and reseals/despawns them when it resolves (docs/Tournaments.md).
+            gameObject.AddComponent<TournamentClient>();
+
+            // Interactive tournament panel (registration slots + admin controls).
+            gameObject.AddComponent<TournamentRegistration>();
 
             Log.LogInfo($"{PluginName} v{PluginVersion} loaded.");
         }
@@ -211,6 +236,9 @@ namespace LostScrollsII
             // panel's name field (its GuiInputField isn't TextInput, so the checks
             // above don't cover it).
             if (Companions.CompanionInventoryGui.IsTyping) return;
+            // While the tournament panel is open its own buttons/Escape drive it;
+            // don't let world hotkeys fire underneath it (F7 still toggles it closed).
+            if (Companions.TournamentRegistration.IsOpen && !Input.GetKeyDown(TournamentUiKey.Value)) return;
 
             if (Input.GetKeyDown(CommunionKey.Value))
             {
@@ -240,6 +268,16 @@ namespace LostScrollsII
             if (Input.GetKeyDown(InventoryKey.Value))
             {
                 HandleInventoryInput(player);
+            }
+
+            if (Input.GetKeyDown(RankingUiKey.Value))
+            {
+                Companions.RankingBoard.Open();
+            }
+
+            if (Input.GetKeyDown(TournamentUiKey.Value))
+            {
+                Companions.TournamentRegistration.Toggle(player);
             }
         }
 

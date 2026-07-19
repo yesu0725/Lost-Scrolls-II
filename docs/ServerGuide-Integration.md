@@ -18,7 +18,35 @@ Implemented in ServerGuide:
 - `src/Config/GuidanceConfig.cs` — added `TriggerSpec.Caste`.
 - `src/Triggers/GuidanceDispatcher.cs` — added `MatchesTrigger` cases for all three, plus a `MatchDvergrLevelUp` helper mirroring the existing `MatchSkillLevel` pattern.
 
-`dvergr_duel_won` additionally carries the loser's caste in `TriggerEvent.Extra["loserCaste"]` — not exposed as a YAML filter field, just available for templating if needed later.
+`dvergr_duel_won` additionally carries the loser's caste in `TriggerEvent.Extra["loserCaste"]` — not exposed as a YAML filter field, just available for templating if needed later. Since 0.4.0 it also carries `companionName` (the winning companion) and `opponent` (the loser), so a duel-won entry can name both duelists.
+
+## Competitive Trigger Types (Phases A–E + the 0.4.0 UI batch)
+
+The ranking, party-duel and tournament systems raise these. All are fired **on the
+relevant player's client** so any ServerGuide reward lands on the right player.
+
+| Trigger id | Fired when | Subject | Templating vars |
+|---|---|---|---|
+| `dvergr_rank_changed` | A companion climbs into the ladder's top 3 | winner's caste | `{rank}` `{rating}` `{companionName}` `{ownerName}` |
+| `dvergr_rank_first` | A companion reaches **#1** (a genuine climb only) | winner's caste | same as above (`{rank}` is always 1) |
+| `dvergr_party_duel_won` | A party duel resolves | winning owner name | `{winSize}` `{opponentOwner}` `{mvpCaste}` `{partyName}` `{ownerName}` |
+| `dvergr_party_rank_changed` | A party climbs into the party ladder's top 3 | winning owner name | `{rank}` `{rating}` `{partyName}` `{ownerName}` |
+| `dvergr_party_rank_first` | A party reaches **#1** | winning owner name | same as above |
+| `dvergr_tournament_joined` | A player registers for a tournament | caste name, or `"party"` | — |
+| `dvergr_tournament_match` | A round's pairing is announced | caste name, or `"party"` | `{round}` `{opponent}` |
+| `dvergr_tournament_won` | The champion is decided | caste name, or `"party"` | `{mode}` `{bracketSize}` |
+
+`caste:` is an optional filter on the caste-subject triggers; the party ones are
+type-only. **Why `*_rank_first` exists rather than a `rank: 1` filter:** ServerGuide's
+dispatcher has no numeric filter, so a dedicated trigger is the cleaner way to attach a
+"new champion" announcement (see `LeaderboardSync.OnRankEvent` — it fires the `_first`
+variant only when `rank == 1`, and the underlying rank event only fires on a real climb,
+so it can't spam).
+
+**Reward templating (ServerGuide 0.9.0):** `chat_message` / `discord` **reward**
+messages now expand this same variable set, not just `{player_name}` — that fix is what
+lets the Discord announcements name the companion, rank, party, etc.
+(`RewardDispatcher.Grant` takes an optional token expander supplied by the dispatcher.)
 
 ## Integration Mechanism (implemented, Phase 5)
 

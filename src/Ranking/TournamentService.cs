@@ -92,8 +92,11 @@ namespace LostScrollsII.Ranking
         }
 
         // Player registration. entrantId/label/caste/rating are resolved by the
-        // caller (client). Returns a status string for the joining client.
-        public static string Join(string entrantId, long ownerId, string ownerName, string label, int caste, int seedRating)
+        // caller (client). The companion(s) are escrowed as their Communion Totem
+        // payload(s): `totemPayload` for a 1v1 entry, `teamPayloads` for a party.
+        // Returns a status string for the joining client.
+        public static string Join(string entrantId, long ownerId, string ownerName, string label, int caste,
+            int seedRating, string totemPayload = null, List<string> teamPayloads = null)
         {
             if (!_state.active || _state.phase != "registration") return "no tournament is accepting entries.";
             if (string.IsNullOrEmpty(entrantId)) return "could not identify your entry.";
@@ -107,10 +110,99 @@ namespace LostScrollsII.Ranking
             {
                 entrantId = entrantId, ownerId = ownerId, ownerName = ownerName,
                 label = label, caste = caste, seedRating = seedRating,
+                totemPayload = totemPayload ?? string.Empty,
+                teamPayloads = teamPayloads ?? new List<string>(),
             });
             Save();
             Broadcast();
             return $"Registered '{label}' ({_state.entrants.Count}" + (_state.size > 0 ? $"/{_state.size}" : "") + ").";
+        }
+
+        // Collects all escrowed totem payloads on an entrant (1v1 single + party
+        // list) so a caller can return them to the owner.
+        public static List<string> PayloadsOf(TournamentEntrant e)
+        {
+            var list = new List<string>();
+            if (e == null) return list;
+            if (!string.IsNullOrEmpty(e.totemPayload)) list.Add(e.totemPayload);
+            if (e.teamPayloads != null) list.AddRange(e.teamPayloads.Where(p => !string.IsNullOrEmpty(p)));
+            return list;
+        }
+
+        // A player withdraws their OWN entry during registration. Returns the
+        // escrowed payloads to hand back (empty if nothing to withdraw).
+        public static List<string> Withdraw(long ownerId, out string status)
+        {
+            status = "no tournament is accepting entries.";
+            if (!_state.active || _state.phase != "registration") return new List<string>();
+            var ent = _state.entrants.FirstOrDefault(e => e.ownerId == ownerId);
+            if (ent == null) { status = "you have no entry to withdraw."; return new List<string>(); }
+            var payloads = PayloadsOf(ent);
+            _state.entrants.Remove(ent);
+            Save();
+            Broadcast();
+            status = $"Withdrew '{ent.label}'. Your companion totem is returned.";
+            return payloads;
+        }
+
+        // Admin releases a specific entrant (by id or owner name), returning its
+        // escrowed totem(s). Allowed in registration (removes the entry) or while
+        // running (forfeits + frees the totem). Returns the payloads + the owner id.
+        public static List<string> ReleaseEntrant(string idOrName, out long ownerId, out string status)
+        {
+            ownerId = 0L; status = "no tournament is running.";
+            if (!_state.active) return new List<string>();
+            var ent = _state.entrants.FirstOrDefault(e =>
+                e.entrantId == idOrName || string.Equals(e.ownerName, idOrName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(e.label, idOrName, StringComparison.OrdinalIgnoreCase));
+            if (ent == null) { status = $"no entrant '{idOrName}'."; return new List<string>(); }
+
+            ownerId = ent.ownerId;
+            var payloads = PayloadsOf(ent);
+
+            if (_state.phase == "registration")
+            {
+                _state.entrants.Remove(ent);
+            }
+            else
+            {
+                // Running: forfeit any undecided current-round match, then free it.
+                ent.eliminated = true;
+                foreach (var m in _state.matches)
+                {
+                    if (m.round != _state.currentRound || !string.IsNullOrEmpty(m.winnerId)) continue;
+                    if (m.aId == ent.entrantId || m.bId == ent.entrantId)
+                    {
+                        var winnerId = m.aId == ent.entrantId ? m.bId : m.aId;
+                        if (!string.IsNullOrEmpty(winnerId)) ResolveMatch(m, winnerId);
+                        break;
+                    }
+                }
+                // Clear the escrow so it isn't returned twice at tournament end.
+                ent.totemPayload = string.Empty;
+                ent.teamPayloads = new List<string>();
+            }
+            Save();
+            Broadcast();
+            status = $"Released '{ent.label}' — totem returned to {ent.ownerName}.";
+            return payloads;
+        }
+
+        // Every still-escrowed payload keyed by owner id — used to return all totems
+        // when the tournament ends or is cancelled.
+        public static Dictionary<long, List<string>> DrainAllEscrow()
+        {
+            var byOwner = new Dictionary<long, List<string>>();
+            foreach (var e in _state.entrants)
+            {
+                var payloads = PayloadsOf(e);
+                if (payloads.Count == 0) continue;
+                if (!byOwner.TryGetValue(e.ownerId, out var list)) { list = new List<string>(); byOwner[e.ownerId] = list; }
+                list.AddRange(payloads);
+                e.totemPayload = string.Empty;
+                e.teamPayloads = new List<string>();
+            }
+            return byOwner;
         }
 
         public static string Begin()
@@ -134,11 +226,13 @@ namespace LostScrollsII.Ranking
         public static string Cancel()
         {
             if (!_state.active) return "no tournament is running.";
+            // Hand every still-escrowed companion totem back to its owner first.
+            LeaderboardSync.ReturnEscrowToOwners(DrainAllEscrow());
             _state = new TournamentState();
             _snapshot = _state;
             Save();
             Broadcast();
-            return "Tournament cancelled.";
+            return "Tournament cancelled — companion totems returned.";
         }
 
         // Admin forfeit: whoever `playerName` is in an undecided current-round match
@@ -163,6 +257,45 @@ namespace LostScrollsII.Ranking
             }
             return $"{playerName} has no undecided match this round.";
         }
+
+        // Admin "activate duels": for every undecided pairing in the current round,
+        // tell both owners' clients to summon their escrowed companion(s) and duel
+        // the assigned opponent (docs/Tournaments.md — escrow & auto-summon). Byes
+        // are skipped (already decided).
+        public static string ActivateCurrentRound()
+        {
+            if (!_state.active || _state.phase != "running") return "no tournament round is running.";
+            int summoned = 0;
+            foreach (var m in _state.matches)
+            {
+                if (m.round != _state.currentRound || !string.IsNullOrEmpty(m.winnerId)) continue;
+                if (string.IsNullOrEmpty(m.bId)) continue; // bye
+                var a = _state.Find(m.aId);
+                var b = _state.Find(m.bId);
+                if (a == null || b == null) continue;
+                LeaderboardSync.SummonForMatch(a.ownerId, a.entrantId, _state.mode, b.entrantId, b.label, _state.currentRound, PayloadsOf(a));
+                LeaderboardSync.SummonForMatch(b.ownerId, b.entrantId, _state.mode, a.entrantId, a.label, _state.currentRound, PayloadsOf(b));
+                summoned++;
+            }
+            return summoned == 0
+                ? "No pairings to activate this round."
+                : $"Activated {summoned} match(es) — companions summoned to duel.";
+        }
+
+        // Updates an entrant's escrow after a match (winner reseals leveled-up state).
+        public static void UpdateEscrow(string entrantId, List<string> payloads)
+        {
+            var e = _state?.Find(entrantId);
+            if (e == null || payloads == null || payloads.Count == 0) return;
+            if (_state.mode == "party") e.teamPayloads = payloads;
+            else e.totemPayload = payloads[0];
+            Save();
+            Plugin.Log.LogInfo($"[tourney] escrow updated for '{e.label}' ({payloads.Count} totem(s)).");
+        }
+
+        // The still-active entrant id a resealing client should report against, given
+        // a companion id it holds (1v1: the id itself; party: the owner entrant).
+        public static TournamentEntrant FindEntrant(string entrantId) => _state?.Find(entrantId);
 
         // ---- Result intake (called from LeaderboardSync on the server) --------
 
@@ -230,6 +363,10 @@ namespace LostScrollsII.Ranking
 
             if (champ != null)
                 LeaderboardSync.SendTournamentWon(champ.ownerName, _state.mode, _state.bracketSize, champ.caste);
+
+            // Return every companion still held in escrow (champion + anyone whose
+            // totem wasn't already released) to its owner now the bracket is done.
+            LeaderboardSync.ReturnEscrowToOwners(DrainAllEscrow());
         }
 
         // Re-seeded single elimination: sort survivors by rating desc; if odd, the

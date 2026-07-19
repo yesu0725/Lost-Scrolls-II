@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0
+
+**Competitive UI + escrow tournaments** — the ranking and tournament systems now have real in-game screens, and tournament entry works by locking a companion's totem into a slot.
+
+- **Ranking board (`F6`)** — a read-only screen showing both the **duel ladder** and the **party ladder** (rank, rating, owner, W/L, team size). `de_ladder` / `de_party_ladder` still work.
+- **Tournament panel (`F7`)** — status, entrants, and one-click controls: **Lock Totem → Enter**, **Withdraw**, **View Bracket**. Opens like a proper menu: mouse cursor free, camera and player actions blocked while it's up.
+- **Enter by totem** — you register a companion by locking its **Communion Totem** into a slot. The totem is held (escrowed) for the tournament; when the admin activates a round your companion is **summoned automatically** to fight its assigned opponent, then **resealed back into the totem** (keeping any XP it gained). Totems are always returned — on withdraw, admin release, cancel, or when the tournament ends.
+- **Assigned pairings** — a summoned companion only fights its own bracket opponent, so several matches can run at once without crossing over.
+- **Admin controls (admins only)** — every setup command as a button: Start 1v1 / Start Party / Begin / **Activate Round** / Cancel, plus per-entrant **Forfeit** and **Release**. Admin actions are verified by the server, so they now work from a remote admin client (not just the host). New console subcommands: `de_tournament withdraw | activate | release <name>`.
+- **Party names** — name your team with `de_party_name <name>`; it shows on the party ladder, the ranking board, and in announcements.
+- **Discord announcements** (via the optional ServerGuide mod, with a webhook configured): every **duel win** (1v1, party, and tournament matches), every **new #1** on either ladder, and the **tournament champion**.
+
+> **Rankings & tournaments require [Valheim ServerGuide](https://thunderstore.io/c/valheim/p/TaegukGaming/ValheimServerGuide/) 0.9.0+**, which delivers every message and reward these systems produce — rank-up and "new #1" announcements, tournament join/pairing/champion messages, the prize bundles, and the Discord posts. Without it the ladders still record and `F6` / `de_ladder` still show the standings, but nothing announces or rewards them. The guidance files come bundled in the **Lost Scrolls II — Quest** pack. (Discord additionally needs `DiscordWebhookUrl` set on the server.)
+
 ## 0.3.0
 
 **Competitive suite** — duel rankings, party duels, party rankings, and tournaments — plus map improvements and compatibility fixes.

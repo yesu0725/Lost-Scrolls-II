@@ -234,6 +234,9 @@ namespace LostScrollsII.Ranking
             var winner = GetOrCreateParty(r.WinnerOwnerId, r.WinnerOwnerName);
             var loser = GetOrCreateParty(r.LoserOwnerId, r.LoserOwnerName);
 
+            // Keep the winner's chosen party name current (empty leaves the last one).
+            if (!string.IsNullOrEmpty(r.WinnerPartyName)) winner.partyName = r.WinnerPartyName;
+
             int oldRank = RankOfLiveParty(winner.ownerId);
 
             winner.wins++;
@@ -260,6 +263,18 @@ namespace LostScrollsII.Ranking
             winnerRank = RankOfLiveParty(winner.ownerId);
             crossedThreshold = winnerRank >= 1 && winnerRank <= 3 && (oldRank == 0 || winnerRank < oldRank);
             return true;
+        }
+
+        // Sets a player's party name (docs/Party-Duels.md). Server-only — the party
+        // record is the persistent home for the name (survives relog), created on
+        // demand so a player can name their party before its first ranked bout.
+        public static void SetPartyName(long ownerId, string ownerName, string name)
+        {
+            if (ownerId == 0L) return;
+            if (_data == null) LoadForCurrentWorld();
+            var rec = GetOrCreateParty(ownerId, ownerName);
+            rec.partyName = (name ?? string.Empty).Trim();
+            Save();
         }
 
         public static int SeasonReset()

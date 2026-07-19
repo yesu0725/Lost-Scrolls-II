@@ -95,12 +95,26 @@ namespace LostScrollsII.Patches
                 {
                     var r = ranked[i];
                     var owner = string.IsNullOrEmpty(r.ownerName) ? "?" : r.ownerName;
+                    var label = string.IsNullOrEmpty(r.partyName) ? owner : $"{r.partyName} ({owner})";
                     int team = r.memberSnapshot != null ? r.memberSnapshot.Count : 0;
-                    args.Context.AddString($"#{i + 1,-2} {r.rating,5}  {owner}  {r.wins}W/{r.losses}L  (team {team})");
+                    args.Context.AddString($"#{i + 1,-2} {r.rating,5}  {label}  {r.wins}W/{r.losses}L  (team {team})");
                 }
             };
             new Terminal.ConsoleCommand("de_party_ladder",
                 "[count] - show the Dvergr party duel ladder", partyLadder);
+
+            // de_party_name <name> — name your party (shown on the party ladder and in
+            // announcements). Any player may name their OWN party (docs/Party-Duels.md).
+            new Terminal.ConsoleCommand("de_party_name",
+                "<name> - name your party of companions", args =>
+            {
+                if (Player.m_localPlayer == null) { args.Context.AddString("No local player."); return; }
+                if (args.Length < 2) { args.Context.AddString("Usage: de_party_name <name>"); return; }
+                var name = string.Join(" ", args.Args, 1, args.Length - 1).Trim();
+                if (name.Length > 32) name = name.Substring(0, 32);
+                Ranking.LeaderboardSync.SendPartyName(name);
+                args.Context.AddString($"Your party is now named '{name}'.");
+            });
 
             // de_tournament <start|join|begin|bracket|forfeit|cancel> ...
             // Admin subcommands (start/begin/forfeit/cancel) run on the host where
@@ -147,17 +161,32 @@ namespace LostScrollsII.Patches
                         if (player == null) { args.Context.AddString("No local player."); return; }
                         JoinTournament(player, args);
                         break;
+                    case "withdraw":
+                        if (player == null) { args.Context.AddString("No local player."); return; }
+                        Ranking.LeaderboardSync.SendTournamentWithdraw();
+                        args.Context.AddString("Withdrawing your entry…");
+                        break;
+                    case "release":
+                    {
+                        if (args.Length < 3) { args.Context.AddString("Usage: de_tournament release <entrant name>"); return; }
+                        var name = string.Join(" ", args.Args, 2, args.Length - 2);
+                        Ranking.LeaderboardSync.SendAdminCommand("release|" + name);
+                        break;
+                    }
+                    case "activate":
+                        Ranking.LeaderboardSync.SendAdminCommand("activate");
+                        break;
                     case "bracket":
                         PrintBracket(args);
                         break;
                     default:
-                        args.Context.AddString("Usage: de_tournament <start 1v1|party [size] | join | begin | bracket | forfeit <name> | cancel>");
+                        args.Context.AddString("Usage: de_tournament <start 1v1|party [size] | join | withdraw | begin | activate | bracket | forfeit <name> | release <name> | cancel>");
                         break;
                 }
             };
             new Terminal.ConsoleCommand("de_tournament",
-                "<start|join|begin|bracket|forfeit|cancel> - run a companion duel tournament",
-                tourney, optionsFetcher: () => new List<string> { "start", "join", "begin", "bracket", "forfeit", "cancel" });
+                "<start|join|withdraw|begin|activate|bracket|forfeit|release|cancel> - run a companion duel tournament",
+                tourney, optionsFetcher: () => new List<string> { "start", "join", "withdraw", "begin", "activate", "bracket", "forfeit", "release", "cancel" });
 
             // de_champions — list the Hall of Champions (host/server reads the file).
             new Terminal.ConsoleCommand("de_champions", "- list past tournament champions", args =>
@@ -190,6 +219,11 @@ namespace LostScrollsII.Patches
                 seasonReset, onlyAdmin: true);
         }
 
+        // Console fallback for entering a tournament — routed through the SAME escrow
+        // path the UI uses, so every entrant is held as a Communion Totem the server
+        // can auto-summon. 1v1 seals the hovered companion; party seals the player's
+        // nearby free Follow-stance companions. The live companions are despawned into
+        // escrow (returned as totems when the tournament ends / on withdraw / release).
         private static void JoinTournament(Player player, Terminal.ConsoleEventArgs args)
         {
             var snap = Ranking.TournamentService.Snapshot;
@@ -201,14 +235,27 @@ namespace LostScrollsII.Patches
 
             if (snap.mode == "party")
             {
+                var team = GatherFollowers(player, Mathf.Max(1, Plugin.MaxPartySize.Value));
+                if (team.Count == 0)
+                { args.Context.AddString("No free Follow-stance allies of yours nearby to enter as a party."); return; }
+
+                var payloads = new List<string>();
+                foreach (var c in team)
+                {
+                    var t = TotemConversionService.CreateTotem(c);
+                    if (t != null) payloads.Add(TotemConversionService.SerializePayload(t));
+                }
+                foreach (var c in team) c.DespawnToTotem();
+
                 var prec = Ranking.LeaderboardStore.FindParty(ownerId);
                 int seed = prec != null ? prec.rating : Ranking.Rating.StartRating;
-                Ranking.LeaderboardSync.SendTournamentJoin(ownerId.ToString(), ownerId, ownerName, ownerName, -1, seed);
-                args.Context.AddString("Registering your party…");
+                string label = prec != null && !string.IsNullOrEmpty(prec.partyName) ? prec.partyName : ownerName;
+                Ranking.LeaderboardSync.SendTournamentJoinEscrow(ownerId.ToString(), ownerId, ownerName, label, -1, seed, payloads);
+                args.Context.AddString($"Sealing and registering your party of {payloads.Count}…");
                 return;
             }
 
-            // 1v1: enter the hovered companion.
+            // 1v1: seal + enter the hovered companion.
             var hover = player.GetHoverObject();
             var ch = hover != null ? hover.GetComponentInParent<Character>() : null;
             var comp = ch != null ? ch.GetComponent<DvergrCompanion>() : null;
@@ -218,8 +265,38 @@ namespace LostScrollsII.Patches
             string id = comp.EnsureCompanionId();
             var rec = Ranking.LeaderboardStore.Find(id);
             int seed1 = rec != null ? rec.rating : Ranking.Rating.StartRating;
-            Ranking.LeaderboardSync.SendTournamentJoin(id, ownerId, ownerName, comp.DisplayName, (int)comp.Caste, seed1);
-            args.Context.AddString($"Registering '{comp.DisplayName}'…");
+            var totem = TotemConversionService.CreateTotem(comp);
+            if (totem == null) { args.Context.AddString("Could not seal that companion (missing totem prefab)."); return; }
+            var payload = TotemConversionService.SerializePayload(totem);
+            string label1 = comp.DisplayName;
+            int caste1 = (int)comp.Caste;
+            comp.DespawnToTotem();
+            Ranking.LeaderboardSync.SendTournamentJoinEscrow(id, ownerId, ownerName, label1, caste1, seed1,
+                new List<string> { payload });
+            args.Context.AddString($"Sealing and registering '{label1}'…");
+        }
+
+        // The player's nearby, free, Follow-stance companions (nearest-first, capped)
+        // — the same gathering rule the [K] party duel uses.
+        private static List<DvergrCompanion> GatherFollowers(Player player, int cap)
+        {
+            long ownerId = player.GetPlayerID();
+            var nearby = new List<Character>();
+            Character.GetCharactersInRange(player.transform.position, 25f, nearby);
+            var team = new List<DvergrCompanion>();
+            foreach (var chr in nearby)
+            {
+                var c = chr.GetComponent<DvergrCompanion>();
+                if (c == null || c.OwnerId != ownerId) continue;
+                if (c.Stance != CompanionStance.Follow) continue;
+                if (chr.GetComponent<ChoreAI>()?.IsAssigned == true) continue;
+                if (c.InAnyDuelMode || c.IsFeral) continue;
+                team.Add(c);
+            }
+            team.Sort((a, b) => Vector3.Distance(player.transform.position, a.transform.position)
+                .CompareTo(Vector3.Distance(player.transform.position, b.transform.position)));
+            if (team.Count > cap) team = team.GetRange(0, cap);
+            return team;
         }
 
         private static void PrintBracket(Terminal.ConsoleEventArgs args)

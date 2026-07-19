@@ -7,6 +7,90 @@ marked passed** — assume "unverified in a live session" otherwise.
 
 ---
 
+## Competitive UI + escrow tournaments + Discord + party naming — released 0.4.0 (2026-07-19)  ⬜ UNVERIFIED
+
+A player-facing UI layer over the whole competitive suite, plus Discord
+broadcasting, party naming, and a re-worked (escrow-based) tournament entry.
+Builds clean (both projects); **unverified in a live session** — see
+[Testing.md](Testing.md) §21.
+
+Packaged as **Lost Scrolls II 0.4.0** + **Lost Scrolls II Quest 0.4.0**, alongside
+**ValheimServerGuide 0.8.0** (which carries the reward templating + the two new
+`*_rank_first` triggers this release depends on). Upload order: ServerGuide → base →
+Quest ([Publishing.md](Publishing.md)).
+
+**Panel input takeover (post-batch fixes).** The `F7` panel now behaves like a real
+modal menu; each of these was a separate in-game report:
+- `Player.TakeInput` → false (blocks player controls),
+- `Player.SetMouseLook` → skipped (**camera** no longer rotates — `TakeInput` alone
+  didn't gate mouse-look in this build),
+- `ZInput.GetButton` / `GetButtonDown` / `GetButtonUp` → swallowed (**attacks** no
+  longer fire when clicking panel buttons — these read straight from `ZInput`),
+- `GameCamera.UpdateMouseCapture` → skipped + cursor forced free (clickable buttons).
+Our F7/Escape keys and the uGUI buttons use `UnityEngine.Input`, so they still work.
+
+**Admin detection fix.** The panel's admin controls were invisible to a real admin on
+a dedicated server because `ZNet.LocalPlayerIsAdminOrHost()` is unreliable on a pure
+client. The panel now asks the **server** (`LSII_AdminChk` → authoritative
+`ZNet.IsAdmin`) and caches the answer in `LeaderboardSync.LocalIsAdmin`, refreshing
+the panel when the reply lands; the listen host short-circuits to true.
+
+**Packaging & docs (0.4.0 cut).**
+- **Guidance moved to a per-mod subfolder** — the Quest pack now installs its YAMLs to
+  `config/ValheimServerGuide/`**`LostScrollsII/`** instead of the top level, matching the
+  convention already used on the live server (`BiomeLords/`, `LivingWorld/`, …). Relies
+  on ServerGuide's recursive config loading (0.8.0+); the deployed test copies were
+  moved to match. **Upgraders must delete the old flat copies** or the guidance loads
+  twice (duplicate ids) — called out in the Quest README/CHANGELOG and Publishing.md.
+- **ServerGuide requirement documented** — both package READMEs and CHANGELOGs now state
+  plainly that rankings/tournaments need **ValheimServerGuide 0.9.0+** to announce or
+  reward anything (the ladders still record and `F6`/`de_ladder` still read without it).
+- **READMEs refreshed** — the base README covers the `F6`/`F7` screens, totem entry and
+  Discord; the Quest README was two versions stale (listed 2 of 5 guidance files, wrong
+  ServerGuide dep, version footer stuck at 0.2.0).
+- **New wiki pages** — `wiki/Rankings.md` and `wiki/Tournaments.md` (the competitive
+  suite had no player-facing docs at all), linked from `Home.md`, whose "only one panel"
+  claim and "works fully without ServerGuide" line were corrected.
+- **`docs/ServerGuide-Integration.md`** — documented the eight competitive triggers, their
+  subjects/variables, why `*_rank_first` exists instead of a numeric `rank:` filter, and
+  the 0.9.0 reward-templating fix.
+- **ServerGuide release deliberately not cut here** — that project had concurrent
+  unfinished work (a new `RunePanel` display mode) in its tree; it owns its own 0.9.0
+  release, which must be published **before** these two packages.
+
+- **Ranking board UI (`F6`)** — a read-only rune-panel view of the duel + party
+  ladders any player can open (`RankingBoard`, vanilla `TextViewer`). `de_ladder` /
+  `de_party_ladder` still work. Config `Ranking/RankingUiKey` (default `F6`).
+- **Tournament panel (`F7`)** — an interactive panel (`TournamentRegistration`, a
+  self-contained cloned-widget Canvas) showing status/entrants and the controls:
+  **Lock Totem → Enter**, **Withdraw**, **View Bracket**, and admin **Start /
+  Begin / Activate Round / Cancel**. Config `Tournaments/TournamentUiKey` (`F7`).
+- **Escrow tournaments** — you enter by locking a companion's **Communion Totem**
+  into a slot: it leaves your inventory and is held (escrowed) as a serialized
+  payload on the entrant. On **Activate Round** the server auto-**summons** each
+  pairing's companion(s) beside their owner in duel mode against the **assigned
+  opponent** (`DE_DuelVs`-style `DuelOpponentId`/`Owner` + a `MatchesDuelAssignment`
+  gate in `CompanionIsEnemyPatch`, so simultaneous matches don't cross-target); on
+  resolve they **reseal + despawn** back into escrow (winner keeps leveled-up
+  state). Totems are **returned** on reject/withdraw/**admin release**/cancel/
+  complete. Console `de_tournament` gains `join` (now escrow, auto-seals the hovered
+  companion / nearby Follow allies), `withdraw`, `activate`, `release <name>`.
+- **Admin RPC** — a new admin-authenticated `LSII_AdminCmd` (server re-verifies
+  `ZNet.IsAdmin`, mirroring ServerGuide's admin RPCs) so admin controls work from a
+  remote client, not just the host.
+- **Discord announcements** (routed through ServerGuide) — every **duel win**
+  (1v1 + party, tournament matches included), every **new #1** on either ladder
+  (new dedicated `dvergr_rank_first` / `dvergr_party_rank_first` triggers), and the
+  **tournament champion** now post to the server's Discord webhook via `type:
+  discord` rewards in `guidance.duels.yaml` / `guidance.rankings.yaml` /
+  `guidance.tournaments.yaml`. Requires `DiscordWebhookUrl` set on the server.
+- **Reward templating fix (ServerGuide)** — `chat_message`/`discord` reward
+  messages now expand the firing entry's full token set (`{companionName}`,
+  `{rank}`, `{winSize}`, `{mode}`, …), not just `{player_name}`.
+- **Party naming** — `de_party_name <name>` (or the party registration path) names
+  your party; stored in the persistent `PartyRecord` and shown on the party ladder,
+  the F6 board, and in party announcements (`{partyName}`).
+
 ## Companion map pins reworked + death markers (2026-07-13)
 
 - **Live pins** now use the vanilla **player icon**, **tinted** and **scaled down**

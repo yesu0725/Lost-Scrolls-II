@@ -59,10 +59,11 @@ guidances:
       mode: intro
       topic: "Tournament Champion"
     message: "Champion! You have won the {mode} tournament — a bracket of {bracketSize}. Let your name be remembered in the Hall of Champions."
-    discord_on_complete: true
     rewards:
       - type: chat_message
         message: "🏆 {player_name} is the {mode} tournament champion (bracket of {bracketSize})! 🏆"
+      - type: discord
+        message: "🏆 **{player_name}** is the **{mode}** tournament champion — a bracket of {bracketSize}! Their name enters the Hall of Champions."
       - type: buff
         effect: GP_Eikthyr
         duration_override: 300

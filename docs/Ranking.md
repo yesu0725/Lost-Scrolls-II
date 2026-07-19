@@ -5,6 +5,14 @@ non-lethal companion duel. Each record is keyed to **a companion**, denormalized
 with **its owner**, so the ladder reads as "owner + companion" exactly as
 requested.
 
+> **UI + Discord update (2026-07-17, unverified).** Players can now open a
+> **ranking board** with **`F6`** (a read-only vanilla rune panel showing both the
+> duel and party ladders); `de_ladder` / `de_party_ladder` still work. Every
+> **duel win** and every **new #1** on either ladder (new dedicated
+> `dvergr_rank_first` / `dvergr_party_rank_first` triggers) now **broadcast to
+> Discord** through ServerGuide when the server has a webhook configured. See
+> [Changelog.md](Changelog.md) (2026-07-17) and [Testing.md](Testing.md) §21.
+
 Covers the **1v1** ladder (this doc). The **party** ladder is its sibling — see
 [Party-Duels.md](Party-Duels.md).
 

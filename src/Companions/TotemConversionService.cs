@@ -71,6 +71,80 @@ namespace LostScrollsII.Companions
             return item?.m_customData != null && item.m_customData.ContainsKey(KeyMarker);
         }
 
+        // The stable companion id (DE_CompanionId / ladder identity) carried on a
+        // companion totem, or empty if absent. Used as the tournament entrant id.
+        public static string CompanionIdOf(ItemDrop.ItemData item) => GetStr(item, KeyId);
+
+        public static DvergrCaste CasteOf(ItemDrop.ItemData item) => (DvergrCaste)GetInt(item, KeyCaste, 0);
+        public static int LevelOf(ItemDrop.ItemData item) => GetInt(item, KeyLevel, 1);
+
+        // Display label for an escrowed companion (custom name, else caste name).
+        public static string LabelOf(ItemDrop.ItemData item)
+        {
+            var name = GetStr(item, KeyName);
+            return string.IsNullOrEmpty(name) ? CasteOf(item).Display() : name;
+        }
+
+        // ---- Escrow (de)serialization (docs/Tournaments.md) ------------------
+        //
+        // A companion totem is escrowed for a tournament by serializing the state
+        // that rides on the item — its m_customData dictionary plus the crafter
+        // fields — into one base64 string. BuildTotemFromPayload reconstructs an
+        // equivalent GoblinTotem item, so the server can hold the companion between
+        // matches and hand it back (or summon it) with everything intact.
+        public static string SerializePayload(ItemDrop.ItemData item)
+        {
+            if (item?.m_customData == null) return string.Empty;
+            var pkg = new ZPackage();
+            pkg.Write(item.m_customData.Count);
+            foreach (var kv in item.m_customData)
+            {
+                pkg.Write(kv.Key ?? string.Empty);
+                pkg.Write(kv.Value ?? string.Empty);
+            }
+            pkg.Write(item.m_crafterName ?? string.Empty);
+            pkg.Write(item.m_crafterID);
+            return pkg.GetBase64();
+        }
+
+        public static ItemDrop.ItemData BuildTotemFromPayload(string payload)
+        {
+            if (string.IsNullOrEmpty(payload)) return null;
+            var prefab = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(TotemPrefab) : null;
+            var drop = prefab != null ? prefab.GetComponent<ItemDrop>() : null;
+            if (drop == null)
+            {
+                Plugin.Log.LogWarning($"[totem] '{TotemPrefab}' prefab not found — cannot rebuild escrowed totem.");
+                return null;
+            }
+            var item = drop.m_itemData.Clone();
+            item.m_dropPrefab = prefab;
+            item.m_stack = 1;
+            item.m_quality = 1;
+            item.m_worldLevel = (byte)Game.m_worldLevel;
+            try
+            {
+                var pkg = new ZPackage(payload);
+                int n = pkg.ReadInt();
+                item.m_customData.Clear();
+                for (int i = 0; i < n; i++)
+                {
+                    var k = pkg.ReadString();
+                    var v = pkg.ReadString();
+                    item.m_customData[k] = v;
+                }
+                item.m_crafterName = pkg.ReadString();
+                item.m_crafterID = pkg.ReadLong();
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning($"[totem] Failed to rebuild escrowed totem: {e.Message}");
+                return null;
+            }
+            ApplyTotemShared(item);
+            return item;
+        }
+
         // Builds a fresh GoblinTotem item stamped with this companion's state.
         // Returns null if the vanilla prefab is missing (logged).
         public static ItemDrop.ItemData CreateTotem(DvergrCompanion companion)
@@ -173,6 +247,29 @@ namespace LostScrollsII.Companions
             PlaySummonVfx(go.transform.position);
             Plugin.Log.LogInfo($"[totem] Summoned {caste} (lv {level}) from totem for {player.GetPlayerName()}.");
             return true;
+        }
+
+        // Summons the sealed companion at an EXPLICIT position (vs. TrySummon's
+        // aim-point), owned by `owner`. Used by the tournament auto-summon to place
+        // a companion at the arena/owner. Returns the spawned GameObject or null.
+        public static GameObject SummonAt(Player owner, ItemDrop.ItemData totem, Vector3 pos)
+        {
+            if (owner == null || !IsCompanionTotem(totem)) return null;
+            var caste = CasteOf(totem);
+            int level = Mathf.Clamp(LevelOf(totem), 1, DvergrCompanion.MaxLevel);
+            float xp = GetFloat(totem, KeyXp, 0f);
+            string name = GetStr(totem, KeyName);
+            string companionId = GetStr(totem, KeyId);
+
+            var go = CommunionService.SpawnRecruited(caste, level, owner, pos + Vector3.up * 0.5f, xp,
+                string.IsNullOrEmpty(companionId) ? null : companionId);
+            if (go == null) return null;
+
+            if (!string.IsNullOrEmpty(name))
+                go.GetComponent<DvergrCompanion>()?.SetName(name);
+            RestoreInventory(totem, go);
+            PlaySummonVfx(go.transform.position);
+            return go;
         }
 
         // Loads the sealed pack (if any) back into the summoned companion's

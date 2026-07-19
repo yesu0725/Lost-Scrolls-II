@@ -54,6 +54,11 @@ namespace LostScrollsII.Ranking
         public long ownerId;
         public string ownerName;
 
+        // Player-chosen party name (docs/Party-Duels.md). Empty = fall back to the
+        // owner's name for display. Set on the owner's client (player ZDO
+        // DE_PartyName) and carried in on each reported party duel.
+        public string partyName;
+
         public int wins;
         public int losses;
         public int rating = Rating.StartRating;
@@ -86,6 +91,8 @@ namespace LostScrollsII.Ranking
         public int MvpCaste;
         public List<PartyMemberSnap> WinnerMembers = new List<PartyMemberSnap>();
         public List<PartyMemberSnap> LoserMembers = new List<PartyMemberSnap>();
+        // Winning party's chosen name (docs/Party-Duels.md), empty = use owner name.
+        public string WinnerPartyName;
 
         // Top-level fields split by '|'; member lists split by ',' with each
         // member's id:caste:level split by ':'. Names are sanitized of the
@@ -106,6 +113,7 @@ namespace LostScrollsII.Ranking
                 LoserOwnerId.ToString(),  S(LoserOwnerName),
                 MvpCaste.ToString(),
                 Members(WinnerMembers), Members(LoserMembers),
+                S(WinnerPartyName),
             });
         }
 
@@ -137,6 +145,7 @@ namespace LostScrollsII.Ranking
                 LoserOwnerId = lOwner,  LoserOwnerName = p[3],
                 MvpCaste = mvp,
                 WinnerMembers = ParseMembers(p[5]), LoserMembers = ParseMembers(p[6]),
+                WinnerPartyName = p.Length > 7 ? p[7] : string.Empty,
             };
         }
     }
