@@ -57,6 +57,11 @@ namespace LostScrollsII.Companions
                 var comp = go != null ? go.GetComponent<DvergrCompanion>() : null;
                 if (comp == null) continue;
 
+                // Enter every match at full health regardless of the HP it was
+                // sealed at (Heal, never SetHealth — see MeadFeedingService).
+                var character = go.GetComponent<Character>();
+                if (character != null) character.Heal(character.GetMaxHealth(), true);
+
                 if (party)
                 {
                     comp.DuelOpponentOwner = opponentOwner;

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- Updated to depend on **Lost Scrolls II 0.5.0** — tournament formats (single/double elimination, round robin), optional level-gated events, companion level shown on the bracket, live win–loss standings, an entrant cap, full-heal-on-summon, and important fixes to how ranking/tournament data is saved and synced. See the base mod's changelog for detail.
+- **Updated `guidance.rankings.yaml` and `guidance.tournaments.yaml`** — rewritten around the in-game **UI**: the ranking pages now point players to the **`F6`** ranking board (instead of console commands), and the tournament pages describe the current **`F7`** panel flow — sealing a companion into a Communion Totem, **Lock Totem → Enter**, automatic summon at full health, and **View Bracket** for pairings, levels and standings.
+- **New guidance page** — *"Entering a Tournament"* teaches the whole `F7` entry flow the first time a player frees a companion.
+- Story and Companion Handbook content unchanged; still depends on **ValheimServerGuide 0.9.0+**.
+
 ## 0.4.0
 
 - Updated to depend on **Lost Scrolls II 0.4.0** (in-game ranking board `F6`, tournament panel `F7`, totem-based tournament entry with auto-summon, party names, admin controls) and on **ValheimServerGuide 0.9.0**, which adds the message templating and Discord support these guidance files rely on.

@@ -16,7 +16,7 @@ namespace LostScrollsII
     {
         public const string PluginGuid = "com.lostscrollsii";
         public const string PluginName = "Lost Scrolls II";
-        public const string PluginVersion = "0.4.0";
+        public const string PluginVersion = "0.5.0";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -81,6 +81,15 @@ namespace LostScrollsII
 
         // Opens the tournament board (status/registration/bracket) — see TournamentBoard.
         public static ConfigEntry<KeyCode> TournamentUiKey { get; private set; }
+
+        // 0 = no restriction. When >0, a 1v1 entrant's companion level must match
+        // exactly (docs/Tournaments.md — level-gated events).
+        public static ConfigEntry<int> RequiredEntrantLevel { get; private set; }
+
+        // Hard cap on tournament entrants. A `size` of 0 passed to `de_tournament
+        // start` now means "use this cap" rather than "uncapped" (an uncapped bracket
+        // no longer makes sense once escrow + auto-summon is in play).
+        public static ConfigEntry<int> MaxEntrants { get; private set; }
 
         private Harmony _harmony;
 
@@ -196,6 +205,18 @@ namespace LostScrollsII
                 "TournamentUiKey",
                 KeyCode.F7,
                 "Opens the tournament board — status, registration (lock a companion's Communion Totem into a slot to enter), the bracket, and admin controls. (de_tournament still works in the console.)");
+
+            RequiredEntrantLevel = Config.Bind(
+                "Tournaments",
+                "RequiredEntrantLevel",
+                0,
+                "0 = no restriction. When >0, a 1v1 entrant's companion level must match this exactly to be allowed to register (party entries are not level-gated).");
+
+            MaxEntrants = Config.Bind(
+                "Tournaments",
+                "MaxEntrants",
+                4,
+                "Hard cap on tournament entrants. `de_tournament start` clamps any size above this, and a size of 0 (or omitted) now means \"use this cap\" instead of unlimited.");
 
             _harmony = new Harmony(PluginGuid);
             _harmony.PatchAll();

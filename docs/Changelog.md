@@ -7,6 +7,74 @@ marked passed** — assume "unverified in a live session" otherwise.
 
 ---
 
+## Tournament formats + level gate + standings + serializer fix — released 0.5.0 (2026-07-24)  ⬜ MOSTLY UNVERIFIED
+
+A tournament feature batch on top of the escrow system, plus several bug fixes —
+one of which (the serializer) was masking the tournament system entirely on the
+dedicated server. Builds clean; the tournament-flow items still need a live
+multi-player pass ([Testing.md](Testing.md) §21), but the serializer, relog-NRE
+and input-block fixes were **verified against the dedicated server** this session.
+
+**Features**
+- **Three elimination formats** — `TournamentState.eliminationType` (`single` /
+  `double` / `round_robin`). `TournamentService.Start(mode, size, eliminationType)`
+  validates it; `ResolveMatch` dispatches to `ResolveSingleMatch` (unchanged),
+  `ResolveRoundRobinMatch` (no elimination, champion = most wins; `BuildRoundRobinSchedule`
+  circle method) or `ResolveDoubleMatch` (loss-counted, eliminate at 2; pools recomputed
+  each round from loss counts). **Simplified:** double-elim grand final is single-game
+  (no bracket reset); DE seeding for non-power-of-two counts is approximate; round-robin
+  tiebreak is seed-rating then name (no head-to-head).
+- **Format selector in the F7 panel** — a **Type** button cycles single→double→round_robin;
+  the chosen type is passed to the start command ([TournamentRegistration.cs](../src/Companions/TournamentRegistration.cs)).
+- **Level-gated entry** — config `Tournaments/RequiredEntrantLevel` (0 = off). The totem's
+  level is threaded from `LockTotem` → `SendTournamentJoinEscrow` → `Join`, which rejects a
+  mismatch (1v1 only; party ungated).
+- **Name + level on the bracket** — `TournamentEntrant.level` + `TournamentMatch.aLevel/bLevel`,
+  shown on `TournamentBoard` and the `F7` status.
+- **Live standings** — `TournamentBoard.AppendStandings` renders per-entrant W–L, sorted per
+  format, with an eliminated/champion tag. Single-elim losers now increment `losses` too
+  (was double-elim only) so the record reads correctly.
+- **Entrant cap** — config `Tournaments/MaxEntrants` (default 4); `Start` clamps `size` to it,
+  and `size <= 0` now means "use the cap".
+- **Full heal on summon** — `TournamentClient.SummonForMatch` calls
+  `Character.Heal(GetMaxHealth(), true)` right after the companion is summoned.
+
+**Fixes**
+- **JSON serializer replaced ([CompetitiveJson.cs](../src/Ranking/CompetitiveJson.cs)).**
+  `UnityEngine.JsonUtility` on Valheim's current Unity 6 runtime **silently drops
+  `List<[Serializable] class>` fields** of plugin types — scalars survived, the entrant/match
+  and ladder-record lists vanished. Both the per-world save file **and** the server→client
+  snapshot push were affected, so the tournament showed **0 entrants on every client forever**
+  (and wouldn't survive a restart), and the ladders were at the same risk. Diagnosed with a
+  boot-time round-trip self-test on the dedicated server (`jsonHasLists=False`), then fixed
+  with a hand-rolled writer/parser and every `JsonUtility` call site swapped over
+  ([TournamentService.cs](../src/Ranking/TournamentService.cs),
+  [LeaderboardStore.cs](../src/Ranking/LeaderboardStore.cs)). The self-test stays as a
+  boot-time regression guard. **Verified: `jsonHasLists=True, entrants=1, matches=1`.**
+- **F7 panel relog NRE** — the panel clones `InventoryGui` widgets, but `InventoryGui` is
+  rebuilt on every world load while the panel root is `DontDestroyOnLoad`; after a relog the
+  clone sources were destroyed objects. `EnsureBuilt` now detects stale sources and rebuilds,
+  with defensive null-guards in `AddButton`/`Rebuild`.
+- **Attack/movement leaked through the open panel** — the real gate for attack + movement is
+  `PlayerController.TakeInput()` (private, distinct from `Player.TakeInput()`), which the old
+  patches never touched; a competing mod (Valcoin) was also out-ordering the `ZInput` swallow.
+  Fixed with a **postfix on `PlayerController.TakeInput`** → false while the panel is open
+  ([TournamentPanelInputPatches.cs](../src/Companions/TournamentPanelInputPatches.cs)) — a
+  postfix can't be out-ordered.
+- **View Bracket freshness** — `TournamentBoard.Open` now calls `LeaderboardSync.RequestTournament()`
+  and waits briefly before rendering, so it can't show a stale snapshot.
+
+**Guidance (Quest pack)** — `guidance.rankings.yaml` + `guidance.tournaments.yaml` rewritten to be
+**UI-driven** (F6 ranking board, F7 tournament panel) with **all console commands removed**; new
+*"Entering a Tournament"* how-to page. Synced to the ServerGuide `examples/`, the Quest pack, the
+dedicated server, and the test profile.
+
+**Packaging** — bumped to **0.5.0** (csproj/Plugin/both manifests + the Quest pack's
+`TaegukGaming-Lost_Scrolls_II-0.5.0` dep). **No ServerGuide release needed** — the guidance uses only
+existing 0.9.0 triggers/templating. Upload order: base 0.5.0 → Quest 0.5.0 ([Publishing.md](Publishing.md)).
+
+---
+
 ## Competitive UI + escrow tournaments + Discord + party naming — released 0.4.0 (2026-07-19)  ⬜ UNVERIFIED
 
 A player-facing UI layer over the whole competitive suite, plus Discord

@@ -6,7 +6,7 @@
     <Nullable>disable</Nullable>
     <AssemblyName>LostScrollsII</AssemblyName>
     <RootNamespace>LostScrollsII</RootNamespace>
-    <Version>0.4.0</Version>
+    <Version>0.5.0</Version>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <NoWarn>CS0436;NU1701</NoWarn>

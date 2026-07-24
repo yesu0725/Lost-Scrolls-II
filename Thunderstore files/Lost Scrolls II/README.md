@@ -13,7 +13,7 @@ A spiritual sequel to the deprecated mod **Lost Scrolls** (TaegukGaming), rebuil
 - **Put them to work** — assign allies to vanilla stations by caste: smelting, refining, cooking, brewing, farming (plant + harvest), animal care, and hauling.
 - **Duel** — non-lethal companion-vs-companion sparring between players for bonus XP (`J`), or gather a **party** and fight team-vs-team (`K`).
 - **Rankings** — every duel win feeds a persistent, server-wide **duel ladder** (Elo rating shown on the companion's name), with a separate **party ladder** for team fights. Open the **ranking board with `F6`** to read both. Name your team with `de_party_name`, and seasons reset the boards.
-- **Tournaments** — open the **tournament panel with `F7`**: enter by locking a companion's **Communion Totem** into a slot, and it's held safely until the bracket is done. When an admin starts a round your companion is **summoned automatically** to fight its assigned opponent, then sealed back into its totem with any XP it earned. Single-elimination brackets for 1v1 or party, a champion prize, and a Hall of Champions. Admins get every control as a button — start, begin, activate the round, forfeit, release a totem, cancel.
+- **Tournaments** — open the **tournament panel with `F7`**: enter by locking a companion's **Communion Totem** into a slot, and it's held safely until the bracket is done. When an admin starts a round your companion is **summoned automatically** (at full health) to fight its assigned opponent, then sealed back into its totem with any XP it earned. Choose **single elimination, double elimination, or round robin** for 1v1 or party, with an optional **level-gated** entry for themed events; the bracket shows companion levels and a **live standings** table. A champion prize and a Hall of Champions round it out. Admins get every control as a button — pick the format, start, begin, activate the round, forfeit, release a totem, cancel.
 - **Discord announcements** *(optional)* — duel wins, a new #1 on either ladder, and tournament champions can be posted to your server's Discord (needs the ServerGuide companion mod + a webhook).
 - **Communion Totems** — seal a companion into a carriable totem (at an Incinerator, using Wisps) and summon it back later, level intact.
 - **Travel together** — Follow-stance allies board your ship and teleport through portals with you.
@@ -51,5 +51,5 @@ This mod is **free to use as is**. Voluntary support is appreciated.
 
 ---
 
-**Version:** 0.4.0
+**Version:** 0.5.0
 **Source / issues / wiki:** https://github.com/yesu0725/Lost-Scrolls-II

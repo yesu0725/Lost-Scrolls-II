@@ -229,8 +229,10 @@ namespace LostScrollsII.Ranking
         public static void BroadcastTournament()
         {
             if (ZRoutedRpc.instance == null) return;
+            var json = TournamentService.SerializeSnapshot();
+            Plugin.Log.LogInfo($"[tourney] broadcast: jsonLen={json.Length}, hasEntrants={json.Contains("entrantId")}.");
             var pkg = new ZPackage();
-            pkg.Write(TournamentService.SerializeSnapshot());
+            pkg.Write(json);
             ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcTourPush, pkg);
         }
 
@@ -407,7 +409,7 @@ namespace LostScrollsII.Ranking
         // payloads are arbitrary base64. The client removes the item(s) optimistically
         // when it sends; if the server rejects the join it returns them via RpcTourReturn.
         public static void SendTournamentJoinEscrow(string entrantId, long ownerId, string ownerName,
-            string label, int caste, int seedRating, System.Collections.Generic.List<string> payloads)
+            string label, int caste, int seedRating, System.Collections.Generic.List<string> payloads, int level = 0)
         {
             if (ZRoutedRpc.instance == null) return;
             var pkg = new ZPackage();
@@ -419,6 +421,7 @@ namespace LostScrollsII.Ranking
             pkg.Write(seedRating);
             pkg.Write(payloads != null ? payloads.Count : 0);
             if (payloads != null) foreach (var p in payloads) pkg.Write(p ?? string.Empty);
+            pkg.Write(level);
 
             if (ZNet.instance != null && ZNet.instance.IsServer()) { HandleJoinEscrow(0L, pkg); return; }
             ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.instance.GetServerPeerID(), RpcTourJoinEsc, pkg);
@@ -439,11 +442,14 @@ namespace LostScrollsII.Ranking
             int n = pkg.ReadInt();
             var payloads = new System.Collections.Generic.List<string>(n);
             for (int i = 0; i < n; i++) payloads.Add(pkg.ReadString());
+            int level = 0;
+            try { level = pkg.ReadInt(); } catch { /* older client payload without a level field */ }
 
             string totemPayload = caste >= 0 && payloads.Count > 0 ? payloads[0] : null;
             var teamPayloads = caste < 0 ? payloads : null;
-            var status = TournamentService.Join(entrantId, ownerId, ownerName, label, caste, seed, totemPayload, teamPayloads);
+            var status = TournamentService.Join(entrantId, ownerId, ownerName, label, caste, seed, totemPayload, teamPayloads, level);
             bool ok = status.StartsWith("Registered", System.StringComparison.Ordinal);
+            Plugin.Log.LogInfo($"[tourney] join from sender={sender}: owner={ownerId}/'{ownerName}', label='{label}', level={level}, payloadLen={(totemPayload?.Length ?? 0)} => \"{status}\" (entrants now {TournamentService.Snapshot?.entrants?.Count ?? -1}).");
 
             // Ack (message + dvergr_tournament_joined) via the existing path.
             var ack = string.Join("|", new[] { ok ? "1" : "0", TourSubject(caste), status });
@@ -614,7 +620,8 @@ namespace LostScrollsII.Ranking
                 {
                     var mode = p.Length > 1 ? p[1] : "1v1";
                     int size = 0; if (p.Length > 2) int.TryParse(p[2], out size);
-                    return TournamentService.Start(mode, size);
+                    var eliminationType = p.Length > 3 ? p[3] : "single";
+                    return TournamentService.Start(mode, size, eliminationType);
                 }
                 case "begin":   return TournamentService.Begin();
                 case "cancel":  return TournamentService.Cancel();
@@ -703,6 +710,7 @@ namespace LostScrollsII.Ranking
                 {
                     LeaderboardStore.LoadForCurrentWorld();
                     TournamentService.LoadForCurrentWorld();
+                    TournamentService.SerializerSelfTest();
                 }
             }
         }

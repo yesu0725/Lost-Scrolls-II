@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0
+
+**Tournament formats, level-gated events, live standings — plus important fixes to how competitive data is saved.**
+
+- **Three bracket formats** — the host can now run a tournament as **single elimination**, **double elimination**, or **round robin**. Pick the format on the `F7` panel with the new **Type** button (cycles through the three) before starting, or as the last argument of the start command.
+- **Level-gated entry** — an optional setting (`Tournaments / RequiredEntrantLevel`, default off) restricts a tournament to companions of an exact level, so you can run events like a "Level 3 only" bracket. Entries that don't match are turned away.
+- **Companion name + level on the bracket** — the tournament board and the `F7` panel now show each entrant's companion **level** next to its name, in the entrant list and in every pairing.
+- **Live standings** — while a tournament runs, the bracket view shows a **standings table** with each entrant's win–loss record (sorted for the active format — by wins for round robin, alive-first for elimination), and marks who's eliminated.
+- **Entrant cap** — a configurable maximum (`Tournaments / MaxEntrants`, default **4**); starting a tournament without a size, or with a larger one, now uses this cap.
+- **Full heal on summon** — a companion is **restored to full health** the instant it's summoned for a match, so every round is a clean fight regardless of prior damage.
+
+**Fixes**
+
+- **Competitive data was being silently lost** — on the current game runtime, the engine's JSON serializer dropped list data (tournament entrants, ladder records) when saving and syncing. The result: a tournament could show **0 entrants** to everyone even after players joined, and it wouldn't survive a server restart; ladder records were similarly at risk. Replaced with a dedicated serializer — entries now persist and sync correctly. **If you run tournaments or ladders on a dedicated server, this fix is the reason to update.**
+- **Tournament panel error after relogging** — opening the `F7` panel after a world reload could throw and come up half-built; it now rebuilds itself cleanly.
+- **Clicking the panel no longer swings your weapon or moves you** — while the `F7` panel is open, attack, movement, block, jump and camera are now fully blocked (a previous gate missed the attack/movement path on some setups, including when another input-hooking mod was present).
+- **View Bracket now refreshes** — opening the bracket asks the server for the latest state first, so it can't show a stale, empty board.
+
 ## 0.4.0
 
 **Competitive UI + escrow tournaments** — the ranking and tournament systems now have real in-game screens, and tournament entry works by locking a companion's totem into a slot.

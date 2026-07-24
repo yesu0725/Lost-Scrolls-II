@@ -76,7 +76,7 @@ namespace LostScrollsII.Ranking
             {
                 if (File.Exists(path))
                 {
-                    _data = JsonUtility.FromJson<LeaderboardData>(File.ReadAllText(path)) ?? new LeaderboardData();
+                    _data = CompetitiveJson.ReadLeaderboard(File.ReadAllText(path)) ?? new LeaderboardData();
                     if (_data.companions == null) _data.companions = new List<CompanionRecord>();
                     if (_data.parties == null) _data.parties = new List<PartyRecord>();
                     Plugin.Log.LogInfo($"[ladder] loaded {_data.companions.Count} duel + {_data.parties.Count} party record(s) for world '{world}'.");
@@ -100,7 +100,7 @@ namespace LostScrollsII.Ranking
             if (_data == null) return;
             try
             {
-                File.WriteAllText(StorePath(_loadedWorld ?? CurrentWorldName()), JsonUtility.ToJson(_data, true));
+                File.WriteAllText(StorePath(_loadedWorld ?? CurrentWorldName()), CompetitiveJson.Write(_data, true));
             }
             catch (Exception e)
             {
@@ -110,13 +110,13 @@ namespace LostScrollsII.Ranking
 
         // ---- Snapshot sync (client) ------------------------------------------
 
-        public static string SerializeSnapshot() => JsonUtility.ToJson(_data ?? new LeaderboardData());
+        public static string SerializeSnapshot() => CompetitiveJson.Write(_data ?? new LeaderboardData());
 
         public static void ApplySnapshot(string json)
         {
             try
             {
-                var d = JsonUtility.FromJson<LeaderboardData>(json) ?? new LeaderboardData();
+                var d = CompetitiveJson.ReadLeaderboard(json) ?? new LeaderboardData();
                 if (d.companions == null) d.companions = new List<CompanionRecord>();
                 if (d.parties == null) d.parties = new List<PartyRecord>();
                 _snapshot = d;
@@ -287,7 +287,7 @@ namespace LostScrollsII.Ranking
             {
                 var path = StorePath(_loadedWorld ?? CurrentWorldName());
                 var archive = path.Replace(".json", $".season{_data.seasonId}.json");
-                File.WriteAllText(archive, JsonUtility.ToJson(_data, true));
+                File.WriteAllText(archive, CompetitiveJson.Write(_data, true));
             }
             catch (Exception e) { Plugin.Log.LogWarning($"[ladder] season archive failed: {e.Message}"); }
 

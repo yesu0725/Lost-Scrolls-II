@@ -28,6 +28,28 @@ namespace LostScrollsII.Patches
         }
     }
 
+    // The DEFINITIVE attack/movement gate. PlayerController.FixedUpdate only feeds
+    // attack, movement, block, jump, dodge, crouch and run into SetControls when its
+    // OWN private TakeInput() returns true, and its LateUpdate gates camera-look on
+    // the same method — this is a DIFFERENT method from Player.TakeInput() above,
+    // which is why forcing that one false froze the camera but left click-to-attack
+    // and WASD fully live. Force this false while the panel is open so nothing
+    // reaches SetControls.
+    //
+    // Done as a postfix on the gate (not by swallowing ZInput below) on purpose:
+    // another mod on this server (Valcoin) also prefixes ZInput.GetButton, and when
+    // two prefixes hook one method the ordering decides who wins — our ZInput swallow
+    // was being out-ordered, so attack still fired. A postfix overrides __result
+    // unconditionally and can't be out-ordered.
+    [HarmonyPatch(typeof(PlayerController), "TakeInput", new[] { typeof(bool) })]
+    public static class TournamentPanelBlocksControllerInputPatch
+    {
+        public static void Postfix(ref bool __result)
+        {
+            if (TournamentRegistration.IsOpen) __result = false;
+        }
+    }
+
     [HarmonyPatch(typeof(GameCamera), "UpdateMouseCapture")]
     public static class TournamentPanelFreesCursorPatch
     {

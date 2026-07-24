@@ -138,7 +138,8 @@ namespace LostScrollsII.Patches
                         if (!HostOnly()) return;
                         string mode = args.Length >= 3 ? args[2] : "1v1";
                         int size = 0; if (args.Length >= 4) int.TryParse(args[3], out size);
-                        args.Context.AddString(Ranking.TournamentService.Start(mode, size));
+                        string eliminationType = args.Length >= 5 ? args[4] : "single";
+                        args.Context.AddString(Ranking.TournamentService.Start(mode, size, eliminationType));
                         break;
                     }
                     case "begin":
@@ -180,7 +181,7 @@ namespace LostScrollsII.Patches
                         PrintBracket(args);
                         break;
                     default:
-                        args.Context.AddString("Usage: de_tournament <start 1v1|party [size] | join | withdraw | begin | activate | bracket | forfeit <name> | release <name> | cancel>");
+                        args.Context.AddString("Usage: de_tournament <start 1v1|party [size] [single|double|round_robin] | join | withdraw | begin | activate | bracket | forfeit <name> | release <name> | cancel>");
                         break;
                 }
             };
@@ -270,9 +271,10 @@ namespace LostScrollsII.Patches
             var payload = TotemConversionService.SerializePayload(totem);
             string label1 = comp.DisplayName;
             int caste1 = (int)comp.Caste;
+            int level1 = comp.Level;
             comp.DespawnToTotem();
             Ranking.LeaderboardSync.SendTournamentJoinEscrow(id, ownerId, ownerName, label1, caste1, seed1,
-                new List<string> { payload });
+                new List<string> { payload }, level1);
             args.Context.AddString($"Sealing and registering '{label1}'…");
         }
 

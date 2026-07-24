@@ -38,7 +38,7 @@ namespace LostScrollsII.Ranking
                 var path = StatePath();
                 if (File.Exists(path))
                 {
-                    _state = JsonUtility.FromJson<TournamentState>(File.ReadAllText(path)) ?? new TournamentState();
+                    _state = CompetitiveJson.ReadTournament(File.ReadAllText(path)) ?? new TournamentState();
                     if (_state.entrants == null) _state.entrants = new List<TournamentEntrant>();
                     if (_state.matches == null) _state.matches = new List<TournamentMatch>();
                     Plugin.Log.LogInfo($"[tourney] resumed state: phase={_state.phase}, entrants={_state.entrants.Count}.");
@@ -51,17 +51,42 @@ namespace LostScrollsII.Ranking
 
         private static void Save()
         {
-            try { File.WriteAllText(StatePath(), JsonUtility.ToJson(_state, true)); }
+            try { File.WriteAllText(StatePath(), CompetitiveJson.Write(_state, true)); }
             catch (Exception e) { Plugin.Log.LogWarning($"[tourney] save failed: {e.Message}"); }
         }
 
-        public static string SerializeSnapshot() => JsonUtility.ToJson(_state ?? new TournamentState());
+        public static string SerializeSnapshot() => CompetitiveJson.Write(_state ?? new TournamentState());
+
+        // One-shot boot diagnostic: round-trip a populated dummy state through the
+        // same serializer Save/Broadcast use, and log whether the entrant and match
+        // lists survive. Guards against a repeat of the Unity 6 JsonUtility bug
+        // (it silently dropped List<[Serializable] class> fields, so the server
+        // registered joins but every client forever saw an empty board) — the
+        // hand-rolled CompetitiveJson replaced it; this proves the path at boot.
+        public static void SerializerSelfTest()
+        {
+            try
+            {
+                var probe = new TournamentState { active = true, mode = "1v1", phase = "registration", size = 4 };
+                probe.entrants.Add(new TournamentEntrant { entrantId = "probe-id", ownerId = 42L, ownerName = "probe", label = "Probe", level = 3 });
+                probe.matches.Add(new TournamentMatch { round = 1, aId = "probe-id", aLabel = "Probe" });
+                var json = CompetitiveJson.Write(probe);
+                var back = CompetitiveJson.ReadTournament(json);
+                bool jsonHasLists = json.Contains("entrantId");
+                int backEntrants = back?.entrants?.Count ?? -1;
+                int backMatches = back?.matches?.Count ?? -1;
+                Plugin.Log.LogInfo($"[tourney] serializer self-test: jsonHasLists={jsonHasLists}, roundtrip entrants={backEntrants}, matches={backMatches}, jsonLen={json.Length}.");
+                if (!jsonHasLists || backEntrants != 1 || backMatches != 1)
+                    Plugin.Log.LogWarning($"[tourney] serializer self-test FAILED — the lists are being dropped. json={json}");
+            }
+            catch (Exception e) { Plugin.Log.LogWarning($"[tourney] serializer self-test threw: {e}"); }
+        }
 
         public static void ApplySnapshot(string json)
         {
             try
             {
-                var s = JsonUtility.FromJson<TournamentState>(json) ?? new TournamentState();
+                var s = CompetitiveJson.ReadTournament(json) ?? new TournamentState();
                 if (s.entrants == null) s.entrants = new List<TournamentEntrant>();
                 if (s.matches == null) s.matches = new List<TournamentMatch>();
                 _snapshot = s;
@@ -71,24 +96,34 @@ namespace LostScrollsII.Ranking
 
         // ---- Admin control (SERVER ONLY) -------------------------------------
 
-        public static string Start(string mode, int size)
+        public static string Start(string mode, int size, string eliminationType = "single")
         {
             mode = (mode ?? "1v1").ToLowerInvariant();
             if (mode != "1v1" && mode != "party") return "mode must be 1v1 or party.";
+            eliminationType = (eliminationType ?? "single").ToLowerInvariant();
+            if (eliminationType != "single" && eliminationType != "double" && eliminationType != "round_robin")
+                return "elimination type must be single, double, or round_robin.";
             if (_state.active) return "a tournament is already running — cancel it first.";
+
+            // 0/omitted now means "use the configured MaxEntrants cap" rather than
+            // unlimited — an uncapped bracket no longer makes sense once escrow +
+            // auto-summon holds every entrant's companion for the whole run.
+            int cap = Mathf.Max(1, Plugin.MaxEntrants.Value);
+            int effectiveSize = size <= 0 ? cap : Mathf.Min(size, cap);
 
             _state = new TournamentState
             {
                 active = true,
                 mode = mode,
                 phase = "registration",
-                size = Mathf.Max(0, size),
+                size = effectiveSize,
+                eliminationType = eliminationType,
                 seasonId = 1,
             };
             _snapshot = _state;
             Save();
             Broadcast();
-            return $"Tournament ({mode}) open for registration" + (size > 0 ? $" — {size} slots." : ".");
+            return $"Tournament ({mode}, {eliminationType}) open for registration — {effectiveSize} slots.";
         }
 
         // Player registration. entrantId/label/caste/rating are resolved by the
@@ -96,7 +131,7 @@ namespace LostScrollsII.Ranking
         // payload(s): `totemPayload` for a 1v1 entry, `teamPayloads` for a party.
         // Returns a status string for the joining client.
         public static string Join(string entrantId, long ownerId, string ownerName, string label, int caste,
-            int seedRating, string totemPayload = null, List<string> teamPayloads = null)
+            int seedRating, string totemPayload = null, List<string> teamPayloads = null, int level = 0)
         {
             if (!_state.active || _state.phase != "registration") return "no tournament is accepting entries.";
             if (string.IsNullOrEmpty(entrantId)) return "could not identify your entry.";
@@ -106,10 +141,17 @@ namespace LostScrollsII.Ranking
             // One entry per owner (you field one companion / one party).
             if (_state.entrants.Any(e => e.ownerId == ownerId)) return "you already have an entry in this tournament.";
 
+            // Level gate — 1v1 only (caste >= 0). A party entrant fields multiple
+            // companions so a single required level doesn't map cleanly onto it;
+            // per docs/Tournaments.md this event is 1v1-only, so party is left ungated.
+            int required = Plugin.RequiredEntrantLevel.Value;
+            if (required > 0 && caste >= 0 && level != required)
+                return $"only Level {required} companions may enter this tournament.";
+
             _state.entrants.Add(new TournamentEntrant
             {
                 entrantId = entrantId, ownerId = ownerId, ownerName = ownerName,
-                label = label, caste = caste, seedRating = seedRating,
+                label = label, caste = caste, seedRating = seedRating, level = level,
                 totemPayload = totemPayload ?? string.Empty,
                 teamPayloads = teamPayloads ?? new List<string>(),
             });
@@ -216,11 +258,16 @@ namespace LostScrollsII.Ranking
             _state.matches.Clear();
 
             var ids = _state.entrants.Select(e => e.entrantId).ToList();
-            BuildRound(ids, 1);
+            switch (_state.eliminationType)
+            {
+                case "round_robin": BuildRoundRobinSchedule(ids); break;
+                case "double": BuildDoubleRound(1); break;
+                default: BuildRound(ids, 1); break;
+            }
             Save();
             Broadcast();
             AnnounceRoundMatches(1);
-            return $"Tournament begun — {_state.entrants.Count} entrants, round 1.";
+            return $"Tournament begun ({_state.eliminationType}) — {_state.entrants.Count} entrants, round 1.";
         }
 
         public static string Cancel()
@@ -317,14 +364,28 @@ namespace LostScrollsII.Ranking
 
         // ---- Bracket internals -----------------------------------------------
 
+        // Dispatches to the type-specific resolver (feature #3). Every type shares
+        // win-count tracking (only round robin's champion pick actually uses it).
         private static void ResolveMatch(TournamentMatch m, string winnerId)
         {
             m.winnerId = winnerId;
             var loserId = m.aId == winnerId ? m.bId : m.aId;
             var loser = _state.Find(loserId);
-            if (loser != null) loser.eliminated = true;
-
             var winnerEnt = _state.Find(winnerId);
+            if (winnerEnt != null) winnerEnt.wins++;
+
+            switch (_state.eliminationType)
+            {
+                case "round_robin": ResolveRoundRobinMatch(m, winnerEnt, loser); break;
+                case "double": ResolveDoubleMatch(m, winnerEnt, loser); break;
+                default: ResolveSingleMatch(m, winnerEnt, loser); break;
+            }
+        }
+
+        // Original single-elimination behaviour, unchanged.
+        private static void ResolveSingleMatch(TournamentMatch m, TournamentEntrant winnerEnt, TournamentEntrant loser)
+        {
+            if (loser != null) { loser.eliminated = true; loser.losses++; }
             Plugin.Log.LogInfo($"[tourney] round {m.round}: '{winnerEnt?.label}' beat '{loser?.label}'.");
             Save();
             Broadcast();
@@ -337,7 +398,7 @@ namespace LostScrollsII.Ranking
 
                 if (survivors.Count <= 1)
                 {
-                    Complete(survivors.Count == 1 ? survivors[0] : winnerId);
+                    Complete(survivors.Count == 1 ? survivors[0] : winnerEnt?.entrantId);
                     return;
                 }
 
@@ -347,6 +408,66 @@ namespace LostScrollsII.Ranking
                 Broadcast();
                 AnnounceRoundMatches(_state.currentRound);
             }
+        }
+
+        // Round robin: nobody is eliminated. Every entrant plays every scheduled
+        // round (pre-built at Begin() by BuildRoundRobinSchedule); once the last
+        // round is decided, the champion is whoever has the most wins (ties broken
+        // by seed rating, then name for determinism).
+        private static void ResolveRoundRobinMatch(TournamentMatch m, TournamentEntrant winnerEnt, TournamentEntrant loser)
+        {
+            Plugin.Log.LogInfo($"[tourney] round {m.round} (round robin): '{winnerEnt?.label}' beat '{loser?.label}'.");
+            Save();
+            Broadcast();
+
+            if (!_state.matches.Where(x => x.round == _state.currentRound).All(x => !string.IsNullOrEmpty(x.winnerId)))
+                return;
+
+            if (_state.currentRound >= _state.totalRounds)
+            {
+                var champ = _state.entrants
+                    .OrderByDescending(e => e.wins).ThenByDescending(e => e.seedRating).ThenBy(e => e.label)
+                    .FirstOrDefault();
+                if (champ != null) Complete(champ.entrantId);
+                return;
+            }
+
+            _state.currentRound++;
+            Save();
+            Broadcast();
+            AnnounceRoundMatches(_state.currentRound);
+        }
+
+        // Double elimination: an entrant is only eliminated on their 2nd loss.
+        // Simplification (deliberate, not a bug): the grand final is a single
+        // decisive match — if the once-beaten losers-bracket finalist wins it, they
+        // are declared champion outright instead of forcing a "bracket reset" match
+        // where the winners-bracket finalist would need to lose twice in one match.
+        private static void ResolveDoubleMatch(TournamentMatch m, TournamentEntrant winnerEnt, TournamentEntrant loser)
+        {
+            if (loser != null)
+            {
+                loser.losses++;
+                if (loser.losses >= 2) loser.eliminated = true;
+            }
+            Plugin.Log.LogInfo($"[tourney] round {m.round} ({m.bracket}): '{winnerEnt?.label}' beat '{loser?.label}' (losses={loser?.losses ?? 0}).");
+            Save();
+            Broadcast();
+
+            if (!_state.matches.Where(x => x.round == _state.currentRound).All(x => !string.IsNullOrEmpty(x.winnerId)))
+                return;
+
+            if (m.bracket == "GF")
+            {
+                Complete(winnerEnt?.entrantId);
+                return;
+            }
+
+            _state.currentRound++;
+            BuildDoubleRound(_state.currentRound);
+            Save();
+            Broadcast();
+            AnnounceRoundMatches(_state.currentRound);
         }
 
         private static void Complete(string championId)
@@ -375,7 +496,14 @@ namespace LostScrollsII.Ranking
         {
             var ents = survivorIds.Select(id => _state.Find(id)).Where(e => e != null)
                 .OrderByDescending(e => e.seedRating).ThenBy(e => e.label).ToList();
+            PairPool(ents, round, "W");
+        }
 
+        // Shared pairing helper (single elim's re-seeded rounds AND each double-elim
+        // bracket round): sort by rating desc, top seed byes on an odd count, pair
+        // the rest highest-vs-lowest.
+        private static void PairPool(List<TournamentEntrant> ents, int round, string bracket)
+        {
             int i = 0;
             if (ents.Count % 2 == 1)
             {
@@ -383,7 +511,7 @@ namespace LostScrollsII.Ranking
                 var bye = ents[0];
                 _state.matches.Add(new TournamentMatch
                 {
-                    round = round, aId = bye.entrantId, aLabel = bye.label,
+                    round = round, bracket = bracket, aId = bye.entrantId, aLabel = bye.label, aLevel = bye.level,
                     bId = "", bLabel = "(bye)", winnerId = bye.entrantId,
                 });
                 i = 1;
@@ -395,11 +523,83 @@ namespace LostScrollsII.Ranking
                 var a = ents[lo]; var b = ents[hi];
                 _state.matches.Add(new TournamentMatch
                 {
-                    round = round, aId = a.entrantId, aLabel = a.label,
-                    bId = b.entrantId, bLabel = b.label, winnerId = "",
+                    round = round, bracket = bracket, aId = a.entrantId, aLabel = a.label, aLevel = a.level,
+                    bId = b.entrantId, bLabel = b.label, bLevel = b.level, winnerId = "",
                 });
                 lo++; hi--;
             }
+        }
+
+        // Round robin (feature #3): standard circle method. Builds every round of
+        // the whole schedule up front (a bye slot is added for an odd entrant count,
+        // so total rounds = n or n-1 for even/odd n after padding to even).
+        private static void BuildRoundRobinSchedule(List<string> ids)
+        {
+            var arr = new List<string>(ids);
+            if (arr.Count % 2 == 1) arr.Add(""); // bye slot — whoever draws it sits out that round
+            int n = arr.Count;
+            int rounds = Mathf.Max(1, n - 1);
+            _state.totalRounds = rounds;
+
+            for (int r = 1; r <= rounds; r++)
+            {
+                for (int i = 0; i < n / 2; i++)
+                {
+                    var aId = arr[i];
+                    var bId = arr[n - 1 - i];
+                    if (string.IsNullOrEmpty(aId) || string.IsNullOrEmpty(bId)) continue; // bye — nobody plays
+                    var a = _state.Find(aId);
+                    var b = _state.Find(bId);
+                    if (a == null || b == null) continue;
+                    _state.matches.Add(new TournamentMatch
+                    {
+                        round = r, bracket = "W", aId = aId, aLabel = a.label, aLevel = a.level,
+                        bId = bId, bLabel = b.label, bLevel = b.level, winnerId = "",
+                    });
+                }
+                // Rotate: keep index 0 fixed, everyone else shifts one seat.
+                var last = arr[n - 1];
+                for (int i = n - 1; i > 1; i--) arr[i] = arr[i - 1];
+                arr[1] = last;
+            }
+        }
+
+        // Double elimination (feature #3): pools are recomputed each round from
+        // entrant loss counts rather than tracked as separate persisted queues —
+        // simpler and self-correcting. wbPool = 0 losses, lbPool = 1 loss (2 losses
+        // = eliminated, filtered out entirely). This keeps loss-counting exactly
+        // right; for non-power-of-two entrant counts the pairing/bye handling is a
+        // pragmatic approximation of a "real" seeded DE bracket, not tournament-
+        // grade — acceptable for this mod's small brackets.
+        private static void BuildDoubleRound(int round)
+        {
+            var wbPool = _state.entrants.Where(e => e.losses == 0 && !e.eliminated)
+                .OrderByDescending(e => e.seedRating).ThenBy(e => e.label).ToList();
+            var lbPool = _state.entrants.Where(e => e.losses == 1 && !e.eliminated)
+                .OrderByDescending(e => e.seedRating).ThenBy(e => e.label).ToList();
+
+            if (wbPool.Count == 1 && lbPool.Count == 1)
+            {
+                // Grand final.
+                var a = wbPool[0]; var b = lbPool[0];
+                _state.matches.Add(new TournamentMatch
+                {
+                    round = round, bracket = "GF", aId = a.entrantId, aLabel = a.label, aLevel = a.level,
+                    bId = b.entrantId, bLabel = b.label, bLevel = b.level, winnerId = "",
+                });
+                return;
+            }
+
+            if (wbPool.Count + lbPool.Count <= 1)
+            {
+                // Nobody left to play (guards against a stall) — whoever remains wins.
+                var sole = wbPool.Concat(lbPool).FirstOrDefault();
+                if (sole != null) Complete(sole.entrantId);
+                return;
+            }
+
+            if (wbPool.Count >= 2) PairPool(wbPool, round, "W");
+            if (lbPool.Count >= 2) PairPool(lbPool, round, "L");
         }
 
         private static void AnnounceRoundMatches(int round)
@@ -421,14 +621,14 @@ namespace LostScrollsII.Ranking
             {
                 var path = ChampionsPath();
                 ChampionsData data = File.Exists(path)
-                    ? JsonUtility.FromJson<ChampionsData>(File.ReadAllText(path)) : new ChampionsData();
+                    ? CompetitiveJson.ReadChampions(File.ReadAllText(path)) : new ChampionsData();
                 if (data.champions == null) data.champions = new List<ChampionRecord>();
                 data.champions.Add(new ChampionRecord
                 {
                     mode = _state.mode, championLabel = champ.label, ownerName = champ.ownerName,
                     bracketSize = _state.bracketSize, seasonId = _state.seasonId, dateTicks = DateTime.UtcNow.Ticks,
                 });
-                File.WriteAllText(path, JsonUtility.ToJson(data, true));
+                File.WriteAllText(path, CompetitiveJson.Write(data, true));
             }
             catch (Exception e) { Plugin.Log.LogWarning($"[tourney] champion archive failed: {e.Message}"); }
         }
@@ -439,7 +639,7 @@ namespace LostScrollsII.Ranking
             {
                 var path = ChampionsPath();
                 if (!File.Exists(path)) return new List<ChampionRecord>();
-                var data = JsonUtility.FromJson<ChampionsData>(File.ReadAllText(path));
+                var data = CompetitiveJson.ReadChampions(File.ReadAllText(path));
                 return data?.champions ?? new List<ChampionRecord>();
             }
             catch { return new List<ChampionRecord>(); }

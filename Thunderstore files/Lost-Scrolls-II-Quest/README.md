@@ -35,7 +35,7 @@ All five YAML files drop into **`BepInEx/config/ValheimServerGuide/LostScrollsII
 - **Travel together** — Follow-stance allies board ships and teleport through portals with you.
 - **Duels** — non-lethal companion-vs-companion sparring (`J`), or gather a **party** and fight team-vs-team (`K`).
 - **Rankings** — duel wins feed persistent server ladders; read them in-game with **`F6`**, and name your team with `de_party_name`.
-- **Tournaments** — open the panel with **`F7`** and enter by locking a companion's Communion Totem into a slot; it's summoned automatically for its match and sealed back afterward.
+- **Tournaments** — open the panel with **`F7`** and enter by locking a companion's Communion Totem into a slot; it's summoned automatically (at full health) for its match and sealed back afterward. Single/double elimination or round robin, with optional level-gated events and a live standings table.
 
 > Duels, ladders and tournaments are **multiplayer features** by design (a companion only spars with *another player's* companion). Single-player installs simply won't use them — everything else works solo.
 
@@ -69,5 +69,5 @@ This mod is **free to use as is**. Voluntary support is appreciated.
 
 ---
 
-**Version:** 0.4.0
+**Version:** 0.5.0
 **Source / issues / wiki:** https://github.com/yesu0725/Lost-Scrolls-II

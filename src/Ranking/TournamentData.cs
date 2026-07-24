@@ -20,6 +20,15 @@ namespace LostScrollsII.Ranking
         public int caste;        // 1v1: winner caste for triggers; party: -1
         public int seedRating;
         public bool eliminated;
+        public int level;        // 1v1: the sealed companion's level (0 = unknown/party)
+
+        // Double elimination (feature #3): number of losses so far. Single/round-robin
+        // never touch this beyond 0/1.
+        public int losses;
+
+        // Win count — only meaningfully used by round robin (champion = most wins),
+        // but tracked generically since it's cheap.
+        public int wins;
 
         // Escrow (docs/Tournaments.md — escrow & auto-summon). The companion(s) are
         // sealed into their Communion Totem(s) at registration and held here for the
@@ -41,7 +50,13 @@ namespace LostScrollsII.Ranking
         public string bId;      // "" = bye
         public string aLabel;
         public string bLabel;
+        public int aLevel;
+        public int bLevel;
         public string winnerId; // "" until decided
+
+        // Double elimination (feature #3): which pool this match belongs to.
+        // Single/round-robin always use "W".
+        public string bracket = "W"; // "W" | "L" | "GF" (grand final)
     }
 
     // The whole tournament. Only one is active at a time.
@@ -59,6 +74,15 @@ namespace LostScrollsII.Ranking
         public string championId = "";
         public string championLabel = "";
         public int seasonId = 1;
+
+        // "single" | "double" | "round_robin" (feature #3). Defaults to "single" so
+        // any pre-existing saved state (missing this field) resumes as before.
+        public string eliminationType = "single";
+
+        // Round-robin only: total scheduled rounds (circle-method schedule length)
+        // so ResolveMatch knows when the whole schedule — not just one round — is
+        // exhausted. Unused by single/double.
+        public int totalRounds;
 
         public TournamentEntrant Find(string id)
             => entrants.Find(e => e != null && e.entrantId == id);

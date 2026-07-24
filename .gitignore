@@ -8,3 +8,6 @@ obj/
 
 # Thunderstore build artifacts (zips are packaged on demand)
 Thunderstore files/*.zip
+
+# Session scratch/working files
+scratchpad/

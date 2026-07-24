@@ -33,6 +33,12 @@ namespace LostScrollsII.Companions
         private Button _buttonSource;
         private string _lastSig;       // last rendered state signature (avoid per-frame rebuilds)
 
+        // Client-side pick for the elimination type of the NEXT tournament to start;
+        // only meaningful pre-start (once active, s.eliminationType is authoritative).
+        private static readonly string[] EliminationTypes = { "single", "double", "round_robin" };
+        private static string DisplayType(string t) => t switch { "double" => "Double Elim", "round_robin" => "Round Robin", _ => "Single Elim" };
+        private int _pendingTypeIndex;
+
         private void Awake() => _instance = this;
 
         public static void Toggle(Player player)
@@ -89,9 +95,22 @@ namespace LostScrollsII.Companions
 
         private bool EnsureBuilt()
         {
+            // The panel's widgets are CLONES of InventoryGui's, but InventoryGui is
+            // destroyed and rebuilt on every world load while our root survives
+            // (DontDestroyOnLoad). After a relog the clone sources are destroyed
+            // objects, so Instantiate would NRE — drop the stale panel and rebuild.
+            if (_root != null && (_textSource == null || _buttonSource == null))
+            {
+                Destroy(_root);
+                _root = null;
+                _buttons.Clear();
+                _status = null;
+                _lastSig = null;
+            }
             if (_root != null) return true;
             try
             {
+                if (InventoryGui.instance == null) return false;
                 _textSource = InventoryGui.instance.m_containerWeight;
                 _buttonSource = InventoryGui.instance.m_takeAllButton;
                 if (_textSource == null || _buttonSource == null) return false;
@@ -123,7 +142,10 @@ namespace LostScrollsII.Companions
             catch (System.Exception e)
             {
                 Plugin.Log.LogWarning($"[tourney-ui] Could not build the tournament panel: {e.Message}");
+                if (_root != null) Destroy(_root);
                 _root = null;
+                _status = null;
+                _buttons.Clear();
                 return false;
             }
         }
@@ -154,6 +176,7 @@ namespace LostScrollsII.Companions
 
         private GameObject AddButton(string label, Vector2 anchoredPos, System.Action onClick, Vector2? size = null)
         {
+            if (_buttonSource == null || _root == null) return null;
             var clone = Instantiate(_buttonSource.gameObject, _root.transform.GetChild(0)); // into the panel
             clone.name = "Btn_" + label;
             var rt = clone.GetComponent<RectTransform>();
@@ -194,9 +217,9 @@ namespace LostScrollsII.Companions
 
         private void Rebuild(Player player)
         {
-            if (_root == null) return;
+            if (_root == null || _status == null) return;
             _lastSig = StateSignature(player);
-            foreach (var b in _buttons) Destroy(b);
+            foreach (var b in _buttons) if (b != null) Destroy(b);
             _buttons.Clear();
 
             _status.text = StatusText(player);
@@ -233,8 +256,11 @@ namespace LostScrollsII.Companions
 
             if (s == null || !s.active)
             {
-                AddButton("Start 1v1", new Vector2(rx, ry), () => Admin("start|1v1|0"), wide); ry -= 42f;
-                AddButton("Start Party", new Vector2(rx, ry), () => Admin("start|party|0"), wide); ry -= 42f;
+                string pendingType = EliminationTypes[_pendingTypeIndex];
+                AddButton($"Type: {DisplayType(pendingType)}", new Vector2(rx, ry),
+                    () => { _pendingTypeIndex = (_pendingTypeIndex + 1) % EliminationTypes.Length; Rebuild(player); }, wide); ry -= 42f;
+                AddButton("Start 1v1", new Vector2(rx, ry), () => Admin($"start|1v1|0|{pendingType}"), wide); ry -= 42f;
+                AddButton("Start Party", new Vector2(rx, ry), () => Admin($"start|party|0|{pendingType}"), wide); ry -= 42f;
             }
             else if (registration)
             {
@@ -288,7 +314,8 @@ namespace LostScrollsII.Companions
             }
 
             string mode = s.mode == "party" ? "Party" : "1v1";
-            sb.Append($"Mode: <color=#FFFFFF>{mode}</color>   Phase: <color=#FFFFFF>{s.phase}</color>\n");
+            string type = s.eliminationType switch { "double" => "double elim", "round_robin" => "round robin", _ => "single elim" };
+            sb.Append($"Mode: <color=#FFFFFF>{mode}</color>   Type: <color=#FFFFFF>{type}</color>   Phase: <color=#FFFFFF>{s.phase}</color>\n");
             sb.Append($"Entrants: <color=#FFFFFF>{s.entrants.Count}{(s.size > 0 ? "/" + s.size : "")}</color>\n\n");
 
             long me = player != null ? player.GetPlayerID() : 0L;
@@ -301,7 +328,10 @@ namespace LostScrollsII.Companions
             if (s.phase == "registration")
             {
                 foreach (var e in s.entrants.Take(10))
-                    sb.Append($"  • {e.label} <color=#AAAAAA>({e.ownerName})</color>\n");
+                {
+                    string lvl = e.level > 0 ? $" — <color=#FFD24A>Lv{e.level}</color>" : "";
+                    sb.Append($"  • {e.label} <color=#AAAAAA>({e.ownerName})</color>{lvl}\n");
+                }
             }
             else if (s.phase == "running")
             {
@@ -350,11 +380,12 @@ namespace LostScrollsII.Companions
                 if (string.IsNullOrEmpty(id)) { Msg("That totem has no ladder identity and can't be entered."); return; }
                 int caste = (int)TotemConversionService.CasteOf(t);
                 string label = TotemConversionService.LabelOf(t);
+                int level = TotemConversionService.LevelOf(t);
                 int seed = LeaderboardStore.Find(id)?.rating ?? Rating.StartRating;
                 var payload = TotemConversionService.SerializePayload(t);
                 inv.RemoveItem(t);
                 LeaderboardSync.SendTournamentJoinEscrow(id, ownerId, ownerName, label, caste, seed,
-                    new List<string> { payload });
+                    new List<string> { payload }, level);
                 Msg($"Locked '{label}' into a slot — entering…");
             }
         }
