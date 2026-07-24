@@ -9,7 +9,7 @@ Press **`F6`** to open the ranking board. It shows both ladders side by side:
 - **Duel Ladder** — rank, rating, companion name, its owner and caste, and win/loss record.
 - **Party Ladder** — rank, rating, party name (and owner), record, and team size.
 
-It's read-only — close it with **Escape**, like reading a runestone. The console commands `de_ladder` and `de_party_ladder` show the same standings if you prefer text (add a caste to filter, e.g. `de_ladder fire`).
+It's read-only — close it with **Escape**, like reading a runestone.
 
 ## How rating works
 
