@@ -41,6 +41,7 @@ This mod uses **only** vanilla Valheim assets and prefabs — no custom models, 
 | [docs/Ranking.md](docs/Ranking.md) | **Built (Phase A/B, unverified)** — persistent server-authoritative 1v1 duel ladder (Elo, JSON store, seasons, `dvergr_rank_changed`) |
 | [docs/Party-Duels.md](docs/Party-Duels.md) | **Party duels + ranking built (Phase C/D, unverified)** — team-vs-team + owner-keyed record with companion snapshot |
 | [docs/Tournaments.md](docs/Tournaments.md) | **Built (Phase E, unverified)** — bracket runner for 1v1 & party, ServerGuide-delivered prizes, Hall of Champions |
+| [docs/Tournament-Announcement.md](docs/Tournament-Announcement.md) | Player-facing announcement block + mechanics summary for the tournament system (copy-paste for Discord/server posts) |
 | [docs/Ally-Commands.md](docs/Ally-Commands.md) | Feed/heal, Follow/Guard/Standby stance, rename, hover tooltip, minimap pins, portal follow |
 | [docs/Ally-Inventory.md](docs/Ally-Inventory.md) | Per-companion 4×2 inventory, chest-like UI + rename field, item pickup, food/mead consumption, weight cap/encumbrance |
 | [docs/Companion-Totems.md](docs/Companion-Totems.md) | Seal a companion into a GoblinTotem at the Incinerator (Wisps, 1:1) and summon it back |

@@ -7,6 +7,23 @@ marked passed** — assume "unverified in a live session" otherwise.
 
 ---
 
+## Tournament announcement doc + banner prompt (2026-07-26)  📄 DOCS ONLY
+
+Player-facing / promotional material — no code change.
+
+- **[Tournament-Announcement.md](Tournament-Announcement.md)** — a copy-paste-ready
+  announcement block (for Discord / server posts) plus a mechanics summary of the
+  tournament system (`F7` panel, totem-escrow entry, auto-summon at full health,
+  level gate, the three elimination formats, entrant cap, Hall of Champions, and the
+  ServerGuide 0.9.0+ requirement). Pinned to the 0.5.0 feature set; deliberately
+  carries **no tournament-name field**. Reflects the system as built-but-unverified.
+- **Banner image prompt** — an AI image-generation prompt (delivered in chat, not
+  committed) for a wide 16:9 tournament banner: an action scene of two Dvergr parties
+  battling, matched to the reference art in `docs/Dvergr_mage*.webp` /
+  `docs/Dvergr2star.webp`, no title/text overlay.
+
+---
+
 ## Tournament formats + level gate + standings + serializer fix — released 0.5.0 (2026-07-24)  ⬜ MOSTLY UNVERIFIED
 
 A tournament feature batch on top of the escrow system, plus several bug fixes —
