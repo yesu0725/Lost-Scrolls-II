@@ -31,8 +31,30 @@ namespace LostScrollsII.Patches
 
             if (Companions.CommunionService.IsSubduedDvergr(__instance))
             {
-                __result += $"\n<color=yellow>[{Plugin.CommunionKey.Value}] Communion</color>";
+                __result += $"\n<color=yellow>Hold [{BlockKeyLabel()}] — Communion</color>";
             }
+        }
+
+        // The player's actual Block binding (mouse/key/gamepad) as a display string,
+        // so the recruit hint names the real key. GetBoundKeyString returns a
+        // localization token (e.g. "$button_mouse1"), and the crosshair hover text
+        // is NOT run through Localization (unlike the floating name), so we localize
+        // it ourselves. Falls back to the word "Block" if it can't resolve to a
+        // clean label — never show a raw "$…" token to the player.
+        private static string BlockKeyLabel()
+        {
+            try
+            {
+                if (ZInput.instance != null)
+                {
+                    var s = ZInput.instance.GetBoundKeyString("Block");
+                    if (!string.IsNullOrEmpty(s) && Localization.instance != null)
+                        s = Localization.instance.Localize(s);
+                    if (!string.IsNullOrEmpty(s) && !s.Contains("$")) return s;
+                }
+            }
+            catch { }
+            return "Block";
         }
     }
 }

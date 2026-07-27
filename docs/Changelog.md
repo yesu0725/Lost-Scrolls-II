@@ -7,6 +7,45 @@ marked passed** — assume "unverified in a live session" otherwise.
 
 ---
 
+## Communion Rite reworked into a channeled struggle — released 0.6.0 (2026-07-27)  ⬜ UNVERIFIED
+
+Recruiting a Dvergr is no longer an instant keypress — it's a **channeled rite** you
+have to hold and see through while the corruption fights back. Base-mod only (gameplay
+DLL); no ServerGuide/guidance changes, so ServerGuide stays at 0.9.0 and the Quest
+pack's bundled guidance is unchanged. Builds clean; not yet verified in a live session.
+Full detail in [Ally-Recruitment.md](Ally-Recruitment.md); new driver
+`src/Companions/CommunionRite.cs`.
+
+- **Channeled, not instant** — hold the recruit input on a subdued Dvergr (≤20% HP)
+  for `CommunionChannelSeconds` (default 5 s). A few center-message "the corruption
+  writhes…" beats play during the channel; success runs the existing
+  `CommunionService.TryRecruit` (+ one small spawn poof), and the whole thing is driven
+  by a `CommunionRite` MonoBehaviour on the plugin GameObject.
+- **Moved from `G` to the Block button** — the rite begins whenever **Block is held**
+  (`ZInput.GetButton("Block")`, keyed off *held* not the press down-edge, since you
+  often block continuously through the fight) with the crosshair on a subdued Dvergr.
+  We only *read* the input, so the shield still raises and **blocking and dodging keep
+  working** through the rite (dodge shares the Block button; a `ReleaseGraceSeconds`
+  ≈ 0.5 s grace forgives the brief release a roll causes). `G`/`CommunionKey` is now
+  **Feed-only** on an existing companion (`HandleCommunionInput` split into
+  `HandleFeedInput` + `TryBeginCommune`).
+- **It can fail** — release Block past the grace window, stray past
+  `CommunionMaxDistance` (4 m), take damage (`CommunionBreakOnDamage`, default on — a
+  *blocked* hit deals none), or the target dies/unloads → the shadow reclaims the
+  Dvergr (it re-aggravates and must be re-subdued). Also fixed a latent bug where
+  `Fail()` read `_player` after `Reset()` had nulled it.
+- **Minimal effect: an accelerating Wishbone ping** — the vanilla Wishbone ripple
+  (`SE_Finder.m_pingEffectNear`, played directly rather than via the status effect,
+  which only pulses near buried treasure) pulses on **both the Dvergr and the player**,
+  its interval lerping from 1.0 s → 0.28 s as the rite nears completion — the
+  quickening ping is the progress cue (an earlier progress bar and per-lash smoke were
+  removed). Font note: the discarded bar used ASCII (`[|||---]`) after the serif font
+  showed `▮/▯` as empty boxes.
+- **New config** (`Recruitment`): `CommunionChannelSeconds`, `CommunionMaxDistance`,
+  `CommunionBreakOnDamage`. `CommunionKey` retained (Feed).
+
+---
+
 ## Tournament announcement doc + banner prompt (2026-07-26)  📄 DOCS ONLY
 
 Player-facing / promotional material — no code change.

@@ -31,13 +31,24 @@ Vanilla Dvergr are neutral until attacked. Lost Scrolls II gives that a diegetic
 
 **Caste is detected at recruit from the Dvergr's equipped staff** (`CommunionService.DetectCaste`), not from the GameObject name. The spawned mage is just `DvergerMage`; the element lives on its **staff** — `DvergerStaffFire` → Fire, `...Ice`/frost → Ice, `...Support`/`Heal`/`Nova`/`Blocker`/`Shield` → Support; no staff → melee **Rogue**. Detection order: all weapon slots **drawn and sheathed** (`GetCurrentWeapon`, `m_rightItem`/`m_leftItem`, and the **`m_hiddenRightItem`/`m_hiddenLeftItem`** sheathed slots) → inventory scan → GameObject-name fallback. The sheathed slots matter because a Dvergr that isn't mid-attack puts its staff away, so `GetCurrentWeapon()` is null at hover-recruit time — checking only that slot silently tagged every mage as Rogue. Per-instance (the creature's own items, not the prefab's random pool), and every signal is logged at recruit (`[recruit] caste … from weapon slot …`, or `[recruit] No staff detected …` which dumps every slot + inventory) so any remaining miss is correctable from the log.
 
-## Proposed Recruit Flow
+## Recruit Flow — the channeled rite
 
-1. **Subdue, don't kill** — reduce the target Dvergr to a low-HP threshold without landing the killing blow.
-2. **Perform Communion** — while subdued, interact with the Sword of Truth equipped (or consume a Communion Scroll) to trigger the rite.
-3. **Resolution** — on success, the Dvergr's faction flips to player-allied, it gains a `DvergrCompanion` behavior component, and it begins following the player. On failure (if we want a failure state), the Dvergr flees or resets to hostile.
+Recruiting is a **channeled struggle**, not an instant keypress (`src/Companions/CommunionRite.cs`). The corruption fights to keep its hold, so freeing a Dvergr takes nerve and a steady hand.
 
-Open question for design during Phase 2 implementation: should Communion have a success chance, a resource cost (scroll consumed), or both? Default assumption going in: scroll consumed, no RNG failure — keeps it deterministic and friendly to first-time players, revisit if it feels too easy in playtesting.
+1. **Subdue, don't kill** — reduce the target Dvergr to `SubdueHealthThreshold` (≤20% HP) without landing the killing blow.
+2. **Begin the rite** — **hold the Block button** while aiming at the subdued Dvergr (the crosshair hint reads `Hold [<Block>] — Communion`, using the player's actual Block binding). A center-screen line opens the rite. The rite rides on **Block on purpose**: you keep your shield up and can still block and dodge through the vulnerable channel (dodge shares the Block button and doesn't require releasing it; a brief release is forgiven for `ReleaseGraceSeconds` ≈ 0.5 s so a roll won't shatter the rite). Recruiting is *no longer* on the `G`/`CommunionKey` — that key is now only Feed on an existing companion.
+3. **Hold through the struggle** — for `CommunionChannelSeconds` (default 5 s) the corruption **writhes** at intervals (`LashInterval`, ~1.25 s): a rotating dramatic center-message beat ("The corruption writhes — hold fast.", etc.). **Deliberately minimal — no progress bar and no VFX during the channel** (an earlier floating-name/hover meter and per-lash smoke bursts were removed at the user's request).
+4. **Resolution**
+   - **Success** — the channel completes → the existing `CommunionService.TryRecruit` runs (faction flip, `DvergrCompanion` attached, follows the player), a single small spawn poof plays (`PlaySummonVfx`), and the join message shows.
+   - **Failure** — the rite **breaks** and the shadow reclaims the Dvergr (message only, no VFX): it re-aggravates (turns hostile again) and must be re-subdued/survived before another attempt. Fail conditions: **lower your guard** (release Block past the grace window), **stray > `CommunionMaxDistance`** (4 m), **take damage** (if `CommunionBreakOnDamage`, default on — a *blocked* hit deals no damage, so shielding up survives it), or the target dies/unloads.
+
+**Input note**: the rite only *reads* the Block button (`ZInput.GetButton("Block")`) — it never suppresses input, so blocking (shield raise/animation) and dodging behave exactly as vanilla underneath the channel. Begin fires whenever Block is **held** (`CommunionRite.BlockHeld`, not just the press down-edge — you often block continuously through the fight, so the Dvergr can cross the subdue threshold with Block already down) but only when the crosshair is on a subdued, unrecruited Dvergr, so ordinary blocking in combat is unaffected; `TryBeginCommune` no-ops while a rite is already active.
+
+**MP safety**: a `DE_Communing` ZDO flag (`CommunionRite.ZdoKeyCommuning`) locks the target while a rite is in progress — a second player can't channel the same Dvergr, and the channeling client claims the ZDO so the lock and any fail-time re-aggravation replicate. The flag is cleared on every end path (success/fail/cancel).
+
+**Config** (`Recruitment` section): `CommunionChannelSeconds`, `CommunionMaxDistance`, `CommunionBreakOnDamage`.
+
+**Needs in-game verification**: the rite reliably starts on held Block over a subdued Dvergr, the lash beats fire and don't spam, each fail condition actually breaks the rite (esp. the re-aggravation on failure and the take-damage break inside a camp fight), and the MP lock blocks a second channeler. The Sword-of-Truth / Communion-Scroll item gate is still deferred (no resource cost or RNG on top of the channel yet).
 
 ## Mechanical Notes
 
@@ -82,7 +93,7 @@ The first attempted fix (clearing `m_targetCreature`/alerted/hunt) addressed the
 
 Two indicators were added so the recruit flow is discoverable without reading docs, both via a `Character.GetHoverText()` Harmony postfix (`src/Companions/HoverTextPatch.cs`):
 
-- **Recruit hint**: hovering a subdued, unrecruited Dvergr (per `CommunionService.IsSubduedDvergr`) appends a `[<key>] Communion` line to its hover tooltip, using whatever key `CommunionKey` is currently bound to.
+- **Recruit hint**: hovering a subdued, unrecruited Dvergr (per `CommunionService.IsSubduedDvergr`) appends a `Hold [<Block>] — Communion` line to its hover tooltip, resolving `<Block>` to the player's actual Block binding via `ZInput.GetBoundKeyString("Block")` (localized in-code, with a plain "Block" fallback). There is no progress meter — the channel gives feedback through center-message beats only.
 - **Companion indicator**: hovering an already-recruited companion appends `Companion · Lv X (Y% to next)` instead — see [Ally-Leveling.md](Ally-Leveling.md) for where the level/XP% comes from.
 
 **Needs in-game verification**: `GetHoverText()`'s exact return shape (single line? already ends in a newline? rich-text already in use for something else?) was not checked before appending — it might look wrong even though the patch itself binds without error.

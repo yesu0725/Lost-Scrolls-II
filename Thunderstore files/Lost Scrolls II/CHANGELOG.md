@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0
+
+**The Communion Rite is now a channeled struggle — you free a Dvergr by holding it through the rite while the corruption fights back.**
+
+- **Hold to commune (no longer instant).** Subdue a Dvergr to low health, then **hold your Block button** with the crosshair on it for a few seconds to complete the rite. The tooltip reads `Hold [Block] — Communion`.
+- **You can still fight while you do it.** The rite runs on Block on purpose — your shield stays up, so you can **keep blocking and dodge-roll** through the vulnerable channel. A quick roll won't break it.
+- **It can fail.** Lower your guard, stray too far (~4 m), or take an unblocked hit and the corruption reclaims the Dvergr — it turns hostile again and must be re-subdued. A *blocked* hit does no damage, so shielding up protects the rite.
+- **An accelerating pulse of light** marks the ritual on both you and the Dvergr, quickening as it nears completion — no cluttered progress bar.
+- **`G` is now Feed only.** Recruiting moved to the Block button; `G` still feeds an already-recruited companion. New settings under **Recruitment**: `CommunionChannelSeconds` (5), `CommunionMaxDistance` (4), `CommunionBreakOnDamage` (on).
+
 ## 0.5.0
 
 **Tournament formats, level-gated events, live standings — plus important fixes to how competitive data is saved.**

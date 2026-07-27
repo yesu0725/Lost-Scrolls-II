@@ -23,9 +23,14 @@ Vanilla Dvergr are neutral until you attack them. In Lost Scrolls II that has a 
 
 ## How to recruit
 
-1. **Subdue, don't kill.** Fight the Dvergr down to low health *without* landing the killing blow.
-2. **Perform Communion.** While it's subdued, hover it and press the **Communion key** (`G` by default). The tooltip on a subduable Dvergr shows a `[G] Communion` hint so you know when you're ready.
-3. **Done.** The Dvergr turns to your side, gains a companion behavior, and starts following you.
+The Communion Rite is a **channeled struggle** — you don't just tap a key, you *hold the rite* while the corruption fights to keep its grip.
+
+1. **Subdue, don't kill.** Fight the Dvergr down to low health *without* landing the killing blow. The tooltip on a subduable Dvergr shows a `Hold [Block] — Communion` hint so you know when it's ready.
+2. **Hold Block to channel.** With your crosshair on the subdued Dvergr, **hold your Block button** for a few seconds. The rite rides on Block on purpose: your shield stays up, so **you can keep blocking and even dodge-roll** through the vulnerable channel. A ring of light pulses on you and the Dvergr, and the pulse **quickens as the rite nears completion**.
+3. **Don't break concentration.** The rite fails — and the Dvergr breaks free and turns hostile again — if you **lower your guard** (stop blocking), **stray too far** (~4 m), or **take a hit** (a *blocked* hit is fine, so shielding up protects you). A quick dodge won't break it.
+4. **Done.** When the channel completes, the Dvergr turns to your side, gains a companion behavior, and starts following you.
+
+> The recruit action moved off the old `G` key onto **Block**. `G` now only **feeds** an already-recruited companion. All of these are configurable.
 
 Once freed, a companion:
 
@@ -43,5 +48,5 @@ Striking your own (non-dueling) companion with a **butcher knife** makes it turn
 
 ## Hover indicators
 
-- A subduable, unrecruited Dvergr shows `[G] Communion`.
+- A subduable, unrecruited Dvergr shows `Hold [Block] — Communion` (naming your actual Block binding).
 - Your own recruited companion shows its stance and command hints, plus a `Companion · Lv X (Y% to next)` readout. See [Companion Commands](Companion-Commands) and [Companion Leveling](Companion-Leveling).

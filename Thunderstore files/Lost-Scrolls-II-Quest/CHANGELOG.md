@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0
+
+- Updated to depend on **Lost Scrolls II 0.6.0** — the Communion Rite is now a **channeled struggle**: subdue a Dvergr, then **hold Block** to channel the rite (you can keep blocking/dodging), and it can fail if you lower your guard, stray too far, or take an unblocked hit. Recruiting moved off `G` (now Feed-only) onto Block. See the base mod's changelog for detail.
+- Story, Companion Handbook, ranking and tournament guidance are **unchanged**; still depends on **ValheimServerGuide 0.9.0+**.
+
 ## 0.5.0
 
 - Updated to depend on **Lost Scrolls II 0.5.0** — tournament formats (single/double elimination, round robin), optional level-gated events, companion level shown on the bracket, live win–loss standings, an entrant cap, full-heal-on-summon, and important fixes to how ranking/tournament data is saved and synced. See the base mod's changelog for detail.

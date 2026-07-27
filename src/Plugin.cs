@@ -16,18 +16,25 @@ namespace LostScrollsII
     {
         public const string PluginGuid = "com.lostscrollsii";
         public const string PluginName = "Lost Scrolls II";
-        public const string PluginVersion = "0.5.0";
+        public const string PluginVersion = "0.6.0";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
 
-        // Dual-purpose key: on a subdued, unrecruited Dvergr this performs the
-        // Communion Rite (Phase 2; Sword-of-Truth item gate still deferred —
-        // see docs/Ally-Recruitment.md). On an already-recruited companion it
-        // instead feeds it a health mead from the player's inventory (feature
-        // change — see docs/Ally-Commands.md). Once a Dvergr is communed it no
-        // longer needs recruiting, so the same key naturally becomes Feed.
+        // Feed key: on a recruited companion this feeds it a health mead from the
+        // player's inventory (see docs/Ally-Commands.md). Recruiting itself no
+        // longer lives on this key — the Communion Rite is now channeled by holding
+        // the vanilla Block button (see CommunionRite / docs/Ally-Recruitment.md).
+        // The config id stays "CommunionKey" for back-compat with existing configs.
         public static ConfigEntry<KeyCode> CommunionKey { get; private set; }
+
+        // The Communion Rite is a CHANNELED struggle, not an instant keypress
+        // (see CommunionRite / docs/Ally-Recruitment.md). Hold the key for
+        // CommunionChannelSeconds while staying within CommunionMaxDistance; if
+        // CommunionBreakOnDamage is on, taking a hit also breaks it.
+        public static ConfigEntry<float> CommunionChannelSeconds { get; private set; }
+        public static ConfigEntry<float> CommunionMaxDistance { get; private set; }
+        public static ConfigEntry<bool> CommunionBreakOnDamage { get; private set; }
 
         // Phase 4: pressed while hovering a Smelter to assign/unassign the nearest
         // recruited companion as its chore worker. See docs/Ally-Chores.md.
@@ -102,7 +109,25 @@ namespace LostScrollsII
                 "Recruitment",
                 "CommunionKey",
                 KeyCode.G,
-                "Key held while hovering a subdued Dvergr to perform the Communion Rite and recruit it.");
+                "Key pressed while hovering a recruited companion to feed it a health mead. (The Communion Rite that recruits a subdued Dvergr is now channeled by holding the Block button, not this key.)");
+
+            CommunionChannelSeconds = Config.Bind(
+                "Recruitment",
+                "CommunionChannelSeconds",
+                5f,
+                "How long you must hold the Communion key to complete the rite. The corruption fights back the whole time — release the key, stray too far, or take a hit and the rite breaks.");
+
+            CommunionMaxDistance = Config.Bind(
+                "Recruitment",
+                "CommunionMaxDistance",
+                4f,
+                "How far you may drift from the Dvergr mid-rite before the connection snaps and the rite fails.");
+
+            CommunionBreakOnDamage = Config.Bind(
+                "Recruitment",
+                "CommunionBreakOnDamage",
+                true,
+                "If true, taking damage while channeling the Communion Rite breaks it (the shadow reclaims the Dvergr). Turn off for a more forgiving rite.");
 
             ChoreAssignKey = Config.Bind(
                 "Chores",
@@ -225,6 +250,10 @@ namespace LostScrollsII
             // plugin GameObject so it persists across scene loads.
             gameObject.AddComponent<CompanionMapPins>();
 
+            // Drives the channeled Communion Rite (hold-to-recruit with fail
+            // conditions). See CommunionRite / docs/Ally-Recruitment.md.
+            gameObject.AddComponent<Companions.CommunionRite>();
+
             // Manages the companion-inventory panel + injected rename field.
             gameObject.AddComponent<CompanionInventoryGui>();
 
@@ -263,7 +292,20 @@ namespace LostScrollsII
 
             if (Input.GetKeyDown(CommunionKey.Value))
             {
-                HandleCommunionInput(player);
+                HandleFeedInput(player);
+            }
+
+            // The Communion Rite is now channeled by HOLDING the vanilla Block
+            // button (feature change) — begin it whenever Block is HELD and the
+            // crosshair is on a subdued Dvergr. We key off "held" (not the press
+            // down-edge) on purpose: you often block continuously through the fight,
+            // so the Dvergr can drop to the subdue threshold while Block is already
+            // down and there'd be no fresh press to catch. TryBeginCommune no-ops if
+            // a rite is already active. We only READ the button, so the shield still
+            // raises and blocking/dodging keep working through the rite.
+            if (Companions.CommunionRite.BlockHeld())
+            {
+                TryBeginCommune(player);
             }
 
             if (Input.GetKeyDown(ChoreAssignKey.Value))
@@ -327,7 +369,10 @@ namespace LostScrollsII
             CompanionInventoryGui.Open(companion, inventory);
         }
 
-        private void HandleCommunionInput(Player player)
+        // The CommunionKey (G) now only FEEDS a hovered companion — recruiting moved
+        // onto the Block button (see TryBeginCommune). Once a Dvergr is freed the key
+        // naturally becomes Feed; see docs/Ally-Commands.md.
+        private void HandleFeedInput(Player player)
         {
             var hoverObject = player.GetHoverObject();
             if (hoverObject == null) return;
@@ -335,45 +380,47 @@ namespace LostScrollsII
             var target = hoverObject.GetComponentInParent<Character>();
             if (target == null) return;
 
-            // Already a companion: G is now Feed instead of Communion (feature
-            // change — see docs/Ally-Commands.md). A Dvergr that's already been
-            // freed has no further use for the recruit action on this key.
             var hovered = target.GetComponent<DvergrCompanion>();
-            if (hovered != null)
-            {
-                // Feeding is NOT owner-gated — any player may offer a mead to any
-                // companion (a friend can top up your ally, or heal a duel loser).
-                // Other commands (stance/rename/chore/duel) stay owner-only; only
-                // the heal is shared. TryFeed claims the companion's ZDO before
-                // SetHealth, so the heal lands even on someone else's ally.
-                bool mine = hovered.IsOwner(player);
-                if (MeadFeedingService.TryFeed(target, player))
-                {
-                    MessageHud.instance.ShowMessage(MessageHud.MessageType.Center,
-                        mine ? "Your ally drinks deep." : $"{hovered.DisplayName} drinks deep.");
-                }
-                else
-                {
-                    MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "You have no health mead to offer.");
-                }
-                return;
-            }
+            if (hovered == null) return;
 
-            if (!CommunionService.IsSubduedDvergr(target))
+            // Feeding is NOT owner-gated — any player may offer a mead to any
+            // companion (a friend can top up your ally, or heal a duel loser).
+            // Other commands (stance/rename/chore/duel) stay owner-only; only
+            // the heal is shared. TryFeed claims the companion's ZDO before
+            // SetHealth, so the heal lands even on someone else's ally.
+            bool mine = hovered.IsOwner(player);
+            if (MeadFeedingService.TryFeed(target, player))
             {
-                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "It is not yet ready for Communion.");
-                return;
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center,
+                    mine ? "Your ally drinks deep." : $"{hovered.DisplayName} drinks deep.");
             }
+            else
+            {
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "You have no health mead to offer.");
+            }
+        }
 
-            // Caste is detected from the Dvergr's prefab (all four castes are
-            // real prefabs) so a recruited Fire/Ice/Support mage is tagged
-            // correctly — this is what makes caste-gated chores meaningful.
-            var caste = CommunionService.DetectCaste(target);
-            Log.LogInfo($"[recruit] '{target.name}' detected as caste {caste}.");
-            if (CommunionService.TryRecruit(target, player, caste))
-            {
-                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, $"The shadow's grip loosens — a {caste.Display()} joins you.");
-            }
+        // Fires on every Block press. Only acts when the crosshair is on a subdued,
+        // unrecruited Dvergr — otherwise it does nothing and Block behaves as vanilla
+        // (no message spam while blocking in combat). Begins the channeled rite; the
+        // CommunionRite component then watches the held Block button + fail conditions
+        // each frame and calls TryRecruit once the channel completes (see
+        // CommunionRite / docs/Ally-Recruitment.md).
+        private void TryBeginCommune(Player player)
+        {
+            if (Companions.CommunionRite.Instance == null || Companions.CommunionRite.Instance.IsActive) return;
+
+            var hoverObject = player.GetHoverObject();
+            if (hoverObject == null) return;
+
+            var target = hoverObject.GetComponentInParent<Character>();
+            if (target == null) return;
+
+            // Blocking near/at an already-freed companion is just normal combat.
+            if (target.GetComponent<DvergrCompanion>() != null) return;
+            if (!CommunionService.IsSubduedDvergr(target)) return;
+
+            Companions.CommunionRite.Instance.Begin(target, player);
         }
 
         private void HandleChoreAssignInput(Player player)

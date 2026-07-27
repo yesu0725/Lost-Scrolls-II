@@ -23,7 +23,7 @@ A spiritual sequel to the deprecated mod **Lost Scrolls** (TaegukGaming), rebuil
 
 1. Install via your mod manager (r2modman / Thunderstore Mod Manager). BepInEx is pulled in automatically.
 2. Launch Valheim and load a world.
-3. Fight a Dvergr down to low health *without killing it*, hover it, and press **`G`** to perform Communion. It's now your ally.
+3. Fight a Dvergr down to low health *without killing it*, then **hold your Block button** with the crosshair on it to channel the Communion Rite (you can keep blocking/dodging). Hold it through the struggle and it's now your ally.
 
 Install on the server and on every client in multiplayer. Some features (duels) are multiplayer by design.
 
@@ -51,5 +51,5 @@ This mod is **free to use as is**. Voluntary support is appreciated.
 
 ---
 
-**Version:** 0.5.0
+**Version:** 0.6.0
 **Source / issues / wiki:** https://github.com/yesu0725/Lost-Scrolls-II
