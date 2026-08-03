@@ -45,7 +45,7 @@ Folder: `Thunderstore files/Lost Scrolls II/`
 
 | File | Purpose |
 |---|---|
-| `manifest.json` | name `Lost_Scrolls_II`, version `0.6.0` |
+| `manifest.json` | name `Lost_Scrolls_II`, version `0.7.0` |
 | `icon.png` | 256×256 RGBA PNG (author-supplied) |
 | `README.md` | Thunderstore listing copy |
 | `CHANGELOG.md` | per-release notes |
@@ -67,7 +67,7 @@ as dependencies. It does **not** bundle the DLL — the base mod arrives via dep
 
 ```
 Lost-Scrolls-II-Quest/
-  manifest.json        name Lost_Scrolls_II_Quest, version 0.6.0
+  manifest.json        name Lost_Scrolls_II_Quest, version 0.7.0
   icon.png             256×256 RGBA PNG (author-supplied)
   README.md
   CHANGELOG.md
@@ -105,7 +105,7 @@ Lost-Scrolls-II-Quest/
 **Dependencies (all installed automatically):**
 
 - `denikson-BepInExPack_Valheim-5.4.2333`
-- `TaegukGaming-Lost_Scrolls_II-0.6.0` — the base gameplay mod
+- `TaegukGaming-Lost_Scrolls_II-0.7.0` — the base gameplay mod
 - `TaegukGaming-ValheimServerGuide-0.9.0` — the story/handbook engine (+ templating & Discord)
 
 **Why `config/ValheimServerGuide/` works out of the box:** ServerGuide loads and
@@ -131,16 +131,16 @@ $ls = "E:\Valheim Modding\Dvergr Expanded\Thunderstore files"
 $sg = "E:\Valheim Modding\Valheim ServerGuide\Thunderstore files"
 
 # Base mod
-Compress-Archive -Path "$ls\Lost Scrolls II\*"        -DestinationPath "$ls\Lost_Scrolls_II_0.6.0.zip"       -Force
+Compress-Archive -Path "$ls\Lost Scrolls II\*"        -DestinationPath "$ls\Lost_Scrolls_II_0.7.0.zip"       -Force
 # Quest pack (preserves the config/ subtree)
-Compress-Archive -Path "$ls\Lost-Scrolls-II-Quest\*"  -DestinationPath "$ls\Lost_Scrolls_II_Quest_0.6.0.zip" -Force
+Compress-Archive -Path "$ls\Lost-Scrolls-II-Quest\*"  -DestinationPath "$ls\Lost_Scrolls_II_Quest_0.7.0.zip" -Force
 # ServerGuide (only when its DLL changed — see the caution below)
 Compress-Archive -Path "$sg\ValheimServerGuide\*"     -DestinationPath "$sg\ValheimServerGuide_0.9.0.zip"    -Force
 ```
 
 Produced zips (gitignored):
-- `Thunderstore files/Lost_Scrolls_II_0.6.0.zip`
-- `Thunderstore files/Lost_Scrolls_II_Quest_0.6.0.zip`
+- `Thunderstore files/Lost_Scrolls_II_0.7.0.zip`
+- `Thunderstore files/Lost_Scrolls_II_Quest_0.7.0.zip`
 - `../Valheim ServerGuide/Thunderstore files/ValheimServerGuide_0.9.0.zip` *(not re-cut for the
   0.5.0 release either — its guidance changes are content-only, using existing 0.9.0 triggers)*
 
@@ -162,10 +162,10 @@ they exist at the listed versions:
 
 1. **ValheimServerGuide 0.9.0** (its own Thunderstore page) — needed for the Quest
    pack's `TaegukGaming-ValheimServerGuide-0.9.0` dependency. **Already published and
-   unchanged for 0.6.0** (this cut is base-mod only) — only re-upload if you've since cut
-   a newer build.
-2. **Lost Scrolls II 0.6.0** (base) — needed for `TaegukGaming-Lost_Scrolls_II-0.6.0`.
-3. **Lost Scrolls II Quest 0.6.0** (complete pack) — last.
+   unchanged for 0.7.0** (no ServerGuide code changes in this cut) — only re-upload if
+   you've since cut a newer build.
+2. **Lost Scrolls II 0.7.0** (base) — needed for `TaegukGaming-Lost_Scrolls_II-0.7.0`.
+3. **Lost Scrolls II Quest 0.7.0** (complete pack) — last.
 
 ## Version bumping a release
 

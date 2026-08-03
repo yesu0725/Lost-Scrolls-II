@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0
+
+**The chest/storage window can now be moved wherever you want it.**
+
+- **Drag it anywhere.** Grab an empty part of the storage window — the background, not an item slot — with the left mouse button and drop it where you like. It lights up faintly when the cursor is over grabbable space. Item slots, **Take All** and the companion name field all keep working exactly as before; they're never grabbed by accident.
+- **Your position is remembered**, across every chest, every companion pack, and across relogs.
+- **A better default.** The window now opens **two inventory rows lower** than vanilla, so extra inventory rows added by other mods stay visible instead of hiding behind it. This replaces the old ComfyQuickSlots-specific fix, which tried to detect other mods and guess — nothing is guessed now.
+- **It can't get lost.** The window always keeps part of itself on screen, and `de_container_reset` (or setting the config back to `auto`) puts it straight back to the default spot.
+- **New settings** under **Interface**: `ContainerPanelOffset` (the `x,y` position, or `auto`) and `MoveContainerPanel` (turn the whole thing off). The old `Companions / AdjustContainerPanel` setting is gone.
+- **BiomeLords users:** BiomeLords already does this for the same window, so when it's installed Lost Scrolls II stands aside completely and leaves the position to it.
+
 ## 0.6.0
 
 **The Communion Rite is now a channeled struggle — you free a Dvergr by holding it through the rite while the corruption fights back.**

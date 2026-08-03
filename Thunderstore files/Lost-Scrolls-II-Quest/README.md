@@ -16,8 +16,9 @@ This is a **content pack**: it ships the story and pulls in the gameplay mod and
 - **Ladder guidance** (`guidance.rankings.yaml`) — how the duel and party ladders work, rank milestones, and a "new champion" announcement when someone reaches #1.
 - **Tournament guidance** (`guidance.tournaments.yaml`) — join confirmations, round pairings, and the champion prize bundle.
 - **Duel broadcasts** (`guidance.duels.yaml`) — announces every duel win to server chat and, optionally, Discord.
+- **The Bog Witch's Dvergr rites** (`guidance.bogwitch-rite.yaml`) — a weekly quest chain that lets you find and free your first Dvergr companions **without traveling to the Mistlands**. Requires the **Bog Witch** trader (from the `ProfMags-TraderOverhaul` mod); harmlessly inert without her.
 
-All five YAML files drop into **`BepInEx/config/ValheimServerGuide/LostScrollsII/`** — their own subfolder, so they stay separate from any guidance your server already runs and are easy to remove. ServerGuide merges every `*.yaml` under its config folder recursively, at any depth.
+All six YAML files drop into **`BepInEx/config/ValheimServerGuide/LostScrollsII/`** — their own subfolder, so they stay separate from any guidance your server already runs and are easy to remove. ServerGuide merges every `*.yaml` under its config folder recursively, at any depth.
 
 > **Rankings & tournaments need ServerGuide.** These guidance files *are* what announces and rewards the competitive systems — rank-ups, "new #1", tournament pairings, champion prizes, Discord posts. That's why **ValheimServerGuide 0.9.0+** is a hard dependency of this pack (0.8.0+ is also what makes the subfolder layout load at all). The ladders themselves keep recording without it, but nothing would announce them.
 
@@ -36,6 +37,7 @@ All five YAML files drop into **`BepInEx/config/ValheimServerGuide/LostScrollsII
 - **Duels** — non-lethal companion-vs-companion sparring (`J`), or gather a **party** and fight team-vs-team (`K`).
 - **Rankings** — duel wins feed persistent server ladders; read them in-game with **`F6`**, and name your team with `de_party_name`.
 - **Tournaments** — open the panel with **`F7`** and enter by locking a companion's Communion Totem into a slot; it's summoned automatically (at full health) for its match and sealed back afterward. Single/double elimination or round robin, with optional level-gated events and a live standings table.
+- **The Bog Witch's rites** — talk to the Bog Witch to learn of Dvergr echoes bound in the Swamp's rotted dead. Break them free (Draugr Elite by day for a Rogue, Wraith by night for a random mage caste) and a wild Dvergr wakes nearby, ready to subdue and commune — a taste of recruiting before you've ever set foot in the Mistlands. Each rite renews weekly.
 
 > Duels, ladders and tournaments are **multiplayer features** by design (a companion only spars with *another player's* companion). Single-player installs simply won't use them — everything else works solo.
 
@@ -51,7 +53,7 @@ All installed automatically as dependencies:
 
 1. Install this package via your mod manager (r2modman / Thunderstore Mod Manager). Both dependencies are pulled in for you.
 2. Launch Valheim and start (or continue) a world.
-3. The story begins at the sacrificial stones where you first wake; established characters are gently nudged back to the start. Fight a Dvergr down to low health *without killing it*, hover it, and press **`G`** to perform Communion.
+3. The story begins at the sacrificial stones where you first wake; established characters are gently nudged back to the start. Fight a Dvergr down to low health *without killing it*, then hold your **Block** button on it to channel the Communion Rite.
 
 ## Multiplayer
 
@@ -69,5 +71,5 @@ This mod is **free to use as is**. Voluntary support is appreciated.
 
 ---
 
-**Version:** 0.6.0
+**Version:** 0.7.0
 **Source / issues / wiki:** https://github.com/yesu0725/Lost-Scrolls-II

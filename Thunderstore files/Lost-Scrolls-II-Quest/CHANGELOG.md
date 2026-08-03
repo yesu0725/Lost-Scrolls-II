@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0
+
+**New: the Bog Witch's Dvergr rites** — a way to find and free your first Dvergr companions **without traveling to the Mistlands**, courtesy of a new `guidance.bogwitch-rite.yaml` file. Requires the **Bog Witch** trader (from the `ProfMags-TraderOverhaul` mod, e.g. the Hearthbound modpack) — on a server without her, this content simply never appears, with no effect on anything else.
+
+- **"An Echo in the Mire"** — talk to the Bog Witch about a stirring in her mire. She points you to the Sunken Crypts, where an echo of a Dvergr lies bound in the bones of the rotted dead.
+- **"The Rite of Waking"** — kill 2 Draugr Elite in the Swamp and a wild, unrecruited **Rogue-caste** Dverger wakes nearby, free to subdue and commune with normally. Renews **weekly**.
+- **"The Deeper Echo"** — unlocked after you've completed the rite above at least once. The Bog Witch reveals a second, stranger echo, bound in something that only walks her mire by **night**.
+- **"The Rite of the Unseen Hand"** — kill 2 Wraith (a **night-only** Swamp spawn) and a wild **DvergerMage** wakes nearby. Its caste (Fire, Ice, or Support) is random — the same odds as meeting one naturally in the Mistlands. Renews **weekly**.
+- Both rites grant a small Coin reward alongside the spawned companion. No code changes in either mod — built entirely from ServerGuide's existing `npc_conversation` / `kill` / `spawn_creature` building blocks.
+- Updated to depend on **Lost Scrolls II 0.7.0**, which makes the **chest/storage window movable** — drag it anywhere by an empty part of the panel, and it opens two inventory rows lower by default so extra rows from other inventory mods stay visible. See the base mod's changelog for detail.
+- Story, Companion Handbook, ranking and tournament guidance are otherwise **unchanged**; still depends on **ValheimServerGuide 0.9.0+**.
+
 ## 0.6.0
 
 - Updated to depend on **Lost Scrolls II 0.6.0** — the Communion Rite is now a **channeled struggle**: subdue a Dvergr, then **hold Block** to channel the rite (you can keep blocking/dodging), and it can fail if you lower your guard, stray too far, or take an unblocked hit. Recruiting moved off `G` (now Feed-only) onto Block. See the base mod's changelog for detail.

@@ -218,6 +218,22 @@ namespace LostScrollsII.Patches
             new Terminal.ConsoleCommand("de_season_reset",
                 "- archive the duel ladder and start a new season (host only)",
                 seasonReset, onlyAdmin: true);
+
+            // de_container_reset — put the chest/storage panel back at its default
+            // spot (two rows below the player inventory) after dragging it around.
+            // Client-side and purely cosmetic, so no admin gate.
+            new Terminal.ConsoleCommand("de_container_reset",
+                "- move the chest/storage UI back to its default position", args =>
+            {
+                if (ContainerPanelPositioner.BiomeLordsLoaded())
+                {
+                    args.Context.AddString("BiomeLords owns the chest UI position — use its own setting.");
+                    return;
+                }
+                if (Plugin.ContainerPanelOffset == null) return;
+                Plugin.ContainerPanelOffset.Value = "auto";
+                args.Context.AddString("Chest/storage UI position reset to default.");
+            });
         }
 
         // Console fallback for entering a tournament — routed through the SAME escrow

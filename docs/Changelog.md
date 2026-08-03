@@ -7,6 +7,71 @@ marked passed** — assume "unverified in a live session" otherwise.
 
 ---
 
+## Movable chest/storage UI — released 0.7.0 (2026-08-03)  ⬜ UNVERIFIED
+
+The shared container panel (`InventoryGui.m_container` — vanilla chests **and** the
+companion pack) is now **placed by config and moved by dragging**, replacing the old
+"measure the player inventory and shift by the extra rows" fix that inferred what
+ComfyQuickSlots and friends had done. New
+[`ContainerPanelPositioner`](../src/Companions/ContainerPanelPositioner.cs); full
+detail in [Ally-Inventory.md](Ally-Inventory.md), test plan in
+[Testing.md](Testing.md) §16e2.
+
+- **Drag it anywhere** — grab any empty part of the panel with the left mouse button
+  and drop it where you want. A transparent `Image` stretched over the panel as its
+  **first child** is the grab surface: every real widget (item slots, Take All, the
+  companion name field) is a later sibling, so it stays in front and keeps its own
+  clicks. A faint white wash on hover marks grabbable space.
+- **Position config** — `Interface/ContainerPanelOffset`, an `"x,y"` pixel offset from
+  the game's own position. Dropping the panel writes the new value there, so it
+  survives a relog; `"auto"` (the default) means **two inventory rows below**, which
+  clears the extra rows slot mods add. `de_container_reset` restores `"auto"`.
+- **Off-screen guard** — at least 48 px of the panel always stays on screen, so a wild
+  drag or a config from another resolution can't lose it.
+- **BiomeLords** ships the same feature for the same panel, so when it's loaded this
+  whole system disables itself (no default offset, no drag surface) and leaves the
+  panel to it. `Interface/MoveContainerPanel = false` is the manual off-switch. Logged
+  once as `[inventory] container-panel positioning: ON/OFF (config=…, BiomeLords=…)`.
+- **Removed** — `Companions/AdjustContainerPanel`, the CQS row-counting shift, and the
+  BiomeLords check inside `CompanionInventoryGui` (which no longer touches panel
+  placement at all).
+
+**Packaging (0.7.0):** version bumped across `csproj` / `Plugin.cs` / the base
+`manifest.json`, and the Quest pack's dependency moved to
+`TaegukGaming-Lost_Scrolls_II-0.7.0`. The Quest pack itself is **already at 0.7.0** for
+the Bog Witch rites above — the two now line up. Both package `CHANGELOG`/`README`
+updated, both zips rebuilt. **ServerGuide is untouched** (stays 0.9.0), so upload order
+is just base 0.7.0 → Quest 0.7.0. See [Publishing.md](Publishing.md).
+
+## Bog Witch Dvergr rites — Quest pack 0.7.0 (2026-07-27)  ⬜ UNVERIFIED
+
+A new bundled guidance file, `guidance.bogwitch-rite.yaml`, gives players a way to find
+and free their first Dvergr companions **without traveling to the Mistlands** — a
+two-stage weekly quest chain delivered by the **Bog Witch** trader (from the
+`ProfMags-TraderOverhaul` mod). Quest-pack-only content: no base-mod or ServerGuide code
+changes, built entirely from ServerGuide's existing `npc_conversation` / `kill` /
+`spawn_creature` building blocks. Base mod stays at 0.6.0, ServerGuide stays at 0.9.0.
+Full detail in [ServerGuide-Integration.md](ServerGuide-Integration.md) and
+[Ally-Recruitment.md](Ally-Recruitment.md); test plan in
+[Testing.md](Testing.md) §22.
+
+- **"An Echo in the Mire" → "The Rite of Waking"** (`ls_bogwitch_echo_intro` /
+  `ls_bogwitch_echo_rite`) — talk to the Bog Witch, then kill 2 `Draugr_Elite` in the
+  Swamp. A wild, untamed `Dverger` (no staff → **Rogue** caste on recruit) spawns beside
+  the player via a `spawn_creature` reward, plus 20 Coins. Weekly cooldown.
+- **"The Deeper Echo" → "The Rite of the Unseen Hand"** (`ls_bogwitch_mage_intro` /
+  `ls_bogwitch_mage_rite`) — unlocks only after the rite above has fired at least once.
+  Kill 2 `Wraith` (a **night-only** Swamp spawn) to spawn a wild `DvergerMage`, plus 30
+  Coins. Caste (Fire/Ice/Support) is whatever staff vanilla's own spawn logic randomly
+  equips it with — ServerGuide's `spawn_creature` reward can't force a specific one, so
+  this matches the same odds as meeting one naturally in the Mistlands. Weekly cooldown.
+- **Lore tie-in, not a new lore file** — both rites echo the existing Sunken Crypts beat
+  in `guidance.lost-scrolls.yaml` (`ls_beat_swamp_crypt`: "a rite... not of binding, but
+  of waking") in the Bog Witch's own folksier voice, without duplicating that text.
+- **Soft dependency** — "BogWitch" is not a standalone mod; on a server without
+  `ProfMags-TraderOverhaul`, the prefab never exists and this content simply never
+  triggers. No error, no crash, no effect on any other guidance.
+
 ## Communion Rite reworked into a channeled struggle — released 0.6.0 (2026-07-27)  ⬜ UNVERIFIED
 
 Recruiting a Dvergr is no longer an instant keypress — it's a **channeled rite** you

@@ -6,8 +6,9 @@ them food and meads, and manage their carrying weight. Built entirely on vanilla
 [vanilla-assets-only constraint](Technical-Constraints.md).
 
 Status: **verified in-game (2026-07-05).** Core storage/UI, pickup, food, weight,
-death-drop, totem carry-over, the wood-portal cargo block, and ComfyQuickSlots panel
-compatibility all passed a live session — see [Testing.md §16](Testing.md).
+death-drop, totem carry-over and the wood-portal cargo block all passed a live session
+— see [Testing.md §16](Testing.md). The panel-position rework
+(drag-to-move + config offset, 2026-08-03) is **unverified**.
 
 ## At a glance
 
@@ -135,15 +136,31 @@ for everyone; the **fed** icon is owner-client local.
   (`CompanionPortalBlockPatch`, throttled). Scoped to `portal_wood`; other portals are
   unaffected. See [Ally-Commands.md](Ally-Commands.md) (portal follow).
 
-## ComfyQuickSlots compatibility
+## Chest/storage panel position (`ContainerPanelPositioner`)
 
-ComfyQuickSlots (and other slot mods) grow the player inventory downward, and that
-extra row would sit **behind** our pack panel. While the pack is open we push the
-shared container panel (`InventoryGui.m_container`) down by the extra rows' height
-(`(GetHeight() − 4) × elementSpace` + a small clearance) so the row stays visible —
-the same `m_container` shift BiomeLords uses — and restore it on close, leaving vanilla
-chests untouched. Re-applied every frame because CQS re-runs its own layout a frame
-after `Show`.
+The pack shares one panel with every container in the game (`InventoryGui.m_container`),
+and mods that grow the player inventory extend it **downward**, into where that panel
+sits. Rather than detect those mods and infer a shift, the panel's position is simply
+**ours to place and the player's to move**:
+
+- **Default position** — two player-inventory rows below the game's own spot
+  (`2 × m_playerGrid.m_elementSpace`, measured live), which clears any extra rows a slot
+  mod adds. This applies to vanilla chests too, not just the companion pack.
+- **Drag to move** — a transparent uGUI `Image` is stretched over the panel as its
+  **first child**, so every real widget (item slots, Take All, our name field) sits in
+  front of it and keeps its own clicks; what's left is the panel's empty background.
+  Grab that with the left mouse button and the panel follows the cursor (faint white
+  wash on hover is the affordance). `ContainerDragSurface` handles the pointer events.
+- **Persistence** — dropping the panel writes an `"x,y"` pixel offset to
+  `Interface/ContainerPanelOffset` (BepInEx saves it). `"auto"` means the default above;
+  `de_container_reset` puts it back. The offset is re-read whenever the config value
+  changes, so editing it live (Configuration Manager) works.
+- **Off-screen guard** — `ClampToScreen` keeps ≥48 px of the panel on screen, so neither
+  a wild drag nor a config written at another resolution can strand it.
+- **BiomeLords** ships the same feature for the same panel, so when it's loaded we
+  disable the whole thing — no default offset, no drag surface — and leave the panel to
+  it. `Interface/MoveContainerPanel = false` does the same by hand. The decision is
+  logged once: `[inventory] container-panel positioning: ON/OFF (config=…, BiomeLords=…)`.
 
 ## Known caveats / open items
 

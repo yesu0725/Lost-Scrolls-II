@@ -15,6 +15,10 @@ The four vanilla Dvergr creature types are all recruitable (see [Technical-Const
 
 Build order introduces these one at a time — see [Development-Phases.md](Development-Phases.md). Rogue first (MVP), remaining three in Phase 7. The **narrative** arc is Rogue → Fire → Ice → Support (the ServerGuide story chains follow it), but recruitment is **not** mechanically gated to that order — a player may free the castes in any order they meet them.
 
+### Finding a Dvergr before the Mistlands
+
+Corrupted Dvergr naturally spawn only in the Mistlands, but the Communion Rite itself works on **any** Dverger/DvergerMage in the world, however it got there — it's not Mistlands-gated in code. The Quest pack's bundled `guidance.bogwitch-rite.yaml` uses this to give players an early taste: the **Bog Witch** trader offers a weekly rite that spawns a wild, untamed Dverger in the Swamp after killing a couple of Draugr Elite (Rogue caste, matching the intended discovery order), and a second rite — unlocked after the first — spawns a random-caste DvergerMage after a night hunt for Wraith. See [ServerGuide-Integration.md](ServerGuide-Integration.md) and [Testing.md](Testing.md) §22. This is Quest-pack guidance content only; no change to the Communion Rite or recruit mechanics above.
+
 ## The corruption awakens (message on aggravation)
 
 Vanilla Dvergr are neutral until attacked. Lost Scrolls II gives that a diegetic, allegorical reason (see [Lore.md](Lore.md) → "The corruption within"): the corruption sleeps *inside* every unfreed Dvergr and **wakes when the Dvergr is roused**, which is why it turns on the player. When an unrecruited Dvergr first becomes aggravated, a short center-screen message names what's happening (one of a small rotating set, e.g. *"Something old stirs in it — the corruption was never truly gone. Roused, it turns on you."*).

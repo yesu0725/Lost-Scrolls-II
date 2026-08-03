@@ -33,11 +33,16 @@ A config file is generated at `BepInEx/config/com.lostscrollsii.cfg` after the f
 
 | Setting | Default | What it does |
 |---|---|---|
-| Communion / Feed key | `G` | Free a subdued Dvergr, or feed/heal a recruited one |
+| Feed key | `G` | Feed/heal a recruited companion (freeing one is the **Block** button — see [Recruiting Companions](Recruiting-Companions)) |
 | Chore assign / recall key | `H` | Assign or recall a companion at a workstation |
 | Stance cycle key | `E` | Cycle Follow → Guard → Standby |
-| Rename key | `Y` | Rename a companion |
+| Inventory / rename key | `Y` | Open a companion's pack, which also carries its name field |
 | Duel key | `J` | Toggle duel mode on your companion |
+| Party duel key | `K` | Toggle a party duel with your nearby followers |
+| Ranking board | `F6` | Open the duel + party ladders |
+| Tournament panel | `F7` | Open tournament status, entry and admin controls |
 | Show map pins | on | Show your own companions on the minimap |
+| `Interface / ContainerPanelOffset` | `auto` | Where the chest/storage window sits, as an `x,y` pixel offset. `auto` = two inventory rows below the game's own spot. Dragging the window writes your position here |
+| `Interface / MoveContainerPanel` | on | Turn the movable storage window off entirely |
 
 All hotkeys are ignored while a text box, chat, or console has focus, so typing never triggers a command.

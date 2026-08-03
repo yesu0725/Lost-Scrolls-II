@@ -59,10 +59,26 @@ it can still **move and follow you**. Drop back under 150 and it returns to norm
   item (ore and other portal-restricted materials). You'll get a message naming the ally
   and the item — clear it from the pack (or leave that ally behind) and you can portal.
 
+## Moving the storage window
+
+The pack opens in the same window the game uses for chests — and you can **put that
+window wherever you like**:
+
+- **Drag it.** Grab any empty part of the panel (the background, not an item slot) with
+  the left mouse button and drop it anywhere on screen. It lights up faintly when the
+  cursor is over grabbable space. Where you drop it is where every chest and every pack
+  opens from then on, including after a relog.
+- **By default** it sits two inventory rows lower than the game puts it, so extra
+  inventory rows added by other mods (ComfyQuickSlots and the like) stay visible instead
+  of hiding behind it.
+- **Reset it** with the console command `de_container_reset`, or by setting
+  `Interface/ContainerPanelOffset` back to `auto`.
+- **Turn it off** with `Interface/MoveContainerPanel = false`.
+
 ## Compatibility
 
-Works alongside **ComfyQuickSlots**: the pack panel is positioned so it never hides the
-extra inventory row that mod adds.
+**BiomeLords** has its own move-the-chest-UI feature, so when it's installed Lost Scrolls
+II stands aside completely and leaves the window position to BiomeLords.
 
 ---
 

@@ -10,6 +10,7 @@ A spiritual sequel to the deprecated mod **Lost Scrolls** (TaegukGaming), rebuil
 - **Level them up** — companions earn XP (1→10) and grow stronger, with per-caste bonuses. Progress saves on the creature and survives relogs.
 - **Command them** — hover + hotkey: feed/heal (`G`), cycle Follow/Guard/Standby stance (`E`), open its inventory + rename (`Y`), and see them on your private minimap.
 - **Give them a pack** — each companion carries its own 4×2 inventory (opens like a chest). It picks up loot it already carries, eats food for a temporary HP boost, drinks health/resistance meads, and gets encumbered if overloaded. Its pack rides along through totems and drops on death.
+- **Move the storage window** — drag the chest/storage window (companion packs and vanilla chests alike) anywhere on screen by grabbing an empty part of it; your position is remembered. By default it sits two inventory rows lower, so extra rows from other inventory mods stay visible.
 - **Put them to work** — assign allies to vanilla stations by caste: smelting, refining, cooking, brewing, farming (plant + harvest), animal care, and hauling.
 - **Duel** — non-lethal companion-vs-companion sparring between players for bonus XP (`J`), or gather a **party** and fight team-vs-team (`K`).
 - **Rankings** — every duel win feeds a persistent, server-wide **duel ladder** (Elo rating shown on the companion's name), with a separate **party ladder** for team fights. Open the **ranking board with `F6`** to read both. Name your team with `de_party_name`, and seasons reset the boards.
@@ -51,5 +52,5 @@ This mod is **free to use as is**. Voluntary support is appreciated.
 
 ---
 
-**Version:** 0.6.0
+**Version:** 0.7.0
 **Source / issues / wiki:** https://github.com/yesu0725/Lost-Scrolls-II

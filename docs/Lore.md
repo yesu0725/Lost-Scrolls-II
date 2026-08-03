@@ -124,3 +124,7 @@ shadow.
 ## Note on the Altar of Communion
 
 The **Altar of Communion** from the original mod is **not** part of this mod's lore. It survives only as an optional gameplay reward (a post-Damon drop) with no narrative weight, and is not referenced in any scroll, dialogue, or quest beat. Earlier drafts treated it as the ritual site; that role has been dropped — Communion is performed in the field with the recovered Sword of Truth.
+
+## Note on the Bog Witch's Rites (Quest pack content)
+
+`guidance.bogwitch-rite.yaml` ("An Echo in the Mire" / "The Deeper Echo") is a **side extension**, not part of the main descent above — it doesn't touch the biome-by-biome beats or the location-to-story mapping. It reuses the same idea already present in the Sunken Crypts beat (`ls_beat_swamp_crypt`: *"a rite... not of binding, but of waking"*) but told in the **Bog Witch's own folksier voice**, not the descent's solemn narrator voice, and it does not quote Scripture. Framing: the corruption the Dvergr carry is a rebellion that can lie dormant inside *anything*, not just a Dvergr itself — here, an echo of it is bound in the rotted dead of the crypts, and killing the vessel frees (not creates) the Dvergr trapped within, mirroring "the fallen cannot cure themselves; restoration comes from outside" without restating it. It is intentionally minor and skippable — a gameplay on-ramp to Communion for players who haven't reached the Mistlands yet, not a required story beat.

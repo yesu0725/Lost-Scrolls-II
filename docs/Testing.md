@@ -21,7 +21,7 @@ Persistent checklist for verifying Lost Scrolls II in a live Valheim session. Wo
 **2026-07-03 — PvP/duel batch.** Fixed the "losing companion can't be healed by mead after a duel" bug (ownership: the feed's `SetHealth` is a no-op off-owner, and the cross-client subdue had left the loser's ZDO owned by the winner's client — feeding now claims ownership first). Added: (1) a player-struck companion now also turns on the *attacker's* companions, not just the attacking player; (2) when one player attacks another (both PvP on), the attacked player's companions turn on the aggressor **and** its companions; (3) a duel win is now broadcast as a chat shout; (4) a `[J]` duel hint shows on your companion when another player's companion is in range. **These four are unverified in a live session — need a two-player pass (see §7c/§9).**
 
 **2026-07-05 — companion inventory pass.** The new per-companion inventory system (§16) was built and iterated over three feedback rounds, all confirmed in-game:
-- **Passed:** §16b pickup; §16c food (eats one at a time, fed icon, HP readout confirms the max-HP bump); §16e2 the **ComfyQuickSlots** panel-gap fix ("inventory gap test passed"); §16f drop-pack-on-death; §16h totem carries the pack; §16i wood-portal block on prohibited companion cargo; resist status removed from the pack panel (shown above the companion only).
+- **Passed:** §16b pickup; §16c food (eats one at a time, fed icon, HP readout confirms the max-HP bump); the **ComfyQuickSlots** panel-gap fix ("inventory gap test passed" — that mechanic was later replaced by the movable panel, §16e2); §16f drop-pack-on-death; §16h totem carries the pack; §16i wood-portal block on prohibited companion cargo; resist status removed from the pack panel (shown above the companion only).
 - **Fixed during the pass:** name field moved out from under the panel title; encumbrance now truly stops attacks (enforced every frame); health mead now keeps sipping across the full 35%→90% window; resist meads now show an icon (hud) and genuinely resist; **and the `Y`-rename field now suppresses all game binds while focused** (a `ZInput.GetButtonDown` prefix — the earlier gate only blocked our own keys, so pressing `E` still closed the panel).
 
 ## Setup
@@ -638,19 +638,24 @@ Full design in [Ally-Inventory.md](Ally-Inventory.md). All items below are **unv
 
 **MP note:** pickup/consumption/food run on the companion's **ZDO-owner** client only; the encumbered icon is derived from the replicated container weight so it shows for everyone, but the **fed** icon is owner-client local.
 
-### 16e2. ComfyQuickSlots compatibility  ✅ PASSED
-1. With **ComfyQuickSlots** installed, open a companion's pack (`Y`).
-2. The player inventory's extra bottom row (armor/quickslots) is **fully visible** — not hidden behind the pack panel; the pack panel sits just below it.
-3. Close and open a **vanilla chest** → its layout is unchanged (the shift only applies to the companion pack).
+### 16e2. Movable chest/storage panel (2026-08-03)  ⬜ UNVERIFIED
+*(Replaces the old ComfyQuickSlots row-shift test, which passed 2026-07-05 — that mechanic is gone.)*
+1. Open any **vanilla chest** on a fresh config. The panel sits **two inventory rows lower** than vanilla — with a slot mod like **ComfyQuickSlots** installed, its extra player-inventory row is fully visible, not hidden behind the panel.
+2. Hover an **empty part** of the panel (its background, not a slot) → a faint white wash appears. **Hold left mouse and drag** → the panel follows the cursor. Release.
+3. Item handling is untouched: **click/drag items** between the player inventory and the container, and press **Take All** — none of these move the panel.
+4. Reopen the chest (and a **companion pack**, `Y`) → both open at the dragged position. `Interface/ContainerPanelOffset` now reads the `x,y` you dropped it at.
+5. **Relog** → the position is still there.
+6. Drag toward a screen edge → the panel **stops** with a sliver still on screen (≥48 px) and can be dragged back.
+7. Run **`de_container_reset`** (or set the config to `auto`) → the panel returns to the default two-rows-below spot without a restart.
 
-**Pass:** the CQS extra row is never covered by the pack UI; vanilla chests unaffected. (Tunable: `ContainerClearancePx` / `VanillaInventoryHeight` in `CompanionInventoryGui`.)
+**Pass:** default placement clears mod-added inventory rows; the panel drags from empty space only, never from item slots/buttons; the position persists across reopen and relog; it can't be lost off screen; reset works.
 
-### 16e3. BiomeLords compatibility (2026-07-13)  ✅ PASSED
-1. With **BiomeLords** installed (which repositions the same container panel), open a companion pack and a regular chest.
-2. BiomeLords' own "move chest UI" behaviour works normally — LSII **defers** to it (its shift is skipped when BiomeLords is detected; the BepInEx log shows `[inventory] container-panel shift: OFF (…, BiomeLords=True)`).
-3. Manual override: `Companions/AdjustContainerPanel = false` disables LSII's shift regardless of what's installed.
+### 16e3. BiomeLords compatibility  ✅ PASSED (2026-07-13) / ⬜ RE-VERIFY (2026-08-03)
+1. With **BiomeLords** installed (which ships this same move-the-chest-UI feature), open a companion pack and a regular chest.
+2. BiomeLords' own chest-UI positioning works normally — LSII **stands down entirely**: no default offset, **no drag surface** (hovering the panel background shows no wash and dragging does nothing). The BepInEx log shows `[inventory] container-panel positioning: OFF (…, BiomeLords=True)`.
+3. Manual override: `Interface/MoveContainerPanel = false` disables LSII's positioning regardless of what's installed (and restores the panel to the game's own spot mid-session).
 
-**Pass:** with BiomeLords present the chest UI position is owned entirely by BiomeLords; LSII no longer fights it. Without BiomeLords, the CQS gap fix (§16e2) still applies.
+**Pass:** with BiomeLords present the chest UI position is owned entirely by BiomeLords; LSII adds nothing. Without BiomeLords, §16e2 applies.
 
 ### 16f. Drop pack on death  ✅ PASSED
 1. Put items in a companion's pack, then let it **die** (e.g. in combat).
@@ -913,6 +918,50 @@ With `DiscordWebhookUrl` set on the server, each of these posts **once**:
   doesn't drift while clicking, and that Escape / `F7` closes it and **restores**
   normal play + the captured cursor.
 
+## 22. Bog Witch Dvergr rites (Quest pack `guidance.bogwitch-rite.yaml`)  ⬜ UNVERIFIED
+
+Two weekly quest chains that spawn a wild, recruitable Dvergr in the Swamp without
+needing the Mistlands. Requires **`ProfMags-TraderOverhaul`** installed (for the Bog
+Witch trader) alongside the Quest pack. Pure ServerGuide guidance — no Lost Scrolls II
+code involved, so nothing here can be broken by a base-mod bug, only by the guidance
+YAML itself or the interaction with the always-on Communion Rite.
+
+### 22a. The Rogue rite
+1. Hold E on the **Bog Witch** → pick "Tell me of the stirring." → she reveals the rite
+   ("An Echo in the Mire"). Confirm the topic then **disappears** from her conversation
+   options (it's `once: true`).
+2. Kill **2 `Draugr_Elite`** anywhere in the Swamp (party members' kills should also
+   count — `share_progress: true`). Confirm the rune panel fires ("The Shell Breaks")
+   and a **wild, untamed `Dverger`** spawns next to the player.
+3. Confirm the spawned Dverger is **neutral until struck** (vanilla behavior) and, once
+   subdued and communed, registers as **Rogue caste** (no staff detected).
+4. Kill 2 more Draugr Elite immediately after — confirm the rite does **not** re-fire
+   (weekly cooldown) until `SeenTracker.CooldownReady` allows it again.
+
+### 22b. The mage rite (gated + night-only)
+1. Before completing 22a: confirm the Bog Witch does **not** offer "the deeper echo" —
+   `ls_bogwitch_mage_intro` requires `ls_bogwitch_echo_rite` to have fired at least once.
+2. After 22a's rite has fired once, talk to her again → the new topic ("Tell me of the
+   deeper echo.") should now appear.
+3. `Wraith` only spawns **at night** — confirm the kill trigger only counts night kills
+   (a daytime Wraith simply shouldn't exist to kill; nothing extra to gate in the YAML).
+   Kill 2 Wraith → confirm a wild, untamed **`DvergerMage`** spawns, and that its caste
+   (Fire/Ice/Support, read from whatever staff it spawned with) varies across repeated
+   completions rather than always being the same caste.
+4. Confirm this rite also respects its own independent weekly cooldown, separate from
+   22a's.
+
+**Watch:**
+- **Multi-quest picker** — if a server also runs Hearthbound's own Bog Witch daily-rites
+  conversation (`lw_giver_bogwitch`), confirm both conversation entries coexist via
+  ServerGuide's multi-quest picker rather than conflicting.
+- **`requires` gating survives a relog** — confirm `ls_bogwitch_mage_intro`'s gate stays
+  satisfied (and the topic stays available) after a disconnect/reconnect, not just
+  within the same session.
+- **Spawn safety** — the Dverger/DvergerMage spawns in a ring near the player
+  (ServerGuide's `spawn_creature` reward); confirm it never spawns inside terrain, water,
+  or a player build, especially near the Sunken Crypts' tight geometry.
+
 ## Highest-risk items to watch
 
 - **Duel mode cross-client engagement** (#9) — the reworked `DE_Duel` ZDO flag must replicate so two different players' duelists actually pair up; confirm they seek each other (needs two players). Non-lethal now rides on the confirmed `Character.Damage` prefix, so that specific error risk is gone.
@@ -922,6 +971,7 @@ With `DiscordWebhookUrl` set on the server, each of these posts **once**:
 - ~~**Lore beats** (#10b)~~ — **verified in-game 2026-07-03**: the `distance`-triggered biome descent, the StartTemple opening (new + returning players), the recruit-order guide (§10c), and the Companion Handbook (§10d) all passed.
 - **Ship riding** (#13) — the boarding lift and "free to walk the deck" behavior are static-analysis designs; confirm the ally boards through the ladder, stays on the moving hull, and avoids water otherwise.
 - **Portal follow** (#15) — the risky bit is the ZDO position commit vs. zone-unload timing: confirm the ally is really at the destination after loading, not left at the origin. Two clients for the owner-scoping check.
+- **Bog Witch rite gating** (#22) — the `ls_bogwitch_mage_intro`/`_rite` chain depends on `requires: [ls_bogwitch_echo_rite]` reading `SeenTracker.HasFired` correctly across a relog; also confirm the `spawn_creature` reward never places a Dverger inside terrain near the Sunken Crypts.
 - **Minimap pins** (#14) — confirm pins track/clear and, in multiplayer, each player sees only their own companions' pins.
 - **Tournament escrow round-trip** (#21d) — the riskiest new path: a totem must never be lost. Verify the summon→duel→reseal→despawn cycle and that every exit (reject/withdraw/release/cancel/complete) returns the totem. The `F7` panel now takes input over like a vanilla menu (free cursor + camera/keyboard blocked via `Player.TakeInput` / `GameCamera.UpdateMouseCapture` patches) — confirm buttons are clickable, the camera is frozen, and play is restored on close.
 - **Assigned-opponent targeting** (#21d) — with two matches active at once, each summoned companion must engage ONLY its bracket opponent (the `MatchesDuelAssignment` gate in `CompanionIsEnemyPatch`).

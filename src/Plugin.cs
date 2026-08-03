@@ -16,7 +16,7 @@ namespace LostScrollsII
     {
         public const string PluginGuid = "com.lostscrollsii";
         public const string PluginName = "Lost Scrolls II";
-        public const string PluginVersion = "0.6.0";
+        public const string PluginVersion = "0.7.0";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -71,11 +71,12 @@ namespace LostScrollsII
         // companion dies, labelled with its name.
         public static ConfigEntry<bool> ShowDeathMarker { get; private set; }
 
-        // When open, the companion pack nudges the shared container panel down to
-        // clear a mod-added inventory row (ComfyQuickSlots). Auto-disabled when
-        // BiomeLords is present (it manages the same panel). This is the manual
-        // off-switch if the chest UI position ever looks wrong.
-        public static ConfigEntry<bool> AdjustContainerPanel { get; private set; }
+        // Position of the shared chest/storage panel (vanilla chests and the
+        // companion pack both use it) — see ContainerPanelPositioner. The panel can
+        // be dragged anywhere on screen; ContainerPanelOffset remembers where. Both
+        // are ignored when BiomeLords is loaded (it owns the same panel).
+        public static ConfigEntry<bool> MoveContainerPanel { get; private set; }
+        public static ConfigEntry<string> ContainerPanelOffset { get; private set; }
 
         // Ranking (docs/Ranking.md). K-factor controls Elo volatility; the per-pair
         // cooldown blocks two players padding each other's rating with repeat wins.
@@ -195,11 +196,17 @@ namespace LostScrollsII
                 true,
                 "Drop a persistent death marker (skull) on your map, labelled with the companion's name, when one of your companions dies.");
 
-            AdjustContainerPanel = Config.Bind(
-                "Companions",
-                "AdjustContainerPanel",
+            MoveContainerPanel = Config.Bind(
+                "Interface",
+                "MoveContainerPanel",
                 true,
-                "While a companion's pack is open, nudge the shared chest/container UI panel down to clear ComfyQuickSlots' extra inventory row. Automatically skipped when BiomeLords is installed (it repositions the same panel itself). Set to false if the chest UI position looks wrong.");
+                "Let the chest/storage UI be repositioned: it opens at ContainerPanelOffset, and you can drag it anywhere on screen by grabbing an empty part of the panel. Set to false to leave the panel exactly where the game puts it. Automatically ignored when BiomeLords is installed (it moves the same panel itself).");
+
+            ContainerPanelOffset = Config.Bind(
+                "Interface",
+                "ContainerPanelOffset",
+                "auto",
+                "Where the chest/storage UI sits, as an \"x,y\" pixel offset from the game's own position (+x right, +y up). \"auto\" places it two inventory rows below, so extra rows added by other mods aren't hidden behind it. Dragging the panel writes the new value here; set it back to \"auto\" to restore the default position.");
 
             RankingKFactor = Config.Bind(
                 "Ranking",
@@ -256,6 +263,10 @@ namespace LostScrollsII
 
             // Manages the companion-inventory panel + injected rename field.
             gameObject.AddComponent<CompanionInventoryGui>();
+
+            // Places the shared chest/storage panel (config offset) and makes it
+            // draggable. Self-disables when BiomeLords is loaded.
+            gameObject.AddComponent<Companions.ContainerPanelPositioner>();
 
             // Client-side tournament driver: summons escrowed companions for a match
             // and reseals/despawns them when it resolves (docs/Tournaments.md).

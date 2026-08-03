@@ -17,6 +17,8 @@ A companion's caste is detected automatically from the staff it carries (a Rogue
 
 You can free the castes in **any order** you meet them — recruitment is never gated. (If you have the optional story mod installed, a guide will suggest an order, but it never blocks you.)
 
+> **Haven't reached the Mistlands yet?** If you're running the **Lost Scrolls II — Quest** pack, ask the **Bog Witch** about "the stirring in her mire." She offers a weekly rite in the Swamp that wakes a wild Rogue-caste Dvergr near you after you break a couple of Draugr Elite — and, once you've done that, a second rite (a night hunt for Wraith) that wakes a random mage-caste Dvergr. Either way, the Dvergr you get behaves exactly like one found in the wild — same subdue-and-commune process below.
+
 ## The corruption awakens
 
 Vanilla Dvergr are neutral until you attack them. In Lost Scrolls II that has a reason: every unfreed Dvergr carries a sleeping corruption, and provoking it **wakes** the corruption and turns the Dvergr hostile. The first time a camp rouses, a short line names what's really happening. This is the moment the rite is meant to answer — you can put the corruption down for good, or you can free the Dvergr from it.
