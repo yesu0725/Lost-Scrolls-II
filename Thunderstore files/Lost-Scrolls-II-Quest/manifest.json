@@ -1,11 +1,11 @@
 {
   "name": "Lost_Scrolls_II_Quest",
   "description": "The complete Lost Scrolls II pack: recruitable Dvergr companions plus the full in-game story, Companion Handbook and bounty-hunting content. Ready for single player.",
-  "version_number": "0.8.0",
+  "version_number": "0.9.0",
   "website_url": "https://github.com/yesu0725/Lost-Scrolls-II",
   "dependencies": [
     "denikson-BepInExPack_Valheim-5.4.2333",
-    "TaegukGaming-Lost_Scrolls_II-0.8.0",
+    "TaegukGaming-Lost_Scrolls_II-0.9.0",
     "TaegukGaming-ValheimServerGuide-0.14.0"
   ]
 }

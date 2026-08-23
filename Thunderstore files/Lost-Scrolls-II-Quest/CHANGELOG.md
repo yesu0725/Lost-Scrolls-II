@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0
+
+- Requires **Lost Scrolls II 0.9.0**.
+- **New guidance file — `guidance.wagers.yaml`** (9 files in total now). Teaches the staked tournaments and duel invites added in 0.9.0: what they cost, that the bracket starts by itself when it fills, that you and your opponent pick where each duel happens, and that an unfilled tournament refunds everything.
+- It also carries the **Valcoin champion's purse**. As with the bounty rewards, this mod never states a Valcoin amount — it sets a key the **Valheim Donations** mod reads and prices from the server's own config.
+
+> **Server setup for the Valcoin purse.** Add `ls_tournament_prize` to the donations mod's `valcoin_quests.yaml` with **`capped: false`** — without that flag the backend trims the 100-coin purse to its 8-coin daily allowance. Needs Valheim Donations **5.20.0+** and its backend **0.10.0+**. Coin tournaments need no setup at all.
+
+> **Upgrading?** Nothing to delete this time — the new file lands in the same `config/ValheimServerGuide/LostScrollsII/` subfolder as the rest.
+
 ## 0.8.0
 
 **Adds the bounty-hunting content: the warden's commission and the reward tables.**

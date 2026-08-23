@@ -7,7 +7,7 @@ marked passed** — assume "unverified in a live session" otherwise.
 
 ---
 
-## Field sealing + wagered tournaments & duel invites (2026-08-23)  ⬜ UNVERIFIED
+## Field sealing + wagered tournaments & duel invites — released 0.9.0 (2026-08-23)  ⬜ UNVERIFIED
 
 Three additions, one of which reaches outside this mod. Full design in
 [Wagers.md](Wagers.md) and [Companion-Totems.md](Companion-Totems.md); test plans

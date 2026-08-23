@@ -45,7 +45,7 @@ Folder: `Thunderstore files/Lost Scrolls II/`
 
 | File | Purpose |
 |---|---|
-| `manifest.json` | name `Lost_Scrolls_II`, version `0.8.0` |
+| `manifest.json` | name `Lost_Scrolls_II`, version `0.9.0` |
 | `icon.png` | 256×256 RGBA PNG (author-supplied) |
 | `README.md` | Thunderstore listing copy |
 | `CHANGELOG.md` | per-release notes |
@@ -67,19 +67,26 @@ as dependencies. It does **not** bundle the DLL — the base mod arrives via dep
 
 ```
 Lost-Scrolls-II-Quest/
-  manifest.json        name Lost_Scrolls_II_Quest, version 0.8.0
+  manifest.json        name Lost_Scrolls_II_Quest, version 0.9.0
   icon.png             256×256 RGBA PNG (author-supplied)
   README.md
   CHANGELOG.md
   config/
     ValheimServerGuide/
       LostScrollsII/                (own subfolder so our guidance stays separate — 0.4.0)
-        guidance.lost-scrolls.yaml  (the biome-descent story)
-        guidance.companions.yaml    (the Companion Handbook)
-        guidance.rankings.yaml      (ladder pages, rank milestones, new-#1 + Discord) [0.3.0, updated 0.4.0]
-        guidance.tournaments.yaml   (tournament announcements + champion prize)       [0.3.0, updated 0.4.0]
-        guidance.duels.yaml         (every duel win -> chat + Discord)                [0.4.0]
+        guidance.lost-scrolls.yaml   (the biome-descent story)
+        guidance.companions.yaml     (the Companion Handbook)
+        guidance.rankings.yaml       (ladder pages, rank milestones, new-#1 + Discord) [0.3.0, upd 0.4.0]
+        guidance.tournaments.yaml    (tournament announcements + champion prize)       [0.3.0, upd 0.4.0]
+        guidance.duels.yaml          (every duel win -> chat + Discord)                [0.4.0]
+        guidance.bogwitch-rite.yaml  (weekly Bog Witch rite: first companions w/o Mistlands) [0.7.0]
+        guidance.bounty.yaml         (Haldor's warden commission — opens the board)    [0.8.0]
+        guidance.bounty-rewards.yaml (per-tier reward bundles + the Valcoin bridge)    [0.8.0]
+        guidance.wagers.yaml         (staked tournaments/duels + the Valcoin purse)    [0.9.0]
 ```
+
+**Nine files as of 0.9.0.** Keep this list in step with what is actually in the
+folder — it was two versions stale once already.
 
 > **Why the `LostScrollsII/` subfolder (new in 0.4.0):** ServerGuide **0.8.0+** loads
 > guidance **recursively** from any depth under `BepInEx/config/ValheimServerGuide/`,
@@ -105,7 +112,7 @@ Lost-Scrolls-II-Quest/
 **Dependencies (all installed automatically):**
 
 - `denikson-BepInExPack_Valheim-5.4.2333`
-- `TaegukGaming-Lost_Scrolls_II-0.8.0` — the base gameplay mod
+- `TaegukGaming-Lost_Scrolls_II-0.9.0` — the base gameplay mod
 - `TaegukGaming-ValheimServerGuide-0.14.0` — the story/handbook engine (+ templating, Discord, and the `tier:` filter the bounty rewards need)
 
 **Why `config/ValheimServerGuide/` works out of the box:** ServerGuide loads and
@@ -118,6 +125,36 @@ no manual file copying. They are byte-identical to the in-game-verified copies
 
 This is the complete, single-player-ready experience.
 
+
+## 0.9.0 — release notes and upload order  *(current)*
+
+Cut **2026-08-23**. Adds the wagered tournaments / staked duel invites, Dead Raiser
+field sealing, and the inventory menu bar on top of 0.8.0's bounty hunting.
+
+**ServerGuide is unchanged at 0.14.0** — the wager batch needed nothing from it. Its
+Discord output goes straight to `DiscordAnnouncer.AnnounceRaw` (server-wide facts, not
+per-player rewards), and its one new trigger, `dvergr_tournament_prize`, rides
+`MatchesTrigger`'s `default: return true`. So ServerGuide only needs uploading if
+0.14.0 isn't on Thunderstore yet.
+
+**Built zips:**
+
+- `Thunderstore files/Lost_Scrolls_II_0.9.0.zip` (256 KB)
+- `Thunderstore files/Lost_Scrolls_II_Quest_0.9.0.zip` (145 KB, 9 guidance files)
+
+**Upload order:** ServerGuide 0.14.0 (if not already up) → Lost Scrolls II 0.9.0 →
+Lost Scrolls II Quest 0.9.0.
+
+**Server-side setup for the Valcoin half** — the donations mod's `valcoin_quests.yaml`
+needs, all with **`capped: false`**:
+
+- `ls_bounty_t1` … `ls_bounty_t5` (0.8.0)
+- `ls_tournament_prize` (0.9.0)
+
+`capped: false` matters: without it the backend clamps a 100-coin purse to its 8-coin
+daily allowance. It needs Valheim Donations **5.20.0+** and backend **0.10.0+**. A key
+with no matching entry is silently worth nothing (logged as `Unknown quest '<id>'`);
+item rewards pay regardless.
 
 ## 0.8.0 — release notes and upload order
 
@@ -163,19 +200,25 @@ itself. From PowerShell:
 $ls = "E:\Valheim Modding\Dvergr Expanded\Thunderstore files"
 $sg = "E:\Valheim Modding\Valheim ServerGuide\Thunderstore files"
 
+# Build Release FIRST and stage the DLL into the base package — the packaged DLL
+# must be the build the version strings describe, not whatever was there before.
+dotnet build "E:\Valheim Modding\Dvergr Expanded\src\LostScrollsII.csproj" -c Release
+Copy-Item "E:\Valheim Modding\Dvergr Expanded\src\bin\Release\LostScrollsII.dll" `
+          "$ls\Lost Scrolls II\LostScrollsII.dll" -Force
+
 # Base mod
-Compress-Archive -Path "$ls\Lost Scrolls II\*"        -DestinationPath "$ls\Lost_Scrolls_II_0.7.0.zip"       -Force
+Compress-Archive -Path "$ls\Lost Scrolls II\*"        -DestinationPath "$ls\Lost_Scrolls_II_0.9.0.zip"       -Force
 # Quest pack (preserves the config/ subtree)
-Compress-Archive -Path "$ls\Lost-Scrolls-II-Quest\*"  -DestinationPath "$ls\Lost_Scrolls_II_Quest_0.7.0.zip" -Force
+Compress-Archive -Path "$ls\Lost-Scrolls-II-Quest\*"  -DestinationPath "$ls\Lost_Scrolls_II_Quest_0.9.0.zip" -Force
 # ServerGuide (only when its DLL changed — see the caution below)
-Compress-Archive -Path "$sg\ValheimServerGuide\*"     -DestinationPath "$sg\ValheimServerGuide_0.9.0.zip"    -Force
+Compress-Archive -Path "$sg\ValheimServerGuide\*"     -DestinationPath "$sg\ValheimServerGuide_0.14.0.zip"   -Force
 ```
 
 Produced zips (gitignored):
-- `Thunderstore files/Lost_Scrolls_II_0.7.0.zip`
-- `Thunderstore files/Lost_Scrolls_II_Quest_0.7.0.zip`
-- `../Valheim ServerGuide/Thunderstore files/ValheimServerGuide_0.9.0.zip` *(not re-cut for the
-  0.5.0 release either — its guidance changes are content-only, using existing 0.9.0 triggers)*
+- `Thunderstore files/Lost_Scrolls_II_0.9.0.zip`
+- `Thunderstore files/Lost_Scrolls_II_Quest_0.9.0.zip`
+- `../Valheim ServerGuide/Thunderstore files/ValheimServerGuide_0.14.0.zip` *(that project
+  tracks its zips in git, unlike this one — cut it from there, not here)*
 
 > **Caution — ServerGuide is a separate project with its own release cadence.** At the
 > 0.4.0 cut its working tree held **unfinished, unrelated work** (a new `RunePanel`
@@ -207,7 +250,13 @@ When cutting a new version, keep these in lockstep:
 - both package `manifest.json` `version_number`s
 - the Quest pack's `TaegukGaming-Lost_Scrolls_II-<version>` dependency string
 - both package `CHANGELOG.md`s
-- re-copy `src/bin/Release/LostScrollsII.dll` into the base package, then rebuild both zips
+- both package `README.md` version footers *(these were missed at 0.8.0 and still read 0.7.0)*
+- re-copy `src/bin/Release/LostScrollsII.dll` into the base package — build **Release**,
+  not Debug, and confirm the DLL really carries the new version string before zipping
+- refresh the Quest pack's `config/ValheimServerGuide/LostScrollsII/*.yaml` from
+  `E:\Valheim Modding\Valheim ServerGuide\examples\LostScrollsII\` (source of truth —
+  at the 0.9.0 cut four files there had gained `highlight:` blocks and rune theming the
+  packaged copies lacked), then rebuild both zips
 
 If the release also changes **ServerGuide** (new triggers, templating, Discord), cut a
 ServerGuide release alongside it and keep *those* in lockstep too — its

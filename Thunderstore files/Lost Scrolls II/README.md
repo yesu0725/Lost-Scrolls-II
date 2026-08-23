@@ -61,5 +61,5 @@ This mod is **free to use as is**. Voluntary support is appreciated.
 
 ---
 
-**Version:** 0.7.0
+**Version:** 0.9.0
 **Source / issues / wiki:** https://github.com/yesu0725/Lost-Scrolls-II

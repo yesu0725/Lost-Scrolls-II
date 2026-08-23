@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.0
+
+**Put a companion on the line.** Staked tournaments and duels that any player can start, plus a faster way to pack a companion for the road.
+
+- **Anyone can run a tournament.** Open one for **100 Coins** or **10 Valcoins** from the tournament panel — no admin needed. That also pays your own entry, so you're never charged twice. A fixed **4-player** bracket that starts by itself the moment it fills; the champion takes **999 Coins** or **100 Valcoins**. One Coin tournament and one Valcoin tournament can run at a time, alongside any free tournament an admin has started.
+- **You choose where each duel happens.** Nobody is teleported anywhere. Meet your opponent wherever you both like — an arena you built, a field, a mountaintop — and you both press **Ready to Fight**. Your two companions are summoned right there at full health, locked onto each other, and fight until one is subdued. No other companion can join in.
+- **Duel invites.** Rather than a whole bracket, post a single staked challenge for **100 Coins** or **10 Valcoins**. Anyone can accept by matching your stake, and the winner takes both. You can only be in one invite at a time, but everyone else can have their own open at once.
+- **Nothing is lost if it falls through.** A tournament that never fills is cancelled and every stake and companion totem is returned. Withdraw during registration and you get your totem and your stake back in one go. Back out of a duel invite and both sides are made whole.
+- **Seal a companion in the field.** With a **Dead Raiser** equipped, a **Wisp** in your pack and **Blood Magic 20+**, hold **Block** on your own Follow-stance companion to seal it into a Communion Totem anywhere — no walk back to an Incinerator. It takes 5 seconds at Blood Magic 20, down to 2 seconds at 100. The Incinerator ritual is unchanged, and both produce exactly the same totem.
+- **Buttons for every panel.** The Bounty Board button at the top of your inventory screen is now a row of three — **Rankings**, **Tournaments**, **Bounty Board** — so you don't have to remember F6/F7/F8. The keys still work.
+- Messages triggered from a panel now appear in the **top-left** instead of behind the panel, and the tournament panel's buttons no longer sit under its own text.
+
+> **Valcoin stakes** need the **Valheim Donations** mod on the server (and a small config entry for the champion's purse). Coin stakes work with this mod alone; where Valcoins aren't available the option is refused with a clear reason.
+
 ## 0.8.0
 
 **Bounty hunting — hardened Dvergr are posted on a Wanted Board, and hunting them pays.** *(Server feature: see the note below.)*
