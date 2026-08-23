@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0
+
+**Bounty hunting — hardened Dvergr are posted on a Wanted Board, and hunting them pays.** *(Server feature: see the note below.)*
+
+- **A new kind of Dvergr.** Bounty targets are **hostile on sight** — unlike every other Dvergr in the mod, they don't wait to be provoked. They come with an escort, and both scale with the posting's difficulty (five tiers, from *Wanted* to *Accursed*).
+- **Kill them, or free them.** The Communion Rite closes a bounty exactly as the sword does, and pays the same. Freeing a bounty target keeps it as your companion **and** pays the reward.
+- **The Wanted Board.** Press **F8**, or use the new **Bounty Board** button at the top of your inventory screen, to read the postings. Take one and it's marked on your map; travel there and it will find you before you find it. The board rotates on its own, so there's always fresh work.
+- **A quest to get in.** Haldor keeps the list. **Hold [E]** on him (a short press still opens his store) to hear why these Dvergr are hunted and take your first commission — a guaranteed easy posting, close by, marked on your map.
+- **Rewards worth the trip.** Each tier pays a bundle of things that take a forge, a smelter or a cooking fire to make — plus coins, scaling with difficulty.
+- **A hunters' board.** Bounties answered are scored by difficulty on a persistent leaderboard, shown on the **F6** ranking board alongside the duel and party ladders. The best hunters earn better reward bundles.
+- **A reason to duel.** The hardest **Accursed** postings can only be answered by hunters ranked in the top 10 of the duel or party ladder — they're visible to everyone, locked until you've earned them.
+- **New settings** under **Bounty**: difficulty curve, escort size, board size and rotation, spawn placement, and the elite rank gate. All server-side.
+
+> **This is a server feature.** Bounty hunting only runs on a server (or a local host) that has **BiomeLords**, **ValheimServerGuide** and **Valheim Donations** installed together. Everywhere else — including single player — the F8 panel and the inventory button still open and explain what bounty hunting is and where it runs. Nothing else in the mod is affected.
+
 ## 0.7.0
 
 **The chest/storage window can now be moved wherever you want it.**

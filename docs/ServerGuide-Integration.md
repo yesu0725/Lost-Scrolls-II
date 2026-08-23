@@ -36,6 +36,31 @@ relevant player's client** so any ServerGuide reward lands on the right player.
 | `dvergr_tournament_match` | A round's pairing is announced | caste name, or `"party"` | `{round}` `{opponent}` |
 | `dvergr_tournament_won` | The champion is decided | caste name, or `"party"` | `{mode}` `{bracketSize}` |
 
+## Bounty Triggers (Phase D)
+
+Raised on the **hunter's own client** so ServerGuide's rewards land on the right
+player. Both were added to the ServerGuide tree on 2026-08-21 (built from **0.13.1**,
+version deliberately **not** bumped — that project cuts its own releases), alongside a
+new `TriggerSpec.Tier` filter field and four templating vars. A server running an
+older ServerGuide simply never matches these entries.
+
+| Trigger id | Fired when | Subject | Templating vars |
+|---|---|---|---|
+| `dvergr_bounty_resolved` | A bounty target is **killed or communed** | effective tier (`"1"`–`"5"`) | `{tier}` `{tierName}` `{bountyBiome}` `{method}` |
+| `dvergr_bounty_valcoin` | The Valcoin payout roll **already succeeded** | effective tier | `{tier}` `{tierName}` |
+
+`tier:` is an optional numeric filter (0/absent = any), which is how one guidance
+entry per tier carries its own reward bundle. Two deliberate choices:
+
+- **`{bountyBiome}` is its own token, not `{biome}`.** The existing `{biome}` reports
+  the *local player's current* biome, which is only incidentally the bounty's.
+- **The chance lives in Lost Scrolls II, not YAML.** ServerGuide has neither a numeric
+  rank filter nor a random-chance reward, so the mod rolls it (off the player's best
+  duel/party standing) and only fires `dvergr_bounty_valcoin` on success — the entry
+  behind it just grants. Its **only** reward is `set_player_key: VC.Q.ls_bounty_t<N>`,
+  the sanctioned Valheim Donations bridge; no coin amount ever leaves this mod, so
+  nothing here can inflate a payout. See [Bounty-Hunting.md](Bounty-Hunting.md).
+
 `caste:` is an optional filter on the caste-subject triggers; the party ones are
 type-only. **Why `*_rank_first` exists rather than a `rank: 1` filter:** ServerGuide's
 dispatcher has no numeric filter, so a dedicated trigger is the cleaner way to attach a
@@ -47,6 +72,46 @@ so it can't spam).
 messages now expand this same variable set, not just `{player_name}` — that fix is what
 lets the Discord announcements name the companion, rank, party, etc.
 (`RewardDispatcher.Grant` takes an optional token expander supplied by the dispatcher.)
+
+## Wager Triggers, and the Direct Discord Path
+
+The wagered-tournament / duel-invite batch ([Wagers.md](Wagers.md)) added **one**
+trigger and **no** ServerGuide changes at all.
+
+| Trigger id | Fired when | Subject | Templating vars |
+|---|---|---|---|
+| `dvergr_tournament_prize` | A **Valcoin** tournament champion is due their purse | the currency key (`"valcoin"`) | `{mode}` = currency, `{bracketSize}` = the configured purse |
+
+It exists for the same reason `dvergr_bounty_valcoin` does: this mod is not
+allowed to price a Valcoin reward. The entry behind it does nothing but
+`set_player_key: VC.Q.ls_tournament_prize`, which Valheim Donations reads and
+prices from its own `valcoin_quests.yaml`. No amount leaves this mod.
+
+It needs no dispatcher change — `MatchesTrigger`'s `default: return true` handles
+an unknown type as "no subject filter", which is exactly right here.
+
+**Everything else in that batch bypasses triggers entirely.** A tournament opening,
+a bracket draw, a duel starting, the "who's next" list, an end-of-event summary —
+these are **server-wide facts**, not something that happened to one player.
+Routing them through a per-player `type: discord` reward would have meant inventing
+a trigger per beat and firing it on some arbitrary client, plus a template variable
+for every field.
+
+Instead the server posts them directly:
+
+```
+ServerGuideBridge.AnnounceDiscord(text)
+  -> ValheimServerGuide.Discord.DiscordAnnouncer.AnnounceRaw(text)
+```
+
+`AnnounceRaw` is public, server-side, and reads `DiscordWebhookUrl` from the
+server's own config — it is what a `discord` reward ultimately calls anyway, after
+an RPC hop. `AnnounceDiscord` gates on `IsLoaded` **and** `ZNet.IsServer()` so only
+the authoritative instance posts (otherwise every connected client would fire the
+same webhook), and is a logged no-op when the webhook is unset.
+
+The rule this establishes: **per-player outcomes go through triggers + guidance;
+server-wide announcements go straight to `AnnounceRaw`.**
 
 ## Integration Mechanism (implemented, Phase 5)
 

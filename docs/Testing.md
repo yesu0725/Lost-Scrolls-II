@@ -962,6 +962,626 @@ YAML itself or the interaction with the always-on Communion Rite.
   (ServerGuide's `spawn_creature` reward); confirm it never spawns inside terrain, water,
   or a player build, especially near the Sunken Crypts' tight geometry.
 
+## 23. Bounty hunting — Phase A: feature gate & sync  ✅ PASSED
+
+Phase A ships no gameplay — it only proves the triple-dependency gate and the
+server→client feature flag behave (see [Bounty-Hunting.md](Bounty-Hunting.md)).
+Everything here is checked with the new `de_bounty_status` console command and the
+boot log line `[bounty] feature gate: …`.
+
+**On the server/host:**
+- [ ] With **all three** of BiomeLords, ServerGuide and Valheim Donations installed,
+      the boot log reads `[bounty] feature gate: ON (…, isServer=True, config=True)`
+      and `de_bounty_status` reports **ACTIVE** with all four sub-conditions true.
+- [ ] Remove **each** dependency in turn (three runs): the gate logs `OFF` and
+      `de_bounty_status` names the missing one as `False`. Confirm BiomeLords is
+      detected despite its mixed-case GUID (`com.taeguk.BiomeLords`).
+- [ ] Set `Bounty/Enabled = false` with all three present: gate `OFF`, `Config: False`.
+- [ ] **Singleplayer / local world** with all three installed — the gate should still
+      be ON only because a local world *is* the host; on a pure client it must be OFF
+      (see below). This is the check that the server-only rule isn't accidentally
+      inverted.
+
+**On a connecting client:**
+- [ ] Joining a **qualifying** server, `de_bounty_status` reports *"ACTIVE on this
+      server"* and the log shows `[bounty] server reports bounty hunting ACTIVE`.
+- [ ] Joining a **non-qualifying** server (any dependency missing, or `Enabled=false`),
+      it reports *"not available on this server"*.
+- [ ] **Death/respawn and reconnect** both re-request the flag (it must not go stale
+      or flip to available on a server that never sent it).
+- [ ] **Server-hop**: connect to a qualifying server, disconnect, then join a
+      non-qualifying one — the client must report *not available*, proving the flag is
+      cleared on `ZNet.OnDestroy` rather than carried across worlds.
+
+**Watch:** the client's default is `false` (teaser, once Phase F lands), so a dropped
+or missed push shows as "unavailable" rather than a live board the player can't use.
+
+## 23b. Bounty hunting — Phase B: location sampling & map pins  ✅ PASSED
+
+Phase B still spawns no creature. It proves the sampler only ever picks reachable
+land in the four bounty biomes, and that pins appear and clear correctly. Driven by
+`de_bounty_sample [count]` (rolls candidates through the real sampler and pins each)
+and `de_bounty_sample_clear`.
+
+**Sampling correctness — the core requirement:**
+- [ ] `de_bounty_sample 20` reports 20/20 found, and every line names one of
+      **BlackForest / Swamp / Mountain / Plains** — never Meadows, Mistlands,
+      Ashlands, DeepNorth or Ocean.
+- [ ] Every reported height is comfortably above sea level (30) — with the default
+      `WaterMargin` of 3, nothing below ~33.
+- [ ] Run it several times (100+ candidates total). The rejection tally in the output
+      should show `island/coast` and `water` rejections actually happening — if those
+      are always 0, the land check isn't doing anything and the test is worthless.
+- [ ] **Walk or fly (`devcommands` → `fly`) to at least one pin per biome.** This is
+      the check that matters: the target spot must be dry, walkable land, not a
+      shoreline, not a rock in the sea, not a cliff face. Confirm you can stand there.
+- [ ] **Islet check specifically** — pick the pin nearest a coastline and confirm the
+      landmass extends at least ~80 m in every direction (the `LandCheckRadius`
+      guarantee). A pin on a small island is a **fail**, and the first thing to
+      re-tune.
+
+**Pin lifecycle:**
+- [ ] Pins appear on the minimap and the full map at the reported coordinates, using
+      the boss icon tinted red — visually distinct from companion pins (player icon,
+      orange) and companion death markers (skull).
+- [ ] `de_bounty_sample_clear` removes **all** of them, leaving no orphans.
+- [ ] Sample some pins, then **relog without clearing**. The pins must be **gone** on
+      return (they're `save = false`) — a bounty pin must never persist into the saved
+      map. Confirm no stray pins accumulate in the map file across several cycles.
+- [ ] Sample pins, then **exit to the main menu and load a different world**. No
+      leftover pins, and no errors in the log (this exercises the Minimap-rebuild
+      guard — stale `PinData` handles from the destroyed map must be dropped, not
+      poked).
+
+**Tuning notes:** if placement fails or takes many attempts, the tally names the
+cause — raise `SampleAttempts`, or lower `LandCheckRadius` (islet protection) /
+raise `MaxHeightVariance` (mountain bounties on steep ground) as appropriate. These
+are first-pass values and expected to move after this session.
+
+## 23c. Bounty hunting — Phase C: scaled, auto-hostile targets  ✅ PASSED
+
+> **2026-08-20:** everything below passed except the star display — tiers 1–2 showed
+> no stars at all, because vanilla renders level 1 as zero stars and `EnemyHud` has
+> only two star rects. Fixed by spreading the star level across the tier range
+> (1/2/2/3/3 → 0/1/1/2/2 stars) and adding a **tier name badge**. Re-check just the
+> "tier is visible" block below.
+
+**Tier visibility (re-check after the 2026-08-20 fix):**
+- [ ] `de_bounty_spawn 1` … `de_bounty_spawn 5` — each target's floating name shows
+      a red **`[T<n> <Name> Bounty]`** badge (`[T1 Wanted Bounty]` … `[T5 Accursed
+      Bounty]`), so the tier is unambiguous even where vanilla shows no stars.
+- [ ] Escort minions show a paler **`[Escort]`** badge instead.
+- [ ] Vanilla stars are still visible on higher tiers (0/1/1/2/2 stars for tiers
+      1–5) and now actually differ between low and high tiers.
+- [ ] Badges render as **text, not empty boxes** (the serif font can't draw exotic
+      glyphs — everything here is ASCII).
+- [ ] A bounty target **communed into an ally** loses the bounty badge and shows the
+      normal gold `★N` companion badge instead — never both.
+
+Phase C spawns the real thing: a scaled Dvergr that hunts on sight, with an escort.
+Driven by `de_bounty_spawn [tier 1-5] [far]`. There is still no board, no reward and
+no quest gate — killing or communing a target just ends that fight.
+
+**Scaling reads correctly:**
+- [ ] `de_bounty_spawn 1` through `de_bounty_spawn 5` each report a target whose HP
+      roughly matches the curve (≈3 / 4.8 / 7.7 / 12.3 / 19.7× a normal Dverger's
+      ~100–200 HP) and whose star level rises to at most 3.
+- [ ] Escort size grows with tier — 1 minion at tier 1 up to 5 at tier 5 (capped by
+      `MaxMinions`). Confirm escorts are visibly **weaker** than the target (they're
+      one tier down) and mostly melee Dvergr rather than all mages.
+- [ ] Higher tiers mix in **mage** targets (Fire/Ice/Support) more often than tier 1,
+      which should be plain Dverger.
+
+**Auto-aggression — the defining behaviour:**
+- [ ] Spawn one and walk toward it. It must **attack on sight, unprovoked** — every
+      other Dvergr in the mod stays neutral until you hit it. This is the single most
+      important check in this section.
+- [ ] It notices you from noticeably further than a normal Dvergr
+      (`AlertRangeMultiplier`).
+- [ ] The **"corruption awakens" message must NOT appear** when bounty creatures
+      spawn or aggro. If it does, the suppression guard failed.
+- [ ] Walk away and leave it alone: it should stay near where it spawned
+      (`RoamRadius`), not wander off across the map away from its pin.
+
+**Communing a bounty target (requirement 1):**
+- [ ] Fight one down to ≤20% HP and complete the Communion Rite (hold Block). It must
+      recruit **exactly like any other Dvergr** — same channel, same failure rules.
+- [ ] Once freed it must behave as a normal companion: **no lingering hostility**, it
+      follows you, and it does **not** revert to hostile after a few seconds (the
+      3 s aggression tick must have stood down).
+- [ ] **Relog with that freed bounty companion.** It must come back as your ally, not
+      re-armed as a bounty (the restore patch must skip creatures carrying
+      `DvergrCompanion`).
+
+**Persistence and health handling:**
+- [ ] Spawn a tier 4 target, damage it to roughly half, then force a zone reload
+      (walk far away and back, or relog). It must return **still wounded at the same
+      scaled max HP** — not healed to full, and not reset to a normal Dverger's HP.
+      This is the `DE_BountyInit` behaviour and the most likely thing to be subtly
+      wrong.
+- [ ] After that reload it must still be hostile and still hunt you.
+- [ ] Kill a target and confirm nothing errors in the log as it dies and its
+      component stands down.
+
+**Multiplayer (worth a two-client pass):**
+- [ ] Spawn a bounty, have the **other player** approach so ownership moves to their
+      client. Scaling must not double-apply (HP shouldn't jump) and the creature must
+      stay hostile to both players.
+
+**Known gap (by design, not a bug):** `de_bounty_spawn ... far` samples a real remote
+location but that zone almost certainly isn't loaded, so nothing spawns there. Posting
+a location and spawning creatures when a hunter arrives is Phase H's job — Valheim
+doesn't simulate unloaded zones, so the split is deliberate.
+
+## 23d. Bounty hunting — Phase D: resolution & rewards  ✅ PASSED
+
+Closing a bounty now pays out. Items come from `guidance.bounty-rewards.yaml` (no
+loot table exists in the mod), and Valcoin is a rank-scaled **chance**, reward-only.
+
+> **Requires a ServerGuide rebuild** (new `dvergr_bounty_resolved` /
+> `dvergr_bounty_valcoin` triggers, the `tier:` filter, and the `{tier}`/`{tierName}`/
+> `{method}`/`{bountyBiome}` vars) — deployed 2026-08-21. The **coin half additionally
+> needs `ls_bounty_t1`…`ls_bounty_t5` defined in the donations mod's
+> `valcoin_quests.yaml`**; without them the key is set and silently worth nothing
+> (server logs `Unknown quest '<id>'`).
+
+**Item rewards (the always-pays half):**
+- [ ] `de_bounty_spawn 1`, kill the target → the tier 1 bundle arrives (Coal, Bronze,
+      Sausages, 50 Coins) and a top-left message names the tier and biome.
+- [ ] Repeat for tiers 2–5; each grants a **visibly better** bundle, and tiers 3–5 use
+      the rune/intro display rather than a corner message.
+- [ ] **Check the server log for skipped items.** A wrong prefab id is skipped with a
+      warning rather than erroring, so a bundle can quietly under-deliver — this is
+      the most likely thing to be wrong on first run, since the item ids were authored
+      from vanilla knowledge and not yet confirmed in-game.
+- [ ] Tier 5 additionally posts a chat line and a **Discord** message (needs
+      `DiscordWebhookUrl` set server-side).
+
+**Killing vs. communing (requirement 1):**
+- [ ] Kill a target → reward text reads `(killed)`.
+- [ ] **Commune** a target instead → the **same tier bundle** is granted and the text
+      reads `(communed)`. Both must pay; the Rite is not a way to skip the reward.
+- [ ] After communing, you keep the companion **and** got the bounty reward.
+
+**Only the target pays:**
+- [ ] Kill the **escort minions** only, leaving the target alive → **no reward**, no
+      message, pin stays.
+- [ ] Kill the target → reward fires once and the **map pin disappears**.
+
+**Paid exactly once:**
+- [ ] Kill a target and watch for a **double** reward (the idempotency latch). One
+      bundle only.
+- [ ] Subdue a target to ≤20%, commune it, then kill that companion → **no second
+      payout**.
+
+**Valcoin (rank-scaled chance, reward-only):**
+- [ ] `de_bounty_chance` lists a per-tier percentage and your best duel/party
+      standing. Unranked → base chance only; higher tiers → higher chance.
+- [ ] Earn a duel/party rank inside the top 10, re-run it → **chance visibly rises**.
+      This is the requirement-4 link between the ladders and the coin payout.
+- [ ] Resolve bounties until the log shows `[bounty] valcoin roll … => PAID`, then
+      confirm the coins actually land in the donations ledger (F4). If the roll says
+      PAID but no coins arrive, check the donations log for `Unknown quest`.
+- [ ] Confirm **no bounty text ever promises coins** — the payout depends on the
+      donations backend's own daily caps, so the in-world text deliberately doesn't
+      mention them.
+- [ ] Confirm there is **no way to spend Valcoin** on bounties anywhere (re-rolls,
+      better odds, tier access). Reward-only is a hard guardrail from the donations
+      mod's own docs.
+
+**Watch:** the reward-tier bonus for top bounty hunters (requirement 5) is wired but
+returns 0 until Phase E builds the bounty ladder, so effective tier == base tier for
+now. That's expected, not a bug.
+
+## 23e. Bounty hunting — Phase E: the bounty leaderboard  ✅ PASSED
+
+> **2026-08-22:** everything passed. `de_bounty_season_reset` initially refused a
+> **remote admin** (it gated on *being* the server rather than on being an admin);
+> both season resets were moved onto the admin-authenticated RPC and re-verified.
+> `de_season_reset` (duel ladder) had the same flaw and was fixed with it.
+
+Answered bounties now accumulate a persistent, server-authoritative standing that
+feeds back into reward quality (requirement 5).
+
+**Scoring:**
+- [ ] Answer a tier 1 bounty → `de_bounty_ladder` shows you with **10 points**
+      (`PointsPerTier` default 10 × tier).
+- [ ] Answer a tier 4 bounty → **40 points** added, not 10. Tier-weighting is what
+      stops the board being won by grinding easy postings.
+- [ ] **Kills and communes tally separately** — the row reads `N felled / M freed`
+      and both increase the same point total.
+- [ ] `best:` shows the hardest tier you've ever answered, and never goes down.
+
+**Persistence (the serializer risk):**
+- [ ] Answer a few bounties, then **restart the server**. The standings must come
+      back intact. An empty board after restart means the hunter *list* was dropped —
+      the exact `JsonUtility` failure this store was written to avoid (it uses
+      `CompetitiveJson`, so this should hold, but it's the one thing worth proving).
+- [ ] Check `<save>/LostScrollsII/bounty.<world>.json` exists and is readable, with a
+      populated `hunters` array.
+
+**Client sync (needs a second player or a client connection):**
+- [ ] A **connecting client** sees the same standings (pushed on join) via
+      `de_bounty_ladder` and the `F6` board.
+- [ ] When another player answers a bounty, your board updates without a relog.
+- [ ] `F6` shows a **Bounty Hunters** section below the duel and party ladders, and
+      that section is **absent** on a server where bounty hunting isn't running.
+
+**Reward bonus (requirement 5 — the point of the ladder):**
+- [ ] While **unranked or below `LeaderboardBonusRank`** (default top 3), a tier 2
+      bounty pays the **tier 2** bundle.
+- [ ] Climb into the top 3, then answer another tier 2 bounty → it pays the **tier 3**
+      bundle (+1 effective tier), and the log line shows `tier 2 -> effective 3`.
+- [ ] The bonus is **capped by `MaxTierBonus`** (default 1) — never more than one tier.
+- [ ] A tier 5 bounty with the bonus still pays tier 5 (clamped at the top).
+- [ ] **Points are scored at the BASE tier, not the bonused one** — a top-3 hunter
+      answering a tier 2 posting gains 20 points, not 30. Otherwise standing would
+      compound into itself.
+
+**Season reset (re-check after the 2026-08-22 fix):**
+- [ ] `de_bounty_season_reset` run by an **admin connected as a client** now works —
+      it reports "Bounty season reset requested." and the server replies with how many
+      hunter records were archived.
+- [ ] `bounty.<world>.season<N>.json` is written alongside the live file, and the live
+      board is empty afterwards.
+- [ ] Clients see the cleared board without a relog.
+- [ ] `de_season_reset` (duel ladder) likewise works for a **remote admin** — it had
+      the same host-console-only flaw and was fixed in the same change.
+- [ ] A **non-admin** player running either command is refused by the server (the
+      server re-verifies admin rights itself; the console's own admin flag isn't
+      trusted).
+
+## 23f. Bounty hunting — Phase F: the Wanted Board + UI  ✅ PASSED
+
+> **2026-08-23:** all passed. The inventory button took several passes to place;
+> it settled at the **top centre of the inventory screen**, positioned deliberately
+> with `LayoutElement.ignoreLayout` so the container's layout group can't move it.
+
+The board is now real: postings are generated, taken, travelled to, and the camp
+spawns on arrival. Opened with **F8** or the **Bounty Board button in your
+inventory**.
+
+**The board generates and syncs:**
+- [ ] On a qualifying server, `de_bounty_board` lists **3 open postings**
+      (`MaxBoardEntries`), each naming a tier and one of the four biomes.
+- [ ] `F8` opens the panel and lists the same postings with **live distances** that
+      update as you move.
+- [ ] A **second player** sees the same board. When one player accepts a posting, it
+      disappears from the other's list without a relog.
+- [ ] **Restart the server** — postings persist (`board.<world>.json`).
+
+**Accepting:**
+- [ ] Accept a posting → it's marked on your map, the panel shows it as your posting,
+      and the Accept buttons are replaced by **Abandon Bounty**.
+- [ ] With `MaxActiveBountyPerPlayer = 1`, you cannot accept a second.
+- [ ] Two players **racing for the same posting**: exactly one gets it, the other is
+      told who took it. (The server decides — a client can only ask.)
+- [ ] **Abandon** → the pin clears and the posting returns to the open list for
+      anyone, rather than vanishing.
+
+**Travelling and arrival spawn:**
+- [ ] Travel to your posting. Nothing exists there until you're within ~80 m
+      (`ArrivalRadius`), then the camp spawns and you get "You have found the … one."
+- [ ] The spawned target matches the posting's **tier and biome** and carries the
+      right `[T<n> … Bounty]` badge.
+- [ ] **Relog while approaching**, then return — you must get **one** camp, not two
+      (the server records the spawn).
+- [ ] Answer it (kill or commune) → reward pays as in §23d, the **pin clears**, the
+      posting leaves the board, and a **new posting** appears to replace it.
+
+**Inventory menu bar + panel behaviour:** (see also §27 for the full bar)
+- [ ] The **Bounty Board button** sits in the menu row at the **top centre of the
+      inventory screen** and stays there across opens, relogs and window resizes
+      (the row opts out of the container's layout group, so nothing shuffles it).
+- [ ] It opens the panel (closing the inventory as it does).
+- [ ] It's still there after a **relog** and after **dying/respawning** (InventoryGui
+      is rebuilt each world load).
+- [ ] While the panel is open: the camera is frozen, WASD does nothing, and clicking a
+      button does **not** swing your weapon. Escape and F8 both close it. (Same gates
+      as the F7 panel — they're now shared, so a regression here would hit both.)
+- [ ] Open **F7 and F8** in sequence and confirm neither leaves input stuck after
+      closing.
+
+**The teaser (players not on a bounty server):**
+- [ ] In **single-player**, or on a server missing any of the three mods, `F8` and the
+      inventory button still work and show the explanation panel — not an empty board
+      and not a dead key.
+- [ ] The teaser names the three required mods and makes **no mention of Valcoin**
+      (payouts are the donations backend's business, and its own rules forbid
+      promising them).
+- [ ] `de_bounty_board` on such a server says bounty hunting isn't active.
+
+**Watch:** postings currently top up as soon as one is answered. The **timed
+rotation cadence and the rank-gated elite tier are Phase H** — a tier 5 "Accursed"
+posting should NOT appear yet.
+
+## 23g. Bounty hunting — Phase G: the warden's commission  ✅ PASSED
+
+The board is now gated behind a quest told through Haldor's dialogue. A fresh
+character should not be able to reach a posting without it.
+
+**The gate holds:**
+- [ ] On a **character that has never done the quest**, `F8` shows "The board is not
+      yours to read yet" and names Haldor + hold-[E]. **No postings are listed and
+      no Accept buttons appear**, even though the server has open postings
+      (`de_bounty_board` on the server still shows them).
+- [ ] The locked panel still shows your standing and the hunter list — only the
+      postings are withheld.
+
+**The conversation:**
+- [ ] Find Haldor and **hold [E]** (~0.5 s). The warden's conversation opens instead
+      of his store. A **short press must still open the store** normally.
+- [ ] The dialogue branches: both "what do you mean" and "why keep the list" lead
+      onward, and "Another time" / "Not my trouble" exit without granting anything.
+- [ ] Re-opening the conversation after exiting **resumes where you left off**
+      (`resume_on_return`).
+- [ ] Choosing **"Mark it on my map"** grants the commission. Within a couple of
+      seconds a **tier 1 posting appears, already assigned to you**, pinned on your
+      map, and `F8` shows it as "The warden's commission".
+
+**The commission posting:**
+- [ ] It is **tier 1** regardless of which biome it landed in, and it is **near you**
+      (roughly 150–1200 m), not across the map.
+- [ ] It has **no Abandon button** — the commission can't be dropped.
+- [ ] Travel there: the camp spawns on arrival as normal, and answering it (kill
+      **or** commune) pays the tier 1 reward.
+- [ ] On resolving it you get "The warden will hear of this. The Wanted Board is
+      open to you." and the **`Hunting the Hardened`** rune page fires.
+- [ ] `F8` now lists the real postings with Accept buttons.
+
+**Persistence and edge cases:**
+- [ ] **Relog after unlocking** — the board stays open (the key persists with the
+      character).
+- [ ] **Relog after accepting the commission but before finishing it** — you still
+      have exactly **one** commission, not a second one (the request key is consumed).
+- [ ] A **second character** on the same account starts locked again.
+- [ ] `de_bounty_quest_reset` re-locks the board; `de_bounty_commission` grants the
+      commission without walking to Haldor (it sets the same key the dialogue does).
+
+**Watch:** ServerGuide records the conversation as `once: true` per player, so after
+resetting the gate Haldor won't re-offer it — use `de_bounty_commission` to replay,
+or reset ServerGuide's own state if you want to re-test the dialogue itself.
+
+## 23h. Bounty hunting — Phase H: rotation + the elite tier  ✅ PASSED
+
+The board now turns over on its own, and the top tier is gated behind competitive
+rank. `de_bounty_board` reports each posting's age and tags elite/commission rows.
+
+**Rotation:**
+- [ ] Set `Bounty/RefreshHours` to something short (e.g. **0.05** ≈ 3 minutes),
+      restart, and watch `de_bounty_board`: unclaimed postings are retired and
+      replaced, with a `[bounty] board rotated: retired N, posted M` log line.
+- [ ] **Accept a posting, then wait past the window.** It must **NOT** be retired —
+      only unclaimed postings rotate. This is the important one: losing a bounty
+      you're walking to would be maddening.
+- [ ] The **warden's commission** likewise never expires.
+- [ ] Clients see the rotated board without a relog.
+- [ ] Set `RefreshHours = 0` → nothing is ever retired.
+- [ ] **Restart the server** with aged postings on the board: they're retired
+      correctly on load (rotation uses real UTC time stored with the posting, so a
+      restart doesn't reset the clock).
+
+**The elite tier:**
+- [ ] With `EliteChance` raised (e.g. **1.0**) an **Accursed (tier 5)** posting
+      appears — it never appears from a biome alone, so this is the only route to it.
+- [ ] Only **one** elite posting is ever open at a time, however many postings turn
+      over.
+- [ ] As an **unranked** player it shows as a **greyed-out "Locked:" row**, not
+      hidden, and the panel explains that the top N of the duel or party ladder may
+      answer it.
+- [ ] Clicking the locked row does nothing.
+- [ ] **Try to accept it anyway** — e.g. from a client with the panel state stale.
+      The server must refuse with the "Only the realm's finest…" message. The panel
+      greys it out for looks; the server is the rule.
+- [ ] Earn a **top-10 duel or party rank**, reopen `F8`: the same posting is now
+      **acceptable**, and taking it works.
+- [ ] Answer an elite bounty → the **tier 5 "Accursed" reward bundle** pays
+      (authored back in Phase D and only reachable now), including its chat line and
+      Discord broadcast.
+- [ ] Set `EliteRankTopN = 0` → the gate is off and anyone may take elite postings.
+
+**Interaction with the reward-tier bonus:**
+- [ ] A **top-3 bounty hunter** answering an elite (tier 5) posting still pays tier 5
+      — the +1 bonus is clamped at the top tier, not overflowed.
+
+## 24. Dead Raiser sealing — seal a companion in the field  ⬜ UNVERIFIED
+
+Requires a **Dead Raiser** (`StaffSkeleton`), a **Wisp**, and **Blood Magic 20+**.
+`devcommands` → `raiseskill BloodMagic 25` is the quickest way in.
+
+**The happy path:**
+- [ ] Equip the Dead Raiser and hold a Wisp. Hover your own **Follow-stance**
+      companion — the crosshair tooltip shows
+      `Hold [Block] — Seal into a totem (N.Ns)`, with N matching your skill.
+- [ ] Hold Block. The Wishbone ripple pulses on you and on the companion, and
+      **accelerates** as the rite nears completion (the same cue the Communion Rite
+      uses — they should feel identical).
+- [ ] It completes at the advertised time. One **Wisp is consumed**, a **Communion
+      Totem** appears in your pack, and the companion vanishes with the seal VFX.
+- [ ] Summon the totem: the companion returns with **the same name, level, XP,
+      owner and pack contents**. A field-sealed totem must be indistinguishable
+      from an Incinerator-sealed one.
+
+**Skill scaling:**
+- [ ] At Blood Magic **20** the channel takes `SealChannelMaxSeconds` (5 s).
+- [ ] At Blood Magic **100** it takes `SealChannelMinSeconds` (2 s).
+- [ ] Somewhere in between it scales smoothly, and the hover tooltip's figure
+      matches the real duration.
+- [ ] At Blood Magic **19** the rite cannot start; the tooltip says why.
+
+**Every refusal, with the staff equipped (so the reason is shown):**
+- [ ] **Guard** or **Standby** stance → refused, "set it to follow you first".
+- [ ] On a **chore** → refused, "recall it from its work".
+- [ ] In a **duel** (`J`) or **party duel** (`K`) → refused.
+- [ ] **Feral** (butcher-knife betrayal) → refused.
+- [ ] **Someone else's** companion → refused.
+- [ ] **No Wisp** → refused, "you need a Wisp".
+
+**Silence when it isn't a sealing attempt:**
+- [ ] With **no staff equipped**, hold Block while looking at your companion —
+      nothing happens, no message. (Blocking beside an ally in a fight must never
+      nag.) The tooltip shows no seal hint either.
+
+**Every break condition:**
+- [ ] Release Block for **longer than the grace** → fails. A quick **dodge roll**
+      mid-rite does NOT fail it (the roll shares the Block button).
+- [ ] Walk past `SealMaxDistance` → fails.
+- [ ] **Take a hit** → fails (with `CommunionBreakOnDamage` on).
+- [ ] Unequip the staff mid-channel → fails.
+- [ ] Drop/consume your last Wisp mid-channel → fails.
+- [ ] After any failure the companion is **unharmed and still yours**, and the
+      rite can be started again immediately.
+
+**Edge cases:**
+- [ ] **Full inventory** at the moment of success → the totem **drops at your
+      feet** with a message. It must never be destroyed — the totem *is* the
+      companion at that point.
+- [ ] Two players holding Block on the **same** companion → the second is told
+      another rite has hold of it. (Only one should ever be able to; the
+      requirement to own the companion makes this rare, so it is a soft check.)
+- [ ] `StaffSealEnabled = false` → the feature is entirely absent, including the
+      hover hint, and the Incinerator ritual still works.
+
+## 25. Wagered tournaments (requires **4 players**, ideally 2 clients + alts)  ⬜ UNVERIFIED
+
+See [Wagers.md](Wagers.md). Coin wagers need nothing extra; **Valcoin wagers need
+the donations plugin rebuilt with `ValcoinWallet.cs`** and an
+`ls_tournament_prize` entry in `valcoin_quests.yaml`.
+
+**Panel layout and feedback (check these first — they gate everything else):**
+- [ ] Open `F7` with **no tournament running**: the long "how a tournament runs"
+      block is fully readable and the buttons sit **below** it, not on top of it.
+- [ ] Cycle through all three slots and through registration / running / complete:
+      the button rows **move down as the text grows** and never overlap it, and
+      never fall off the bottom of the panel.
+- [ ] With several entrants and (as admin) several Release/Forfeit rows, the right
+      column **stops early** rather than running past the panel edge.
+- [ ] Click any button that produces a message (a refusal, a confirmation, a
+      refund): it appears in the **top-left**, outside the panel, and is readable
+      **while the panel is still open**. Nothing should be hidden behind it.
+
+**Opening (Coins first — it has no external dependency):**
+- [ ] With <100 Coins, press Start on the Coin tournament → refused, **no Coins
+      taken**.
+- [ ] With 100 Coins → opened; **exactly 100 Coins gone**; Discord announces it
+      with the entry fee, purse and bracket size.
+- [ ] A second player pressing Start on the **same** currency → refused, "only one
+      at a time".
+- [ ] The **other** currency can still be opened at the same time — both appear on
+      the F7 panel (cycle the slot button) and on View Bracket.
+
+**The host's fee pays their entry:**
+- [ ] The host locks their totem → registered, and **no second charge**. Their
+      Coin count is unchanged by entering.
+- [ ] If the host **never** enters and the tournament is cancelled, their opening
+      fee is refunded.
+
+**Entering:**
+- [ ] Three more players lock totems, each charged the fee, each announced to
+      Discord with a running count.
+- [ ] A player with no companion totem → told to seal one first, **nothing
+      charged**.
+- [ ] A player trying to enter twice → refused.
+- [ ] A fifth player → "the tournament is full", **nothing charged**.
+- [ ] At 4/4 the bracket **begins by itself** — no admin action — and Discord
+      posts the round-1 draw plus the ready-up instruction.
+
+**Ready-up and the venue (the core new behaviour):**
+- [ ] Neither companion is summoned when the round begins. Nothing appears
+      anywhere.
+- [ ] One player presses **Ready to Fight** → told it is waiting for the opponent;
+      still nothing summoned.
+- [ ] The pair walk to **somewhere of their own choosing**, and the second presses
+      Ready → **both** companions are summoned **there**, beside their own owners,
+      at **full health**, and Discord announces the duel starting.
+- [ ] They fight **only each other**. With the second pairing active elsewhere,
+      confirm no cross-targeting (the `MatchesDuelAssignment` gate).
+- [ ] On a result: Discord posts the winner, then the "still to fight" list; both
+      companions are **resealed and despawned**.
+- [ ] Pressing Ready again after activation does nothing (no double summon).
+
+**Completion:**
+- [ ] Final round resolves → champion announced, purse paid (**999 Coins**
+      arriving on the champion's client), and a **full summary** posted with
+      standings and every result.
+- [ ] Every totem is returned — and the **champion's totem carries the XP its
+      companion gained in the final**, not its pre-final state. (This is what the
+      6 s completion grace exists for; check the level/XP on the returned totem.)
+- [ ] The slot is freed: a new Coin tournament can be opened straight away.
+
+**Refunds:**
+- [ ] Withdraw during registration → totem **and** stake both returned in one go.
+- [ ] Admin **Cancel** during registration → every entrant refunded, every totem
+      returned, Discord announces it.
+- [ ] Set `RegistrationMinutes` to `1`, open a tournament, leave it unfilled → it
+      auto-cancels, refunds everyone, and announces why.
+
+**Valcoin (needs the donations wallet):**
+- [ ] Open a Valcoin tournament → **10 Valcoins debited** (check `/coins`), and the
+      donations log shows an `eco_ls_tourney_entry` spend.
+- [ ] With too few Valcoins → refused with the ledger's own message; nothing taken.
+- [ ] Champion → `VC.Q.ls_tournament_prize` fires and the configured amount is
+      credited. **Without** the `valcoin_quests.yaml` entry, confirm the donations
+      log warns about an unknown quest (the documented failure mode).
+- [ ] On a server **without** the donations wallet: the Valcoin button is present,
+      pressing it is refused with a clear reason, and **Coin wagers still work**.
+- [ ] From a client that does **not** have the donations mod installed but whose
+      *server* does: the panel must NOT claim Valcoin is unavailable (the client
+      cannot judge that — see `WagerService.ClientHint`).
+
+## 26. Duel invites (requires **two players**)  ⬜ UNVERIFIED
+
+- [ ] Post an invite (Coins) → stake taken, totem escrowed, Discord announces it
+      with the stake and the doubled purse. It appears on both players' F7 panels
+      and on View Bracket.
+- [ ] Posting a **second** invite → refused, nothing taken.
+- [ ] Accepting your **own** invite → refused.
+- [ ] The other player accepts → their stake taken, their totem escrowed, Discord
+      announces the pairing.
+- [ ] While in an invite, either player trying to post another → refused ("no dual
+      invites").
+- [ ] Multiple **different** players can each have an invite open at the same time.
+- [ ] Both press Ready **where they choose to meet** → both companions summoned
+      there at full health, Discord announces the duel starting.
+- [ ] On the result: winner gets **both stakes** (200 Coins), Discord announces it,
+      both totems return, and the winner's carries the XP it just gained.
+- [ ] **Withdraw as the poster** before anyone accepts → stake and totem back.
+- [ ] **Withdraw as the poster** after acceptance → *both* players made whole and
+      the invite is gone.
+- [ ] **Withdraw as the challenger** → only they are refunded and the invite goes
+      back to **open** for someone else.
+- [ ] Withdraw once the duel is **running** → refused ("fight it out").
+- [ ] An open invite left past `RegistrationMinutes` → expires, poster refunded,
+      Discord announces it.
+- [ ] The bout also lands on the **normal duel ladder** (it is an ordinary duel
+      underneath) — check `F6`.
+
+## 27. Inventory menu bar (buttons for every panel)  ⬜ UNVERIFIED
+
+Every full-screen panel used to be hotkey-only. The row of buttons across the top
+of the inventory screen is the discoverable way in; the function keys still work.
+
+- [ ] Open the inventory: a centred row of **three** buttons sits along the top —
+      **Rankings**, **Tournaments**, **Bounty Board** — evenly spaced and clear of
+      the hotbar beneath.
+- [ ] Each one opens its panel, closing the inventory as it does.
+- [ ] The function keys still work independently: **F6** rankings, **F7**
+      tournaments, **F8** bounty board.
+- [ ] The row survives a **relog** and a **death/respawn** (InventoryGui is rebuilt
+      each world load, taking the clones with it — they must be re-created).
+- [ ] The row survives a **window resize** and stays centred.
+- [ ] Nothing shuffles the row when another mod adds inventory rows or panels
+      (it opts out of the container's layout group).
+- [ ] `Interface/MenuBarOffset` (`"x,y"` pixels, +x right / +y up) moves the whole
+      row; the log line `[ui] inventory menu bar: 3 button(s) under '<parent>' …`
+      reports where it landed.
+- [ ] **Back-compat:** set the old `Bounty/InventoryButtonOffset` to something other
+      than `"0,0"` — it wins over `MenuBarOffset` and moves the whole row (so an
+      operator's existing tweak isn't silently lost). Set it back to `"0,0"` and
+      `MenuBarOffset` takes over again.
+- [ ] Open a panel from a button, close it, and confirm player input is restored
+      (the panels' input capture is unchanged by how they were opened).
+
 ## Highest-risk items to watch
 
 - **Duel mode cross-client engagement** (#9) — the reworked `DE_Duel` ZDO flag must replicate so two different players' duelists actually pair up; confirm they seek each other (needs two players). Non-lethal now rides on the confirmed `Character.Damage` prefix, so that specific error risk is gone.
@@ -975,4 +1595,8 @@ YAML itself or the interaction with the always-on Communion Rite.
 - **Minimap pins** (#14) — confirm pins track/clear and, in multiplayer, each player sees only their own companions' pins.
 - **Tournament escrow round-trip** (#21d) — the riskiest new path: a totem must never be lost. Verify the summon→duel→reseal→despawn cycle and that every exit (reject/withdraw/release/cancel/complete) returns the totem. The `F7` panel now takes input over like a vanilla menu (free cursor + camera/keyboard blocked via `Player.TakeInput` / `GameCamera.UpdateMouseCapture` patches) — confirm buttons are clickable, the camera is frozen, and play is restored on close.
 - **Assigned-opponent targeting** (#21d) — with two matches active at once, each summoned companion must engage ONLY its bracket opponent (the `MatchesDuelAssignment` gate in `CompanionIsEnemyPatch`).
+- **Wager refunds are the money path** (#25, #26) — every rejection, withdrawal, cancellation and expiry must return BOTH the totem and the stake. The dangerous cases are the asynchronous ones: a Valcoin charge that settles after the tournament filled, was cancelled, or the player joined something else. Each of those re-checks and refunds; confirm with a slow/failing backend if you can.
+- **Completion grace** (#25) — escrowed totems are returned 6 s after a bracket completes so the winner's reseal lands first. If a client is lagging worse than that, the champion gets a pre-final totem. Check the returned level/XP.
+- **Valcoin availability is a server fact** (#25) — a client without the donations mod must not be told Valcoin wagers are unavailable on a server that has it.
+- **Dead Raiser sealing must never eat a companion** (#24) — the totem is the companion. Confirm the full-inventory drop path and that no failure mode consumes the wisp without producing a totem.
 - **Discord de-dup** (#21c) — each duel/party/#1/champion event should post exactly one webhook message; watch for doubles on cross-client resolution.

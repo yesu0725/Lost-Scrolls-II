@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0
+
+**Adds the bounty-hunting content: the warden's commission and the reward tables.**
+
+- **`guidance.bounty.yaml`** — *The Warden's Commission*. Haldor's dialogue (hold **[E]** on him) explaining that most Dvergr are merely held and can be freed, but some turned the corruption into a weapon and hunt the roads by choice. Accepting grants your first bounty; finishing it opens the Wanted Board. Includes a follow-up page teaching how bounty hunting works.
+- **`guidance.bounty-rewards.yaml`** — the **reward bundles**, one per difficulty tier, plus the optional Valcoin payouts. This is where all bounty loot is defined: edit this file to retune it, no code changes needed.
+- Now **eight** guidance files, all under `config/ValheimServerGuide/LostScrollsII/`.
+
+> **Requires ValheimServerGuide 0.14.0+.** The bounty entries use a new `tier:` trigger filter. On an older ServerGuide the tier filter is ignored, which would fire **every** tier's reward bundle at once — so this pack's dependency is deliberately strict.
+
+> **Valcoin payouts are optional and need server setup.** The coin half only pays if the server runs **Valheim Donations** with quest ids `ls_bounty_t1` … `ls_bounty_t5` defined in its `valcoin_quests.yaml`. Without them the item rewards still pay normally.
+
 ## 0.7.0
 
 **New: the Bog Witch's Dvergr rites** — a way to find and free your first Dvergr companions **without traveling to the Mistlands**, courtesy of a new `guidance.bogwitch-rite.yaml` file. Requires the **Bog Witch** trader (from the `ProfMags-TraderOverhaul` mod, e.g. the Hearthbound modpack) — on a server without her, this content simply never appears, with no effect on anything else.

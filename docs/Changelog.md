@@ -7,6 +7,154 @@ marked passed** — assume "unverified in a live session" otherwise.
 
 ---
 
+## Field sealing + wagered tournaments & duel invites (2026-08-23)  ⬜ UNVERIFIED
+
+Three additions, one of which reaches outside this mod. Full design in
+[Wagers.md](Wagers.md) and [Companion-Totems.md](Companion-Totems.md); test plans
+in [Testing.md](Testing.md) §24–§26.
+
+**1. Seal a companion in the field with a Dead Raiser.** The Incinerator ritual is
+unchanged; this is the portable counterpart. Equip a **Dead Raiser**
+(`StaffSkeleton`), hold a **Wisp**, have **Blood Magic 20+**, and hold Block on
+your own **Follow-stance** companion. The channel runs **5 s at skill 20 down to
+2 s at skill 100** and breaks on the same conditions as the Communion Rite
+(release, distance, damage) plus its own: unequip the staff or lose the wisp. It
+is a sibling class to `CommunionRite`, not a mode inside it — they share only the
+input idiom and the accelerating Wishbone ping, and every fail condition, message
+and outcome differs. The totem it produces is built by the same
+`TotemConversionService`, so a field-sealed companion is indistinguishable from
+an Incinerator-sealed one.
+
+**2. Player-started, staked tournaments.** Anyone can open one for **100 Coins**
+or **10 Valcoins**; that fee also pays the host's own entry, so nobody is charged
+twice. Fixed **4-player** single-elimination bracket that **begins by itself** the
+moment it fills, entrants paying the same fee; champion takes **999 Coins** or
+**100 Valcoins**. **One Coin and one Valcoin tournament at a time** — enforced by
+turning `TournamentService`'s single state into a *book* of slots (`""` free /
+`"coins"` / `"valcoin"`), which an older save file still loads into the free slot.
+An unfilled or cancelled bracket refunds **every stake and every totem**.
+
+The interesting design point is **ready-up**. The free admin tournament summons
+every companion beside its owner wherever they happen to be standing, which is
+wrong for a player-run event — it drops one duelist into the other's terrain. So a
+wagered pairing carries `aReady`/`bReady`: the two owners agree a venue however
+they like, walk there, and each presses **Ready to Fight**; only then are both
+companions summoned *there*, at full health, locked onto each other. That is what
+"the players decide the location" means, and it is stated on the panel, the board
+and the bracket announcement.
+
+**3. Staked duel invites.** Post a challenge for **100 Coins / 10 Valcoins** plus a
+sealed companion; anyone may accept by matching it; the winner takes both stakes.
+**One invite per player at a time** (as poster *or* challenger), any number of
+players at once. Deliberately its own flat two-sided record rather than a
+one-match tournament — no bracket, no rounds, no seeding, and a different
+lifetime. It shares the escrow/summon/reseal plumbing via a context tag on
+`TournamentCombatant`, and resolves off the **same duel report** the ladder
+already receives, so it is an ordinary duel underneath.
+
+**Discord.** Every server-wide beat — tournament opened, player entered, bracket
+drawn, duel started, duel won, who's next, champion, end-of-event summary, and the
+whole invite lifecycle — posts **straight to the ServerGuide webhook** from the
+server via the public `DiscordAnnouncer.AnnounceRaw`. Going direct means **no new
+trigger types, no new template variables and no ServerGuide release**: these are
+server-wide facts, and routing them through a per-player `type: discord` reward
+would have meant inventing a trigger per beat and firing it on an arbitrary
+client.
+
+**The Valcoin problem, and what it cost.** This mod has never named a Valcoin
+amount — payouts go through a `VC.Q.<id>` key that Valheim Donations prices from
+its own config. But there was **no debit path at all**, and one cannot be faked:
+the ledger is backend-authoritative and a local `CoinManager` deduction is
+reverted the next time any backend response syncs a balance. So a small
+server-side API was added **to the donations plugin** (`ValcoinWallet.Charge` /
+`Credit`), wrapping endpoints that already existed — `/api/spend` for the debit
+(its sku is regex-validated, not catalog-validated, so `eco_ls_tourney_entry`
+works as-is) and `/api/admin/grant` for the credit (whose own docstring names
+"event prizes, refunds"). Lost Scrolls II calls it **by reflection**
+(`ValcoinBridge`), so donations stays optional: absent it, Valcoin wagers are
+refused with a clear reason and **Coin wagers keep working**.
+
+The guardrail is preserved where it matters. A duel purse is *exactly* the two
+stakes collected, so it is simply moved — nothing is created. Only the tournament
+purse exceeds what the entries collect, and that surplus is **minted by the
+donations mod**, from its own `valcoin_quests.yaml`; `TournamentValcoinPrize` on
+this side is display-only.
+
+**Menu buttons (2026-08-23).** Every full-screen panel was hotkey-only, which is
+not discoverable — a player who never reads the config or the wiki had no way to
+learn the ranking board existed. The single Bounty Board button on the inventory
+screen became a **row of three** (Rankings / Tournaments / Bounty Board) in a new
+[`InventoryMenuBar`](../src/Companions/InventoryMenuBar.cs), which replaces
+`BountyInventoryButtonPatch` and generalises it: the entries are a table, so the
+layout is derived from the count and a fourth panel is one line. The function keys
+still work. Config `Interface/MenuBarOffset` moves the row; the old
+`Bounty/InventoryButtonOffset` still wins when it has been changed from its
+default, so an existing tweak isn't silently lost.
+
+**Requires server setup for Valcoin wagers:** rebuild/deploy the donations plugin,
+and add an `ls_tournament_prize` quest to `valcoin_quests.yaml`. Coin wagers need
+nothing. New guidance file `guidance.wagers.yaml` (Quest pack). New config section
+**`Wagers`**; new `Recruitment` keys for the sealing rite.
+
+---
+
+## Bounty hunting (Phases A–I) — released 0.8.0 (2026-08-24)  ✅ VERIFIED (A–H)
+
+A server-only, triple-gated bounty system: hardened, **auto-hostile** Dvergr posted
+on a **Wanted Board**, answerable by sword **or** by the Communion Rite, paying
+ServerGuide-authored item bundles and a rank-scaled **chance** at Valcoin. Built and
+verified phase by phase — see [Bounty-Hunting.md](Bounty-Hunting.md) for the full
+design and [Testing.md](Testing.md) §23–§23h for what was tested.
+
+Highlights, and the decisions behind them:
+
+- **Triple gate + server-only** (`BountyFeatureGate`): BiomeLords + ServerGuide +
+  Valheim Donations, all loaded, on a server/host. All source is isolated under
+  `src/Bounty/` so the gate is one early-out. Clients are *told* whether the feature
+  is live (`BountySync`) because they can't see the server's plugin set.
+- **Land-only placement** (`BountyLocationSampler`): read from `WorldGenerator`, which
+  is procedural and answers for unloaded zones — a raycast would only work near a
+  loaded player. Validated against **three rings out to 80 m**, because a single
+  ring passes on any islet wider than twice its radius.
+- **Our own difficulty curve** (`BountyTiers`): BiomeLords has no callable scaling API
+  and **no minion scaling at all**, so both are ours. Health is scaled explicitly;
+  **damage rides on the vanilla star level**, since vanilla already scales creature
+  damage per star and patching the attack path would buy nothing.
+- **Rewards contain no loot table in C#**: resolution fires `dvergr_bounty_resolved`
+  carrying the tier, and `guidance.bounty-rewards.yaml` decides what that's worth —
+  the same split the ranking and tournament systems already use.
+- **Valcoin is reward-only, by construction**: the chance is rolled in-mod (ServerGuide
+  has no numeric rank filter and no random reward), and only on success does a second
+  trigger set the `VC.Q.*` key that Valheim Donations reads. **No coin amount ever
+  leaves this mod**, satisfying that project's "no selling power" guardrail.
+- **Two separate rank levers**: bounty-ladder standing bumps the **reward tier**;
+  duel/party rank drives the **Valcoin chance** *and* gates the **Accursed** tier.
+  Access is the stronger pull toward duels, which is the point of the feature.
+- **Quest gate without a new API** (`BountyQuestGate`): Haldor's `npc_conversation`
+  grants a stock `set_player_key`; the mod watches for it, posts the commission, and
+  unlocks the board when that bounty resolves — an event the mod already observes
+  because it posted the bounty itself. ServerGuide's missing reverse-query API is
+  therefore a non-issue rather than a blocker.
+- **Serializer discipline**: every new store uses `CompetitiveJson` from day one, never
+  `JsonUtility` (which silently drops list fields on this runtime — the bug that once
+  made tournaments show zero entrants). Float support was added with
+  `InvariantCulture`, since a comma-decimal locale would corrupt every coordinate.
+
+Fixes made in response to live testing: tier stars were invisible below tier 3
+(vanilla renders level 1 as *no* stars) → tier badge on the name; season resets
+refused a remote admin (gated on *being* the server, not on being an admin) → both
+bounty **and** duel-ladder resets moved onto the admin-authenticated RPC; the
+inventory button needed several passes to place (settled at top-centre with
+`LayoutElement.ignoreLayout`, since the container's layout group was overriding it).
+
+**Packaging:** base + Quest both at **0.8.0**; the Quest pack now bundles **eight**
+guidance files. New wiki page `wiki/Bounty-Hunting.md`.
+
+> **ServerGuide 0.14.0 was cut alongside this release**, carrying the `tier:` filter
+> and the two `dvergr_bounty_*` triggers (plus two NPC-dialogue fixes of its own).
+> Upload order: ServerGuide 0.14.0 → base 0.8.0 → Quest 0.8.0
+> ([Publishing.md](Publishing.md)).
+
 ## Movable chest/storage UI — released 0.7.0 (2026-08-03)  ⬜ UNVERIFIED
 
 The shared container panel (`InventoryGui.m_container` — vanilla chests **and** the

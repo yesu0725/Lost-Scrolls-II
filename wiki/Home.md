@@ -15,12 +15,14 @@ Lost Scrolls II is a spiritual sequel to the deprecated Thunderstore mod **Lost 
 - **[Dvergr Duels](Dvergr-Duels)** — non-lethal companion-vs-companion sparring between players.
 - **[Rankings](Rankings)** — the persistent duel and party ladders, the `F6` board, and party names.
 - **[Tournaments](Tournaments)** — bracket competitions: enter by locking a companion's totem into a slot (`F7`).
+- **[Wagers](Wagers)** — put a companion on the line: open your own staked tournament, or post a duel invite anyone can accept. Winner takes the purse.
+- **[Bounty Hunting](Bounty-Hunting)** — hunt hardened, hostile Dvergr posted on a Wanted Board (`F8`). *Server feature.*
 - **[Communion Totems](Communion-Totems)** — seal an ally into a carriable totem and summon it back later, level intact.
 - **[The Story](The-Story)** — what to expect from the mod's lore (no spoilers).
 
 ## What this mod is
 
-A companion system built entirely on existing Valheim creatures and prefabs. Every recruitable Dvergr is a vanilla Dvergr with new behavior attached — no new models, textures, sounds, or asset bundles. Almost everything you do with a companion is a **hover + hotkey** interaction. There are only three screens: a companion's [inventory](Companion-Inventory) (`Y`, the game's own chest window), the [ranking board](Rankings) (`F6`), and the [tournament panel](Tournaments) (`F7`).
+A companion system built entirely on existing Valheim creatures and prefabs. Every recruitable Dvergr is a vanilla Dvergr with new behavior attached — no new models, textures, sounds, or asset bundles. Almost everything you do with a companion is a **hover + hotkey** interaction. There are only four screens: a companion's [inventory](Companion-Inventory) (`Y`, the game's own chest window), the [ranking board](Rankings) (`F6`), the [tournament panel](Tournaments) (`F7`), and the [Wanted Board](Bounty-Hunting) (`F8`). The last three also have **buttons along the top of your inventory screen**, so you don't have to remember the keys.
 
 ## What it isn't
 

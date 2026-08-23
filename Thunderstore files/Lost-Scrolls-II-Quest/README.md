@@ -16,11 +16,15 @@ This is a **content pack**: it ships the story and pulls in the gameplay mod and
 - **Ladder guidance** (`guidance.rankings.yaml`) — how the duel and party ladders work, rank milestones, and a "new champion" announcement when someone reaches #1.
 - **Tournament guidance** (`guidance.tournaments.yaml`) — join confirmations, round pairings, and the champion prize bundle.
 - **Duel broadcasts** (`guidance.duels.yaml`) — announces every duel win to server chat and, optionally, Discord.
+- **Bounty hunting** (`guidance.bounty.yaml`, `guidance.bounty-rewards.yaml`) — the *Warden's Commission* quest that opens the Wanted Board (talk to **Haldor**, hold **[E]**), and the reward bundles paid for every bounty answered. **Server feature** — see the note below.
+- **Wagers** (`guidance.wagers.yaml`) — teaches the staked tournaments and duel invites, and carries the Valcoin champion's purse bridge. **Coin wagers need nothing set up; Valcoin wagers need the server's `valcoin_quests.yaml` to define `ls_tournament_prize`** (the amount lives there, not in the mod).
 - **The Bog Witch's Dvergr rites** (`guidance.bogwitch-rite.yaml`) — a weekly quest chain that lets you find and free your first Dvergr companions **without traveling to the Mistlands**. Requires the **Bog Witch** trader (from the `ProfMags-TraderOverhaul` mod); harmlessly inert without her.
 
-All six YAML files drop into **`BepInEx/config/ValheimServerGuide/LostScrollsII/`** — their own subfolder, so they stay separate from any guidance your server already runs and are easy to remove. ServerGuide merges every `*.yaml` under its config folder recursively, at any depth.
+All nine YAML files drop into **`BepInEx/config/ValheimServerGuide/LostScrollsII/`** — their own subfolder, so they stay separate from any guidance your server already runs and are easy to remove. ServerGuide merges every `*.yaml` under its config folder recursively, at any depth.
 
-> **Rankings & tournaments need ServerGuide.** These guidance files *are* what announces and rewards the competitive systems — rank-ups, "new #1", tournament pairings, champion prizes, Discord posts. That's why **ValheimServerGuide 0.9.0+** is a hard dependency of this pack (0.8.0+ is also what makes the subfolder layout load at all). The ladders themselves keep recording without it, but nothing would announce them.
+> **Rankings & tournaments need ServerGuide.** These guidance files *are* what announces and rewards the competitive systems — rank-ups, "new #1", tournament pairings, champion prizes, Discord posts. That's why **ValheimServerGuide 0.14.0+** is a hard dependency of this pack (0.8.0+ is also what makes the subfolder layout load at all, and 0.14.0 adds the `tier:` filter the bounty rewards need). The ladders themselves keep recording without it, but nothing would announce them.
+
+> **Bounty hunting is a server feature.** Its guidance ships here, but the system only runs on a server (or local host) that also has **BiomeLords** and **Valheim Donations** installed alongside ServerGuide. Everywhere else the bounty panel simply explains what it is and where it runs — nothing breaks. Valcoin payouts additionally need quest ids `ls_bounty_t1` … `ls_bounty_t5` in the donations mod's `valcoin_quests.yaml`; without them the item rewards still pay.
 
 > **Discord is optional.** The announcements only post if the **server** sets `DiscordWebhookUrl` in the ServerGuide config. Without it everything still fires in-game and the webhook step is skipped.
 

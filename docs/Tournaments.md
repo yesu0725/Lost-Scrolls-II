@@ -1,5 +1,15 @@
 # Tournament System
 
+> **Wagered tournaments** — since the wager batch, any player can open a **staked**
+> tournament (Coins or Valcoins) alongside the free admin-run one described here.
+> Those differ in only four ways: anyone opens one by paying (which also pays their
+> own entry), the bracket is a fixed size and **starts by itself** when it fills, a
+> match is summoned only when **both owners press Ready** (so the players pick the
+> venue), and every stake is refunded if it never fills. `TournamentService` now
+> holds a *book* of tournaments keyed by slot (`""` free / `"coins"` / `"valcoin"`),
+> so every method takes a slot key. See **[Wagers.md](Wagers.md)**.
+
+
 A server-authoritative bracket runner for companion duels — works for **both**
 1v1 ([Duel-Arena.md](Duel-Arena.md)) and **party** ([Party-Duels.md](Party-Duels.md))
 formats. Seeds from the ladder ratings ([Ranking.md](Ranking.md)), runs the

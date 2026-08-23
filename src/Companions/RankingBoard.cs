@@ -81,6 +81,35 @@ namespace LostScrollsII.Companions
                 }
             }
 
+            // ---- bounty-hunter ladder (docs/Bounty-Hunting.md) ----
+            // Only shown where bounty hunting actually runs, so a server without the
+            // feature doesn't advertise an empty board (the flag is what the server
+            // pushed — a client can't work it out for itself).
+            if (Bounty.BountyFeatureGate.AvailableToLocalPlayer)
+            {
+                sb.Append("\n<size=150%><color=#FFD24A>Bounty Hunters</color></size>\n");
+                var hunters = Bounty.BountyLeaderboardStore.Ranked();
+                if (hunters.Count == 0)
+                {
+                    sb.Append("<color=#AAAAAA>No bounties answered yet.</color>\n");
+                }
+                else
+                {
+                    for (int i = 0; i < hunters.Count && i < MaxRows; i++)
+                    {
+                        var h = hunters[i];
+                        string owner = string.IsNullOrEmpty(h.ownerName) ? "?" : h.ownerName;
+                        string best = h.bestTier > 0
+                            ? Bounty.BountyTiers.TierName(h.bestTier) : "—";
+                        sb.Append($"<color=#FFFFFF>#{i + 1,-2}</color> ")
+                          .Append($"<color=#8FE3FF>{h.points,5}</color>  ")
+                          .Append($"{owner}  ")
+                          .Append($"<color=#B8F5B0>{h.kills} felled</color>/<color=#8FE3FF>{h.communes} freed</color>  ")
+                          .Append($"<color=#AAAAAA>best: {best}</color>\n");
+                    }
+                }
+            }
+
             sb.Append("</align>");
             return sb.ToString();
         }

@@ -220,6 +220,11 @@ namespace LostScrollsII.Companions
             Plugin.Log.LogInfo($"Dvergr {caste} recruited by {(recruiter != null ? recruiter.GetPlayerName() : "unknown")}.");
             ServerGuideBridge.RaiseRecruited(caste);
 
+            // Freeing a bounty target closes that bounty just as killing it would —
+            // the Rite is a legitimate way to answer a posting (docs/Bounty-Hunting.md,
+            // requirement 1). No-ops for an ordinary Dvergr.
+            Bounty.BountyService.NotifyCommuned(target, recruiter);
+
             // Replace the (now-silenced) vanilla Dvergr chatter with a line about
             // what this freed ally can do in its current (Follow) stance.
             companion.AnnounceCapability();

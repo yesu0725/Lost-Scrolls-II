@@ -2,22 +2,25 @@ using System.Collections;
 using System.Linq;
 using System.Text;
 using UnityEngine;
+using LostScrollsII.Economy;
 using LostScrollsII.Ranking;
 
 namespace LostScrollsII.Companions
 {
-    // Player-facing tournament board (docs/Tournaments.md). Covers the whole
-    // lifecycle a player sees: current phase, who's registered, the live bracket
-    // and pairings, and the champion.
+    // Player-facing tournament board (docs/Tournaments.md, docs/Wagers.md). Covers
+    // the whole lifecycle a player sees: current phase, who's registered, the live
+    // bracket and pairings, the champion — and the staked duel-invite board.
     //
     // The read-only status view is rendered with the vanilla TextViewer "Rune"
-    // panel (same as RankingBoard). The INTERACTIVE registration surface — locking
-    // a companion's Communion Totem into a slot to enter, and the admin controls —
-    // is a separate InventoryGui-based slot panel (TournamentRegistration), opened
-    // from here; see Phase 4.
+    // panel (same as RankingBoard). The INTERACTIVE surface — locking a companion's
+    // Communion Totem into a slot, opening a staked tournament, posting/accepting a
+    // duel invite, and the admin controls — is the separate InventoryGui-based
+    // panel (TournamentRegistration), opened from here.
     //
-    // TournamentState is already synced to every client (LeaderboardSync pushes the
-    // snapshot), so the status view only reads TournamentService.Snapshot.
+    // Every tournament AND the invite board are synced to every client
+    // (LeaderboardSync pushes both snapshots), so this view only reads them. Several
+    // tournaments can be live at once — the free admin one plus one per wager
+    // currency — and each is rendered in turn.
     public static class TournamentBoard
     {
         public static void Open(Player player)
@@ -29,13 +32,14 @@ namespace LostScrollsII.Companions
                 return;
             }
 
-            // This is a one-shot render of TournamentService.Snapshot, which only
-            // updates when a server broadcast happens to have already landed. Unlike
-            // the F7 registration panel (which polls every frame and self-heals),
-            // a client that missed/hadn't yet received the latest push would show a
-            // stale bracket indefinitely. Ask the server for a fresh copy first and
-            // give the round trip a brief moment before rendering.
+            // This is a one-shot render of the synced snapshots, which only update
+            // when a server broadcast happens to have already landed. Unlike the F7
+            // registration panel (which polls every frame and self-heals), a client
+            // that missed/hadn't yet received the latest push would show a stale
+            // bracket indefinitely. Ask the server for fresh copies first and give
+            // the round trip a brief moment before rendering.
             LeaderboardSync.RequestTournament();
+            LeaderboardSync.RequestInvites();
             if (Plugin.Instance != null) Plugin.Instance.StartCoroutine(ShowAfterSync(player));
             else Show(player);
         }
@@ -54,22 +58,49 @@ namespace LostScrollsII.Companions
 
         private static string Build(Player player)
         {
-            var s = TournamentService.Snapshot;
             var sb = new StringBuilder();
             sb.Append("<align=left>");
 
-            if (s == null || !s.active)
+            // Several tournaments can run at once now (the free admin one plus one
+            // per wager currency), so the board renders every active bracket in turn
+            // rather than assuming a single state.
+            var all = TournamentService.All.ToList();
+            if (all.Count == 0)
             {
                 sb.Append("<size=140%><color=#FFD24A>No tournament is running.</color></size>\n\n");
-                sb.Append("<color=#AAAAAA>An admin starts one with <color=#FFFFFF>de_tournament start &lt;1v1|party&gt; [size]</color>");
-                sb.Append(" (or the Start control on this board). When registration opens, lock a companion's Communion Totem into a slot to enter.</color>");
-                sb.Append("</align>");
-                return sb.ToString();
+                sb.Append("<color=#AAAAAA>Any player can open one from the Tournament panel (");
+                sb.Append($"[{Plugin.TournamentUiKey.Value}]");
+                sb.Append(") by paying the entry stake — one Coin tournament and one Valcoin tournament may run at a time. ");
+                sb.Append("Admins can also start a free one. When registration opens, lock a companion's Communion Totem into a slot to enter.</color>\n");
+            }
+            else
+            {
+                bool first = true;
+                foreach (var s in all)
+                {
+                    if (!first) sb.Append("\n<color=#555555>--------------------</color>\n\n");
+                    first = false;
+                    AppendTournament(sb, s);
+                }
             }
 
+            AppendInvites(sb, player);
+            sb.Append("</align>");
+            return sb.ToString();
+        }
+
+        private static void AppendTournament(StringBuilder sb, TournamentState s)
+        {
             string mode = s.mode == "party" ? "Party" : "1v1";
             string type = TypeLabel(s.eliminationType);
-            sb.Append($"<size=150%><color=#FFD24A>⚔ {mode} Tournament</color></size>  <color=#AAAAAA>({s.phase} — {type})</color>\n\n");
+            var currency = Wager.Parse(s.currency);
+            string stake = s.entryFee > 0
+                ? $"  <color=#B8F5B0>{s.entryFee} {Wager.Display(currency)} entry, {s.prize} to the champion</color>"
+                : "";
+            sb.Append($"<size=150%><color=#FFD24A>{Title(s)}</color></size>  <color=#AAAAAA>({s.phase} — {mode}, {type})</color>{stake}\n");
+            if (s.entryFee > 0 && !string.IsNullOrEmpty(s.hostName))
+                sb.Append($"<color=#AAAAAA>Opened by {s.hostName}</color>\n");
+            sb.Append("\n");
 
             if (s.phase == "registration")
             {
@@ -78,7 +109,9 @@ namespace LostScrollsII.Companions
                 sb.Append(cap > 0 ? $" / {cap} entrants:\n" : " entrants:\n");
                 AppendEntrants(sb, s);
                 sb.Append("\n<color=#AAAAAA>Enter by locking a companion's Communion Totem into a slot (open the registration panel from this board). ");
-                sb.Append("An admin begins the bracket when everyone's in.</color>");
+                sb.Append(s.entryFee > 0
+                    ? "The bracket begins automatically the moment it fills; if it never fills, every stake and totem is returned.</color>\n"
+                    : "An admin begins the bracket when everyone's in.</color>\n");
             }
             else if (s.phase == "running")
             {
@@ -86,18 +119,54 @@ namespace LostScrollsII.Companions
                 AppendBracket(sb, s);
                 sb.Append("\n");
                 AppendStandings(sb, s);
-                sb.Append("\n<color=#AAAAAA>Fight your pairing to advance. de_tournament bracket shows the full draw.</color>");
+                sb.Append(s.entryFee > 0
+                    ? "\n<color=#AAAAAA>You and your opponent pick where to fight: meet up anywhere, then both press Ready to Fight on the Tournament panel. Your companions are summoned there, at full health.</color>\n"
+                    : "\n<color=#AAAAAA>Fight your pairing to advance. An admin activates each round.</color>\n");
             }
             else if (s.phase == "complete")
             {
                 string champ = string.IsNullOrEmpty(s.championLabel) ? "?" : s.championLabel;
-                sb.Append($"<size=140%><color=#FFD24A>🏆 Champion: {champ}</color></size>\n\n");
+                sb.Append($"<size=140%><color=#FFD24A>Champion: {champ}</color></size>\n\n");
                 AppendStandings(sb, s);
-                sb.Append("\n<color=#AAAAAA>See the Hall of Champions with de_champions.</color>");
+                sb.Append("\n<color=#AAAAAA>See the Hall of Champions with de_champions.</color>\n");
             }
+        }
 
-            sb.Append("</align>");
-            return sb.ToString();
+        // The staked duel-invite board shares this panel: it answers the same "who
+        // can I fight, and for what" question, and giving it a second full-screen
+        // surface for a handful of lines would be worse than a section here.
+        private static void AppendInvites(StringBuilder sb, Player player)
+        {
+            var invites = DuelInviteService.All.ToList();
+            if (invites.Count == 0) return;
+
+            sb.Append("\n<color=#555555>--------------------</color>\n\n");
+            sb.Append("<size=150%><color=#FFD24A>Duel Invites</color></size>\n\n");
+            long me = player != null ? player.GetPlayerID() : 0L;
+            foreach (var i in invites)
+            {
+                var currency = Wager.Display(Wager.Parse(i.currency));
+                string mine = i.Involves(me) ? " <color=#B8F5B0>(yours)</color>" : "";
+                string state;
+                switch (i.phase)
+                {
+                    case "matched": state = $"<color=#FFD24A>{i.oppLabel} ({i.oppName}) accepted — waiting for both to be ready</color>"; break;
+                    case "running": state = "<color=#E06666>fighting now</color>"; break;
+                    case "complete": state = "<color=#AAAAAA>settled</color>"; break;
+                    default: state = "<color=#8FE3FF>open — anyone may accept</color>"; break;
+                }
+                sb.Append($"  {LabelWithLevel(i.hostLabel, i.hostLevel)} <color=#AAAAAA>({i.hostName})</color>{mine}\n");
+                sb.Append($"     stake <color=#B8F5B0>{i.stake} {currency}</color>, winner takes <color=#B8F5B0>{i.stake * 2}</color> — {state}\n");
+            }
+            sb.Append("\n<color=#AAAAAA>Post or accept an invite from the Tournament panel. You may only be in one invite at a time, and the two of you choose where to fight.</color>\n");
+        }
+
+        private static string Title(TournamentState s)
+        {
+            var currency = Wager.Parse(s.currency);
+            return currency == WagerCurrency.None
+                ? "Server Tournament"
+                : $"{Wager.Display(currency)} Tournament";
         }
 
         private static void AppendEntrants(StringBuilder sb, TournamentState s)
@@ -108,7 +177,7 @@ namespace LostScrollsII.Companions
                 string label = string.IsNullOrEmpty(e.label) ? "?" : e.label;
                 string owner = string.IsNullOrEmpty(e.ownerName) ? "?" : e.ownerName;
                 string lvl = e.level > 0 ? $" <color=#FFD24A>Lv{e.level}</color>" : "";
-                sb.Append($"  • {label}{lvl} <color=#AAAAAA>({owner})</color>  <color=#8FE3FF>{e.seedRating}</color>\n");
+                sb.Append($"  {label}{lvl} <color=#AAAAAA>({owner})</color>  <color=#8FE3FF>{e.seedRating}</color>\n");
             }
         }
 
@@ -126,9 +195,13 @@ namespace LostScrollsII.Companions
                     string tag = showBracketTag ? $"<color=#AAAAAA>[{m.bracket}]</color> " : "";
                     string a = LabelWithLevel(m.aLabel, m.aLevel);
                     string b = string.IsNullOrEmpty(m.bId) ? "(bye)" : LabelWithLevel(m.bLabel, m.bLevel);
-                    string res = string.IsNullOrEmpty(m.winnerId)
-                        ? "<color=#AAAAAA>pending</color>"
-                        : $"<color=#B8F5B0>winner: {(m.winnerId == m.aId ? m.aLabel : m.bLabel)}</color>";
+                    string res;
+                    if (!string.IsNullOrEmpty(m.winnerId))
+                        res = $"<color=#B8F5B0>winner: {(m.winnerId == m.aId ? m.aLabel : m.bLabel)}</color>";
+                    else if (m.activated)
+                        res = "<color=#E06666>fighting</color>";
+                    else
+                        res = $"<color=#AAAAAA>ready: {(m.aReady ? "yes" : "no")} / {(m.bReady ? "yes" : "no")}</color>";
                     sb.Append($"  {tag}{a} <color=#AAAAAA>vs</color> {b} — {res}\n");
                 }
             }
@@ -158,11 +231,14 @@ namespace LostScrollsII.Companions
         private static string LabelWithLevel(string label, int level)
             => level > 0 ? $"{label} <color=#FFD24A>Lv{level}</color>" : label;
 
-        private static string TypeLabel(string eliminationType) => eliminationType switch
+        private static string TypeLabel(string eliminationType)
         {
-            "double" => "double elim",
-            "round_robin" => "round robin",
-            _ => "single elim",
-        };
+            switch (eliminationType)
+            {
+                case "double": return "double elim";
+                case "round_robin": return "round robin";
+                default: return "single elim";
+            }
+        }
     }
 }

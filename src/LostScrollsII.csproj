@@ -6,7 +6,7 @@
     <Nullable>disable</Nullable>
     <AssemblyName>LostScrollsII</AssemblyName>
     <RootNamespace>LostScrollsII</RootNamespace>
-    <Version>0.7.0</Version>
+    <Version>0.8.0</Version>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <NoWarn>CS0436;NU1701</NoWarn>
@@ -24,6 +24,13 @@
     <!-- Override on other machines: dotnet build -p:HEARTHBOUND_TEST_PROFILE_DIR="..." -->
     <HEARTHBOUND_TEST_PROFILE_DIR Condition=" '$(HEARTHBOUND_TEST_PROFILE_DIR)' == '' ">C:\Users\yesu0725\AppData\Roaming\r2modmanPlus-local\Valheim\profiles\Hearthbound Valheim - Test</HEARTHBOUND_TEST_PROFILE_DIR>
     <HearthboundTestInstallDir>$(HEARTHBOUND_TEST_PROFILE_DIR)\BepInEx\plugins\TaegukGaming-Lost_Scrolls_II</HearthboundTestInstallDir>
+    <!-- Client-side test profile, managed by the Gale mod manager (not r2modman).
+         Override on other machines: dotnet build -p:GALE_TEST_PROFILE_DIR="..."
+         Deploys into the Thunderstore-installed folder rather than a new one, so
+         only ONE copy of com.lostscrollsii is ever present — BepInEx skips a
+         duplicate GUID, which would silently leave the stale build loaded. -->
+    <GALE_TEST_PROFILE_DIR Condition=" '$(GALE_TEST_PROFILE_DIR)' == '' ">C:\Users\yesu0725\AppData\Roaming\com.kesomannen.gale\valheim\profiles\HB Test</GALE_TEST_PROFILE_DIR>
+    <GaleTestInstallDir>$(GALE_TEST_PROFILE_DIR)\BepInEx\plugins\TaegukGaming-Lost_Scrolls_II</GaleTestInstallDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -135,6 +142,12 @@
     <MakeDir Directories="$(HearthboundTestInstallDir)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(HearthboundTestInstallDir)" />
     <Message Text="Deployed LostScrollsII to $(HearthboundTestInstallDir)" Importance="high" />
+  </Target>
+
+  <Target Name="DeployToGaleTest" AfterTargets="Build" Condition="Exists('$(GALE_TEST_PROFILE_DIR)')">
+    <MakeDir Directories="$(GaleTestInstallDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GaleTestInstallDir)" />
+    <Message Text="Deployed LostScrollsII to $(GaleTestInstallDir)" Importance="high" />
   </Target>
 
 </Project>

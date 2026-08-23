@@ -45,7 +45,7 @@ Folder: `Thunderstore files/Lost Scrolls II/`
 
 | File | Purpose |
 |---|---|
-| `manifest.json` | name `Lost_Scrolls_II`, version `0.7.0` |
+| `manifest.json` | name `Lost_Scrolls_II`, version `0.8.0` |
 | `icon.png` | 256×256 RGBA PNG (author-supplied) |
 | `README.md` | Thunderstore listing copy |
 | `CHANGELOG.md` | per-release notes |
@@ -67,7 +67,7 @@ as dependencies. It does **not** bundle the DLL — the base mod arrives via dep
 
 ```
 Lost-Scrolls-II-Quest/
-  manifest.json        name Lost_Scrolls_II_Quest, version 0.7.0
+  manifest.json        name Lost_Scrolls_II_Quest, version 0.8.0
   icon.png             256×256 RGBA PNG (author-supplied)
   README.md
   CHANGELOG.md
@@ -105,8 +105,8 @@ Lost-Scrolls-II-Quest/
 **Dependencies (all installed automatically):**
 
 - `denikson-BepInExPack_Valheim-5.4.2333`
-- `TaegukGaming-Lost_Scrolls_II-0.7.0` — the base gameplay mod
-- `TaegukGaming-ValheimServerGuide-0.9.0` — the story/handbook engine (+ templating & Discord)
+- `TaegukGaming-Lost_Scrolls_II-0.8.0` — the base gameplay mod
+- `TaegukGaming-ValheimServerGuide-0.14.0` — the story/handbook engine (+ templating, Discord, and the `tier:` filter the bounty rewards need)
 
 **Why `config/ValheimServerGuide/` works out of the box:** ServerGuide loads and
 auto-merges every `*.yaml` under `BepInEx/config/ValheimServerGuide/` — recursively,
@@ -117,6 +117,39 @@ no manual file copying. They are byte-identical to the in-game-verified copies
 (Testing.md §10b–d), sourced from `E:\Valheim Modding\Valheim ServerGuide\examples/`.
 
 This is the complete, single-player-ready experience.
+
+
+## 0.8.0 — release notes and upload order
+
+**ServerGuide 0.14.0 was cut on 2026-08-24**, which unblocks the Quest pack. All three
+packages are built and ready.
+
+**Why the Quest pack's ServerGuide dependency is strict (`0.14.0`, not "0.9.0+").** The
+bounty reward entries use a `tier:` trigger filter added in 0.14.0. On an **older**
+ServerGuide those entries are actively harmful rather than merely inert:
+`GuidanceDispatcher.MatchesTrigger` ends in `default: return true`, so an unknown
+trigger type still matches and the **`tier:` filter is ignored — every tier's reward
+bundle would fire at once**. Hence the hard floor.
+
+**What ServerGuide 0.14.0 contains** (see its own CHANGELOG): two NPC-dialogue fixes
+(node choices written as `text:` rendered blank; choice buttons were packed three to a
+row and grew enormous — now one full-width row each, styled like vanilla's own dialog
+buttons) plus Lost Scrolls II's bounty additions — the `tier:` filter, the two
+`dvergr_bounty_*` trigger types, and the `{tier}` / `{tierName}` / `{method}` /
+`{bountyBiome}` tokens.
+
+**Upload order:**
+
+1. **ServerGuide 0.14.0** — `Valheim ServerGuide/Thunderstore files/ValheimServerGuide_0.14.0.zip`
+2. **Lost Scrolls II 0.8.0** (base) — `Lost_Scrolls_II_0.8.0.zip`
+3. **Lost Scrolls II Quest 0.8.0** — `Lost_Scrolls_II_Quest_0.8.0.zip`
+
+Thunderstore validates each package's dependencies at publish time, so a later package
+cannot go up before the one it depends on.
+
+**Server-side setup for the Valcoin half:** the donations mod's `valcoin_quests.yaml`
+needs ids `ls_bounty_t1` … `ls_bounty_t5`. A key with no matching entry is silently
+worth nothing (logged as `Unknown quest '<id>'`); the item rewards pay regardless.
 
 ## Building the upload zips
 

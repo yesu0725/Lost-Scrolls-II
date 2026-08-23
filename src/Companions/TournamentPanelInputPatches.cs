@@ -4,8 +4,9 @@ using UnityEngine;
 
 namespace LostScrollsII.Patches
 {
-    // While the tournament panel (TournamentRegistration, F7) is open, take input
-    // over the way a vanilla menu does: free the mouse cursor so its buttons can be
+    // While one of our full-screen panels is open (the tournament panel F7, or the
+    // bounty board F8 — see ModalPanels), take input over the way a vanilla menu
+    // does: free the mouse cursor so its buttons can be
     // clicked, and block the camera + all player controls underneath it. Two
     // vanilla chokepoints (both confirmed present in the game assembly):
     //
@@ -17,14 +18,19 @@ namespace LostScrollsII.Patches
     //     (it runs in LateUpdate, so a per-frame set from our own Update would lose
     //     the race — patching it is the reliable fix).
     //
-    // Our own hotkeys (F7 to toggle closed, Escape to close) and the panel's uGUI
-    // buttons don't go through TakeInput, so closing + clicking still work.
+    // Our own hotkeys (the panel's own key to toggle closed, Escape to close) and the
+    // panel's uGUI buttons don't go through TakeInput, so closing + clicking still work.
+    //
+    // These gates are SHARED rather than duplicated per panel: they encode two hard-won
+    // fixes (PlayerController.TakeInput being a different method from Player.TakeInput,
+    // and a postfix being needed because another mod out-orders a ZInput prefix), and a
+    // second copy would inevitably drift from them.
     [HarmonyPatch(typeof(Player), nameof(Player.TakeInput))]
     public static class TournamentPanelBlocksInputPatch
     {
         public static void Postfix(ref bool __result)
         {
-            if (TournamentRegistration.IsOpen) __result = false;
+            if (ModalPanels.AnyOpen) __result = false;
         }
     }
 
@@ -46,7 +52,7 @@ namespace LostScrollsII.Patches
     {
         public static void Postfix(ref bool __result)
         {
-            if (TournamentRegistration.IsOpen) __result = false;
+            if (ModalPanels.AnyOpen) __result = false;
         }
     }
 
@@ -55,7 +61,7 @@ namespace LostScrollsII.Patches
     {
         public static bool Prefix()
         {
-            if (!TournamentRegistration.IsOpen) return true;
+            if (!ModalPanels.AnyOpen) return true;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             return false; // the panel owns the cursor while it's open
@@ -71,7 +77,7 @@ namespace LostScrollsII.Patches
     {
         public static bool Prefix()
         {
-            return !TournamentRegistration.IsOpen; // false = skip vanilla look
+            return !ModalPanels.AnyOpen; // false = skip vanilla look
         }
     }
 
@@ -86,7 +92,7 @@ namespace LostScrollsII.Patches
     {
         public static bool Prefix(ref bool __result)
         {
-            if (!TournamentRegistration.IsOpen) return true;
+            if (!ModalPanels.AnyOpen) return true;
             __result = false;
             return false;
         }
@@ -97,7 +103,7 @@ namespace LostScrollsII.Patches
     {
         public static bool Prefix(ref bool __result)
         {
-            if (!TournamentRegistration.IsOpen) return true;
+            if (!ModalPanels.AnyOpen) return true;
             __result = false;
             return false;
         }
@@ -108,7 +114,7 @@ namespace LostScrollsII.Patches
     {
         public static bool Prefix(ref bool __result)
         {
-            if (!TournamentRegistration.IsOpen) return true;
+            if (!ModalPanels.AnyOpen) return true;
             __result = false;
             return false;
         }

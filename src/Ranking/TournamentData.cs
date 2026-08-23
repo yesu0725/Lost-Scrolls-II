@@ -38,6 +38,11 @@ namespace LostScrollsII.Ranking
         // uses `teamPayloads` (one per member, up to MaxPartySize).
         public string totemPayload;
         public List<string> teamPayloads = new List<string>();
+
+        // Wagered tournaments (docs/Wagers.md). The stake this entrant actually
+        // paid, recorded so a cancelled or unfilled tournament can hand back
+        // exactly what it took. 0 on the free admin-run tournaments.
+        public int feePaid;
     }
 
     // One bracket match. A bye is a match whose bId is empty and whose winnerId is
@@ -57,12 +62,53 @@ namespace LostScrollsII.Ranking
         // Double elimination (feature #3): which pool this match belongs to.
         // Single/round-robin always use "W".
         public string bracket = "W"; // "W" | "L" | "GF" (grand final)
+
+        // Wagered tournaments: the two owners agree WHERE to fight by both marking
+        // themselves ready wherever they have met up (docs/Wagers.md). The server
+        // summons both companions only once both flags are set, so nothing is
+        // dragged into the world before the players are actually standing together.
+        // `activated` stops a second summon if a ready flag is re-sent.
+        public bool aReady;
+        public bool bReady;
+        public bool activated;
     }
 
-    // The whole tournament. Only one is active at a time.
+    // One tournament. Several can now run at once — see TournamentBook — so each
+    // carries the `key` identifying its slot.
     [Serializable]
     public class TournamentState
     {
+        // Slot id, and the only handle every API takes:
+        //   ""        the free admin-run tournament (the original behaviour;
+        //             any mode, any format, any size)
+        //   "coins"   the Coin-staked player tournament
+        //   "valcoin" the Valcoin-staked player tournament
+        // Exactly one tournament may occupy each slot at a time, which is what
+        // enforces "one Valcoin and one Coin tournament at a time".
+        public string key = "";
+
+        // Wager fields (docs/Wagers.md). currency is "" on the free tournament.
+        public string currency = "";
+        public int entryFee;
+        public int prize;
+        public long hostId;          // the player who started (and paid to open) it
+        public string hostName = "";
+        public long openedTicks;     // UTC ticks registration opened, for expiry
+
+        // The host's opening fee, held until they claim their own slot. Opening a
+        // tournament and entering it cost one fee, not two: the host still locks a
+        // totem like everyone else, but that entry is paid for from here. If they
+        // never enter (or the event is cancelled first) this is what gets refunded.
+        public int hostCredit;
+
+        // UTC ticks the bracket finished. Escrowed totems are NOT handed back the
+        // instant a tournament completes: the winning client still has to reseal its
+        // live companion (with the XP it just earned) and report that payload back.
+        // Returning immediately would hand the champion a totem holding its
+        // pre-final state. Tick() waits a short grace after this before returning
+        // anything, which is long enough for the 1 Hz reseal to land.
+        public long completedTicks;
+
         public bool active;
         public string mode = "1v1";        // "1v1" | "party"
         public string phase = "idle";      // idle | registration | running | complete
@@ -95,6 +141,33 @@ namespace LostScrollsII.Ranking
                 if (m.round != currentRound || !string.IsNullOrEmpty(m.winnerId)) continue;
                 if ((m.aId == x && m.bId == y) || (m.aId == y && m.bId == x)) return m;
             }
+            return null;
+        }
+    }
+
+    // Every tournament currently in existence, keyed by slot. Persisted and pushed
+    // to clients as one document so a client sees all of them in a single snapshot
+    // (the panel lists them side by side).
+    //
+    // This replaced a single persisted TournamentState. A file written by an older
+    // build still loads: the reader falls back to treating a bare tournament object
+    // as the one free-slot tournament (see CompetitiveJson.ReadTournamentBook).
+    [Serializable]
+    public class TournamentBook
+    {
+        public List<TournamentState> tournaments = new List<TournamentState>();
+
+        public TournamentState Get(string key)
+            => tournaments.Find(t => t != null && (t.key ?? "") == (key ?? ""));
+
+        // The tournament an entrant id belongs to, across every slot. Used by the
+        // result-intake and the client-side combatant driver, neither of which
+        // knows which slot a companion was entered in.
+        public TournamentState ForEntrant(string entrantId)
+        {
+            if (string.IsNullOrEmpty(entrantId)) return null;
+            foreach (var t in tournaments)
+                if (t != null && t.Find(entrantId) != null) return t;
             return null;
         }
     }

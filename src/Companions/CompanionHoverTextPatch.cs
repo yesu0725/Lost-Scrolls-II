@@ -29,6 +29,19 @@ namespace LostScrollsII.Patches
                 $"\n<color=yellow>[{Plugin.StanceCycleKey.Value}] Cycle stance</color>" +
                 $"\n<color=yellow>[{Plugin.InventoryKey.Value}] Inventory / rename</color>";
 
+            // Dead Raiser sealing (SealingRite). Only advertised once the staff is
+            // actually equipped — otherwise every companion would carry a hint for a
+            // rite the player has no way to perform. Once it IS equipped, show either
+            // the go-ahead or the one thing still missing, so the requirements are
+            // discoverable without the docs.
+            if (SealingRite.HasStaffEquipped(Player.m_localPlayer))
+            {
+                if (SealingRite.CanSeal(Player.m_localPlayer, companion, out var why))
+                    __result += $"\n<color=#C8A2FF>Hold [Block] — Seal into a totem ({SealingRite.SealSeconds(Player.m_localPlayer):0.0}s)</color>";
+                else if (!string.IsNullOrEmpty(why))
+                    __result += $"\n<color=#BB8888>Cannot seal: {why}</color>";
+            }
+
             // Only advertise the chore recall while the ally is actually on a chore.
             if (__instance.GetComponent<ChoreAI>()?.IsAssigned == true)
                 __result += $"\n<color=yellow>[{Plugin.ChoreAssignKey.Value}] Recall from chore</color>";

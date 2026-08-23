@@ -12,11 +12,17 @@ namespace LostScrollsII
     // Narrative delivery only (see docs/ServerGuide-Integration.md) — soft dependency
     // so this mod still loads and functions fully without ServerGuide installed.
     [BepInDependency("com.valheimserverguide", BepInDependency.DependencyFlags.SoftDependency)]
+    // Bounty hunting (docs/Bounty-Hunting.md) only runs where BOTH of these are
+    // present alongside ServerGuide. Declared soft so they're loaded before us —
+    // BountyFeatureGate probes Chainloader for them — while leaving this mod fully
+    // functional without either.
+    [BepInDependency("com.taeguk.BiomeLords", BepInDependency.DependencyFlags.SoftDependency)]
+    [BepInDependency("com.taeguk.valheimdonations", BepInDependency.DependencyFlags.SoftDependency)]
     public class Plugin : BaseUnityPlugin
     {
         public const string PluginGuid = "com.lostscrollsii";
         public const string PluginName = "Lost Scrolls II";
-        public const string PluginVersion = "0.7.0";
+        public const string PluginVersion = "0.8.0";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -35,6 +41,16 @@ namespace LostScrollsII
         public static ConfigEntry<float> CommunionChannelSeconds { get; private set; }
         public static ConfigEntry<float> CommunionMaxDistance { get; private set; }
         public static ConfigEntry<bool> CommunionBreakOnDamage { get; private set; }
+
+        // Field sealing with a Dead Raiser (see SealingRite / docs/Companion-Totems.md).
+        // Hold Block on your OWN Follow-stance companion with a StaffSkeleton equipped
+        // and a Wisp in the pack; the channel shortens as Blood Magic rises.
+        public static ConfigEntry<bool> StaffSealEnabled { get; private set; }
+        public static ConfigEntry<int> SealMinBloodMagic { get; private set; }
+        public static ConfigEntry<int> SealFullSpeedBloodMagic { get; private set; }
+        public static ConfigEntry<float> SealChannelMaxSeconds { get; private set; }
+        public static ConfigEntry<float> SealChannelMinSeconds { get; private set; }
+        public static ConfigEntry<float> SealMaxDistance { get; private set; }
 
         // Phase 4: pressed while hovering a Smelter to assign/unassign the nearest
         // recruited companion as its chore worker. See docs/Ally-Chores.md.
@@ -78,6 +94,11 @@ namespace LostScrollsII
         public static ConfigEntry<bool> MoveContainerPanel { get; private set; }
         public static ConfigEntry<string> ContainerPanelOffset { get; private set; }
 
+        // Where the row of menu buttons sits on the inventory screen (see
+        // InventoryMenuBar). Supersedes Bounty/InventoryButtonOffset, which is
+        // still honoured when it has been changed from its default.
+        public static ConfigEntry<string> MenuBarOffset { get; private set; }
+
         // Ranking (docs/Ranking.md). K-factor controls Elo volatility; the per-pair
         // cooldown blocks two players padding each other's rating with repeat wins.
         public static ConfigEntry<int> RankingKFactor { get; private set; }
@@ -98,6 +119,79 @@ namespace LostScrollsII
         // start` now means "use this cap" rather than "uncapped" (an uncapped bracket
         // no longer makes sense once escrow + auto-summon is in play).
         public static ConfigEntry<int> MaxEntrants { get; private set; }
+
+        // Wagered events (docs/Wagers.md): player-started tournaments and duel
+        // invites staked in vanilla Coins or in Valcoins. Valcoin stakes need the
+        // Valheim Donations wallet API; Coin stakes work with this mod alone.
+        public static ConfigEntry<bool> WagersEnabled { get; private set; }
+        public static ConfigEntry<int> TournamentValcoinFee { get; private set; }
+        public static ConfigEntry<int> TournamentValcoinPrize { get; private set; }
+        public static ConfigEntry<int> TournamentCoinFee { get; private set; }
+        public static ConfigEntry<int> TournamentCoinPrize { get; private set; }
+        public static ConfigEntry<int> DuelValcoinStake { get; private set; }
+        public static ConfigEntry<int> DuelCoinStake { get; private set; }
+        public static ConfigEntry<int> WageredBracketSize { get; private set; }
+        public static ConfigEntry<float> WageredRegistrationMinutes { get; private set; }
+
+        // Bounty hunting (docs/Bounty-Hunting.md). A server-only feature that also
+        // needs BiomeLords + ServerGuide + Valheim Donations all loaded; this is the
+        // admin's manual off-switch on top of that gate, never a way to force it on.
+        public static ConfigEntry<bool> BountyEnabled { get; private set; }
+
+        // Where bounty targets may be placed (docs/Bounty-Hunting.md, Phase B). A
+        // bounty must never sit underwater, on a shoreline or on an islet, so a
+        // candidate is validated against rings of terrain out to BountyLandCheckRadius
+        // rather than at a single point.
+        public static ConfigEntry<float> BountySearchMinRadius { get; private set; }
+        public static ConfigEntry<float> BountySearchMaxRadius { get; private set; }
+        public static ConfigEntry<float> BountyLandCheckRadius { get; private set; }
+        public static ConfigEntry<float> BountyWaterMargin { get; private set; }
+        public static ConfigEntry<float> BountyMaxHeightVariance { get; private set; }
+        public static ConfigEntry<int> BountySampleAttempts { get; private set; }
+
+        // Bounty difficulty (docs/Bounty-Hunting.md, Phase C). Our own tier curve —
+        // BiomeLords has no callable scaling API and no minion scaling at all, so the
+        // numbers live here where a server admin can tune them.
+        public static ConfigEntry<int> BountyTierBlackForest { get; private set; }
+        public static ConfigEntry<int> BountyTierSwamp { get; private set; }
+        public static ConfigEntry<int> BountyTierMountain { get; private set; }
+        public static ConfigEntry<int> BountyTierPlains { get; private set; }
+        public static ConfigEntry<float> BountyHealthBase { get; private set; }
+        public static ConfigEntry<float> BountyHealthGrowth { get; private set; }
+        public static ConfigEntry<int> BountyMaxStarLevel { get; private set; }
+        public static ConfigEntry<int> BountyMinionsBase { get; private set; }
+        public static ConfigEntry<int> BountyMinionsPerTier { get; private set; }
+        public static ConfigEntry<int> BountyMaxMinions { get; private set; }
+        public static ConfigEntry<float> BountyMinionRingRadius { get; private set; }
+        public static ConfigEntry<float> BountyAlertRangeMultiplier { get; private set; }
+        public static ConfigEntry<float> BountyRoamRadius { get; private set; }
+
+        // Bounty rewards (docs/Bounty-Hunting.md, Phase D). The ITEMS are authored in
+        // ServerGuide guidance, not here — these only control the effective reward
+        // tier and the Valcoin payout CHANCE. Valcoin is reward-only: nothing in this
+        // feature ever spends it, per Valheim Donations' "no selling power" guardrail.
+        public static ConfigEntry<int> BountyMaxTierBonus { get; private set; }
+        public static ConfigEntry<float> BountyValcoinBaseChance { get; private set; }
+        public static ConfigEntry<float> BountyValcoinChancePerTier { get; private set; }
+        public static ConfigEntry<float> BountyValcoinRankBonus { get; private set; }
+        public static ConfigEntry<int> BountyValcoinRankDepth { get; private set; }
+        public static ConfigEntry<float> BountyValcoinMaxChance { get; private set; }
+
+        // Bounty leaderboard (docs/Bounty-Hunting.md, Phase E).
+        public static ConfigEntry<int> BountyPointsPerTier { get; private set; }
+        public static ConfigEntry<int> BountyLeaderboardBonusRank { get; private set; }
+
+        // The Wanted Board (docs/Bounty-Hunting.md, Phase F).
+        public static ConfigEntry<KeyCode> BountyUiKey { get; private set; }
+        public static ConfigEntry<int> BountyMaxBoardEntries { get; private set; }
+        public static ConfigEntry<int> BountyMaxActivePerPlayer { get; private set; }
+        public static ConfigEntry<float> BountyArrivalRadius { get; private set; }
+        public static ConfigEntry<string> BountyButtonOffset { get; private set; }
+
+        // Board rotation + the rank-gated elite tier (docs/Bounty-Hunting.md, Phase H).
+        public static ConfigEntry<float> BountyRefreshHours { get; private set; }
+        public static ConfigEntry<float> BountyEliteChance { get; private set; }
+        public static ConfigEntry<int> BountyEliteRankTopN { get; private set; }
 
         private Harmony _harmony;
 
@@ -129,6 +223,42 @@ namespace LostScrollsII
                 "CommunionBreakOnDamage",
                 true,
                 "If true, taking damage while channeling the Communion Rite breaks it (the shadow reclaims the Dvergr). Turn off for a more forgiving rite.");
+
+            StaffSealEnabled = Config.Bind(
+                "Recruitment",
+                "StaffSealEnabled",
+                true,
+                "Allow sealing a companion into a Communion Totem in the field with an equipped Dead Raiser (StaffSkeleton) + a Wisp, by holding Block on your own Follow-stance ally. The Incinerator ritual is unaffected either way.");
+
+            SealMinBloodMagic = Config.Bind(
+                "Recruitment",
+                "SealMinBloodMagic",
+                20,
+                "Minimum Blood Magic skill needed to seal a companion with a Dead Raiser. Below this the rite cannot be started.");
+
+            SealFullSpeedBloodMagic = Config.Bind(
+                "Recruitment",
+                "SealFullSpeedBloodMagic",
+                100,
+                "The Blood Magic skill at which the sealing channel reaches its fastest (SealChannelMinSeconds). Between SealMinBloodMagic and this value the channel time scales smoothly.");
+
+            SealChannelMaxSeconds = Config.Bind(
+                "Recruitment",
+                "SealChannelMaxSeconds",
+                5f,
+                "How long the Dead Raiser sealing channel takes at the MINIMUM Blood Magic skill (the slowest it ever is).");
+
+            SealChannelMinSeconds = Config.Bind(
+                "Recruitment",
+                "SealChannelMinSeconds",
+                2f,
+                "How long the Dead Raiser sealing channel takes at SealFullSpeedBloodMagic (the fastest it ever is).");
+
+            SealMaxDistance = Config.Bind(
+                "Recruitment",
+                "SealMaxDistance",
+                4f,
+                "How far you may drift from the companion mid-sealing before the binding fails.");
 
             ChoreAssignKey = Config.Bind(
                 "Chores",
@@ -208,6 +338,12 @@ namespace LostScrollsII
                 "auto",
                 "Where the chest/storage UI sits, as an \"x,y\" pixel offset from the game's own position (+x right, +y up). \"auto\" places it two inventory rows below, so extra rows added by other mods aren't hidden behind it. Dragging the panel writes the new value here; set it back to \"auto\" to restore the default position.");
 
+            MenuBarOffset = Config.Bind(
+                "Interface",
+                "MenuBarOffset",
+                "0,0",
+                "Nudge the row of menu buttons at the top of the inventory screen by \"x,y\" pixels (+x right, +y up). The row holds Rankings, Tournaments and Bounty Board; the matching function keys keep working either way.");
+
             RankingKFactor = Config.Bind(
                 "Ranking",
                 "EloKFactor",
@@ -250,6 +386,250 @@ namespace LostScrollsII
                 4,
                 "Hard cap on tournament entrants. `de_tournament start` clamps any size above this, and a size of 0 (or omitted) now means \"use this cap\" instead of unlimited.");
 
+            WagersEnabled = Config.Bind(
+                "Wagers",
+                "WagersEnabled",
+                true,
+                "Master switch for wagered events: player-started tournaments and duel invites staked in Coins or Valcoins. Turn off to leave only the free admin-run tournaments.");
+
+            WageredBracketSize = Config.Bind(
+                "Wagers",
+                "BracketSize",
+                4,
+                "How many entrants a wagered tournament needs. The bracket starts automatically once it is full, and a tournament that never fills is cancelled with every stake refunded.");
+
+            WageredRegistrationMinutes = Config.Bind(
+                "Wagers",
+                "RegistrationMinutes",
+                30f,
+                "How long a wagered tournament stays open for registration before it is auto-cancelled and every stake refunded. 0 = never expire (the host or an admin must cancel it).");
+
+            TournamentCoinFee = Config.Bind(
+                "Wagers",
+                "TournamentCoinFee",
+                100,
+                "Coins it costs to START a Coin tournament, and the same amount each entrant pays to register.");
+
+            TournamentCoinPrize = Config.Bind(
+                "Wagers",
+                "TournamentCoinPrize",
+                999,
+                "Coins paid to the champion of a Coin tournament.");
+
+            TournamentValcoinFee = Config.Bind(
+                "Wagers",
+                "TournamentValcoinFee",
+                10,
+                "Valcoins it costs to START a Valcoin tournament, and the same amount each entrant pays to register. Requires the Valheim Donations wallet API on the server.");
+
+            TournamentValcoinPrize = Config.Bind(
+                "Wagers",
+                "TournamentValcoinPrize",
+                100,
+                "Valcoins the champion of a Valcoin tournament receives. DISPLAY ONLY on this side: the actual payout is minted by the donations mod from its own valcoin_quests.yaml entry `ls_tournament_prize`, which is the only place allowed to price a Valcoin reward. Keep the two numbers in step.");
+
+            DuelCoinStake = Config.Bind(
+                "Wagers",
+                "DuelCoinStake",
+                100,
+                "Coins staked by each side of a Coin duel invite. The winner takes both stakes.");
+
+            DuelValcoinStake = Config.Bind(
+                "Wagers",
+                "DuelValcoinStake",
+                10,
+                "Valcoins staked by each side of a Valcoin duel invite. The winner takes both stakes — no Valcoins are created, they only change hands.");
+
+            BountyEnabled = Config.Bind(
+                "Bounty",
+                "Enabled",
+                true,
+                "Master switch for bounty hunting. Even when true the feature only runs on a server/host that ALSO has BiomeLords, ValheimServerGuide and Valheim Donations installed — set it to false to switch bounties off on a server that would otherwise qualify. Check the log line \"[bounty] feature gate: ON/OFF\" to see which condition failed.");
+
+            BountySearchMinRadius = Config.Bind(
+                "Bounty",
+                "SearchMinRadius",
+                500f,
+                "Closest a bounty may be posted to the world centre, in metres. Keeps targets out of the starting area.");
+
+            BountySearchMaxRadius = Config.Bind(
+                "Bounty",
+                "SearchMaxRadius",
+                6000f,
+                "Furthest a bounty may be posted from the world centre, in metres. Keep well inside the world edge (~10000) so candidates don't fall into the edge ocean.");
+
+            BountyLandCheckRadius = Config.Bind(
+                "Bounty",
+                "LandCheckRadius",
+                80f,
+                "How far around a candidate spot the ground must be dry land, in metres. Checked as three rings — clearing the outermost means the landmass is at least twice this across, which is what rules out islets and narrow spits. Lower it only if bounties become hard to place.");
+
+            BountyWaterMargin = Config.Bind(
+                "Bounty",
+                "WaterMargin",
+                3f,
+                "How far above sea level the ground must sit, in metres, to count as dry. Raise it to push bounties further inland from shorelines.");
+
+            BountyMaxHeightVariance = Config.Bind(
+                "Bounty",
+                "MaxHeightVariance",
+                10f,
+                "Largest height swing allowed in the immediate area around a bounty, in metres. Rejects cliff faces and spires where a fight can't happen. Raise it for more mountain bounties.");
+
+            BountySampleAttempts = Config.Bind(
+                "Bounty",
+                "SampleAttempts",
+                200,
+                "How many random spots to test before giving up on placing one bounty. Higher is slower but more reliable on worlds with little qualifying land.");
+
+            BountyTierBlackForest = Config.Bind("Bounty", "TierBlackForest", 1,
+                "Base difficulty tier (1-5) for bounties posted in the Black Forest.");
+            BountyTierSwamp = Config.Bind("Bounty", "TierSwamp", 2,
+                "Base difficulty tier (1-5) for bounties posted in the Swamp.");
+            BountyTierMountain = Config.Bind("Bounty", "TierMountain", 3,
+                "Base difficulty tier (1-5) for bounties posted in the Mountains.");
+            BountyTierPlains = Config.Bind("Bounty", "TierPlains", 4,
+                "Base difficulty tier (1-5) for bounties posted in the Plains.");
+
+            BountyHealthBase = Config.Bind(
+                "Bounty",
+                "HealthMultiplierBase",
+                3f,
+                "Health multiplier for a tier 1 bounty target, over the creature's normal health. Applied on top of its star level.");
+
+            BountyHealthGrowth = Config.Bind(
+                "Bounty",
+                "HealthMultiplierGrowth",
+                1.6f,
+                "How much the health multiplier compounds per tier. With the defaults: tier 1 = 3x, tier 2 = 4.8x, tier 3 = 7.7x, tier 4 = 12.3x, tier 5 = 19.7x.");
+
+            BountyMaxStarLevel = Config.Bind(
+                "Bounty",
+                "MaxStarLevel",
+                3,
+                "Cap on the vanilla star level given to a bounty target. Stars carry DAMAGE scaling, so raising this makes targets hit far harder, not just survive longer — most of a tier's difficulty is meant to come from health and escort size instead.");
+
+            BountyMinionsBase = Config.Bind("Bounty", "MinionsBase", 1,
+                "How many escort minions a tier 1 bounty target has.");
+            BountyMinionsPerTier = Config.Bind("Bounty", "MinionsPerTier", 1,
+                "Extra escort minions added per tier above 1.");
+            BountyMaxMinions = Config.Bind("Bounty", "MaxMinions", 6,
+                "Hard cap on escort minions, whatever the tier. Bounds the AI load of one fight.");
+
+            BountyMinionRingRadius = Config.Bind(
+                "Bounty",
+                "MinionRingRadius",
+                6f,
+                "How far from the bounty target its escort spawns, in metres.");
+
+            BountyAlertRangeMultiplier = Config.Bind(
+                "Bounty",
+                "AlertRangeMultiplier",
+                2f,
+                "How much further than normal a bounty creature notices hunters. Bounty Dvergr hunt on sight rather than waiting to be provoked, so they notice you first.");
+
+            BountyRoamRadius = Config.Bind(
+                "Bounty",
+                "RoamRadius",
+                12f,
+                "How far a bounty creature wanders from where it was posted, in metres. Keeps the map pin meaningful; it still chases hunters normally.");
+
+            BountyMaxTierBonus = Config.Bind(
+                "Bounty",
+                "MaxTierBonus",
+                1,
+                "How many tiers a top-standing bounty hunter's rewards may be bumped by. The bump selects a higher-tier reward entry, so better hunters get better bundles without a second reward table.");
+
+            BountyValcoinBaseChance = Config.Bind(
+                "Bounty",
+                "ValcoinBaseChance",
+                0.10f,
+                "Chance (0-1) that a tier 1 bounty pays Valcoin, before any rank bonus. Valcoin is a REWARD ONLY — nothing in bounty hunting can be bought with it.");
+
+            BountyValcoinChancePerTier = Config.Bind(
+                "Bounty",
+                "ValcoinChancePerTier",
+                0.05f,
+                "Extra Valcoin chance (0-1) added per tier above 1.");
+
+            BountyValcoinRankBonus = Config.Bind(
+                "Bounty",
+                "ValcoinRankBonus",
+                0.25f,
+                "Extra Valcoin chance (0-1) for the #1 ranked duel/party player, tapering to zero at ValcoinRankDepth. This is what ties the coin payout to the duel and tournament ladders.");
+
+            BountyValcoinRankDepth = Config.Bind(
+                "Bounty",
+                "ValcoinRankDepth",
+                10,
+                "How deep the ladder bonus reaches. At rank 1 the full ValcoinRankBonus applies; at this rank and below, none of it does.");
+
+            BountyValcoinMaxChance = Config.Bind(
+                "Bounty",
+                "ValcoinMaxChance",
+                0.75f,
+                "Hard cap (0-1) on the Valcoin payout chance, so a payout is never guaranteed however high a player ranks.");
+
+            BountyPointsPerTier = Config.Bind(
+                "Bounty",
+                "PointsPerTier",
+                10,
+                "Bounty-ladder points awarded per tier of the bounty answered (tier 3 pays 3x this). Tier-weighting is what stops the board being won by grinding easy postings.");
+
+            BountyLeaderboardBonusRank = Config.Bind(
+                "Bounty",
+                "LeaderboardBonusRank",
+                3,
+                "Hunters ranked this high or better on the bounty ladder get +1 reward tier (capped by MaxTierBonus). 0 disables the bonus entirely.");
+
+            BountyUiKey = Config.Bind(
+                "Bounty",
+                "BountyUiKey",
+                KeyCode.F8,
+                "Opens the Wanted Board — open postings, your active bounty, and the hunter standings. There is also a Bounty Board button in your inventory. Close it with Escape.");
+
+            BountyMaxBoardEntries = Config.Bind(
+                "Bounty",
+                "MaxBoardEntries",
+                3,
+                "How many OPEN postings the board keeps available. Postings players have accepted don't count toward this, so the board still offers work while others are out hunting.");
+
+            BountyMaxActivePerPlayer = Config.Bind(
+                "Bounty",
+                "MaxActiveBountyPerPlayer",
+                1,
+                "How many bounties one player may hold at a time.");
+
+            BountyArrivalRadius = Config.Bind(
+                "Bounty",
+                "ArrivalRadius",
+                80f,
+                "How close a hunter must get before the bounty's creatures are spawned, in metres. They aren't spawned until someone travels there — Valheim doesn't simulate unloaded zones, so a camp placed in advance would sit frozen.");
+
+            BountyButtonOffset = Config.Bind(
+                "Bounty",
+                "InventoryButtonOffset",
+                "0,0",
+                "LEGACY — superseded by Interface/MenuBarOffset. The Bounty Board button is now one of a row of menu buttons, so this nudges the WHOLE row. Left in place because it still works: if you had already dialled a value in here it is honoured and MenuBarOffset is ignored. Leave it at \"0,0\" to use MenuBarOffset instead.");
+
+            BountyRefreshHours = Config.Bind(
+                "Bounty",
+                "RefreshHours",
+                24f,
+                "How long an UNCLAIMED posting stays on the board before it's retired and replaced, in real hours. Accepted bounties never expire — a hunter part-way to their mark keeps it. Set to 0 to disable rotation entirely.");
+
+            BountyEliteChance = Config.Bind(
+                "Bounty",
+                "EliteChance",
+                0.25f,
+                "Chance (0-1) that a newly posted bounty is an ELITE (top-tier) one. Only ever one open at a time, and only hunters ranked high enough may take it — see EliteRankTopN. The top tier is never reached from a biome alone, so this is the only way it appears.");
+
+            BountyEliteRankTopN = Config.Bind(
+                "Bounty",
+                "EliteRankTopN",
+                10,
+                "How high a player must rank on the duel OR party ladder to answer elite postings. This is the second, non-Valcoin reason to compete: rank buys ACCESS here, where the coin roll only changes a chance. 0 disables the gate (anyone may take them).");
+
             _harmony = new Harmony(PluginGuid);
             _harmony.PatchAll();
 
@@ -260,6 +640,10 @@ namespace LostScrollsII
             // Drives the channeled Communion Rite (hold-to-recruit with fail
             // conditions). See CommunionRite / docs/Ally-Recruitment.md.
             gameObject.AddComponent<Companions.CommunionRite>();
+
+            // Drives the Dead Raiser sealing rite (hold Block on your own Follow
+            // companion with a staff + wisp). See SealingRite / docs/Companion-Totems.md.
+            gameObject.AddComponent<Companions.SealingRite>();
 
             // Manages the companion-inventory panel + injected rename field.
             gameObject.AddComponent<CompanionInventoryGui>();
@@ -274,6 +658,11 @@ namespace LostScrollsII
 
             // Interactive tournament panel (registration slots + admin controls).
             gameObject.AddComponent<TournamentRegistration>();
+
+            // Wanted Board: keeps postings stocked (server), pins the local player's
+            // accepted bounty and spawns it on arrival (docs/Bounty-Hunting.md).
+            gameObject.AddComponent<Bounty.BountyBoardRunner>();
+            gameObject.AddComponent<Bounty.BountyBoardPanel>();
 
             Log.LogInfo($"{PluginName} v{PluginVersion} loaded.");
         }
@@ -297,9 +686,16 @@ namespace LostScrollsII
             // panel's name field (its GuiInputField isn't TextInput, so the checks
             // above don't cover it).
             if (Companions.CompanionInventoryGui.IsTyping) return;
-            // While the tournament panel is open its own buttons/Escape drive it;
-            // don't let world hotkeys fire underneath it (F7 still toggles it closed).
+            // While one of our full-screen panels is open its own buttons/Escape drive
+            // it; don't let world hotkeys fire underneath. Each panel's own key still
+            // toggles it closed.
             if (Companions.TournamentRegistration.IsOpen && !Input.GetKeyDown(TournamentUiKey.Value)) return;
+            if (Bounty.BountyBoardPanel.IsOpen && !Input.GetKeyDown(BountyUiKey.Value)) return;
+
+            if (Input.GetKeyDown(BountyUiKey.Value))
+            {
+                Bounty.BountyBoardPanel.Toggle(player);
+            }
 
             if (Input.GetKeyDown(CommunionKey.Value))
             {
@@ -314,9 +710,15 @@ namespace LostScrollsII
             // down and there'd be no fresh press to catch. TryBeginCommune no-ops if
             // a rite is already active. We only READ the button, so the shield still
             // raises and blocking/dodging keep working through the rite.
+            // The same held-Block idiom drives two rites, told apart purely by what
+            // the crosshair is on: an unrecruited subdued Dvergr -> Communion (free
+            // it), your OWN Follow-stance companion -> Sealing (bind it into a
+            // Communion Totem, Dead Raiser + Wisp required). Each helper early-outs
+            // on the other's target, so they can never both fire.
             if (Companions.CommunionRite.BlockHeld())
             {
                 TryBeginCommune(player);
+                TryBeginSeal(player);
             }
 
             if (Input.GetKeyDown(ChoreAssignKey.Value))
@@ -432,6 +834,27 @@ namespace LostScrollsII
             if (!CommunionService.IsSubduedDvergr(target)) return;
 
             Companions.CommunionRite.Instance.Begin(target, player);
+        }
+
+        // The sealing counterpart of TryBeginCommune: hold Block on YOUR OWN
+        // Follow-stance companion with a Dead Raiser equipped and a Wisp in the
+        // pack to bind it into a Communion Totem in the field (SealingRite).
+        // Refuses silently unless the staff is actually equipped, so blocking beside
+        // an ally in a fight never nags.
+        private void TryBeginSeal(Player player)
+        {
+            var rite = Companions.SealingRite.Instance;
+            if (rite == null || rite.IsActive) return;
+            if (Companions.CommunionRite.Instance != null && Companions.CommunionRite.Instance.IsActive) return;
+
+            var hoverObject = player.GetHoverObject();
+            if (hoverObject == null) return;
+
+            var target = hoverObject.GetComponentInParent<Character>();
+            var companion = target != null ? target.GetComponent<DvergrCompanion>() : null;
+            if (companion == null) return;
+
+            rite.Begin(companion, player);
         }
 
         private void HandleChoreAssignInput(Player player)

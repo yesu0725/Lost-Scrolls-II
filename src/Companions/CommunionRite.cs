@@ -308,8 +308,17 @@ namespace LostScrollsII.Companions
         private void PlayPulse(Character c)
         {
             if (c == null) return;
+            PlayPulseAt(c.transform.position);
+        }
+
+        // Same ripple at an arbitrary point. Public so the Dead Raiser sealing rite
+        // (SealingRite) can borrow the identical accelerating ping rather than
+        // resolving the Wishbone effect a second time — the two rites deliberately
+        // read the same way to the player.
+        public void PlayPulseAt(Vector3 pos)
+        {
             var fx = PingEffect();
-            if (fx != null) fx.Create(c.transform.position, Quaternion.identity);
+            if (fx != null) fx.Create(pos, Quaternion.identity);
         }
     }
 }

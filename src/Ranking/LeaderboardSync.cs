@@ -25,7 +25,6 @@ namespace LostScrollsII.Ranking
         private const string RpcRankEvent = "LSII_RankEvent";
         private const string RpcReportParty = "LSII_ReportParty";
         private const string RpcPartyRankEvent = "LSII_PartyRankEvt";
-        private const string RpcTourJoin = "LSII_TourJoin";
         private const string RpcTourJoinAck = "LSII_TourJoinAck";
         private const string RpcTourPush = "LSII_TourPush";
         private const string RpcTourRequest = "LSII_TourReq";
@@ -41,6 +40,17 @@ namespace LostScrollsII.Ranking
         private const string RpcTourReseal = "LSII_TourReseal";     // client->server: updated payload after a match
         private const string RpcAdminChk = "LSII_AdminChk";         // client->server: am I an admin?
         private const string RpcAdminChkResp = "LSII_AdminChkR";    // server->client: yes/no
+
+        // Wagered events (docs/Wagers.md). Deliberately NOT admin-gated — any
+        // player may open a staked tournament, ready up for their match, or post a
+        // duel invite; the stake is the gate.
+        private const string RpcWagerStart = "LSII_WagerStart";     // client->server: open a staked tournament
+        private const string RpcTourReady = "LSII_TourReady";       // client->server: ready for my match
+        private const string RpcWagerPay = "LSII_WagerPay";         // server->all: pay Coins to one owner
+        private const string RpcWagerPrize = "LSII_WagerPrize";     // server->all: fire a Valcoin purse trigger on one player
+        private const string RpcInvite = "LSII_Invite";             // client->server: duel-invite actions
+        private const string RpcInvitePush = "LSII_InvitePush";     // server->all: the invite board
+        private const string RpcInviteReq = "LSII_InviteReq";       // client->server: send me the board
 
         // Cached result of the server's authoritative admin check for the local
         // player. ZNet.LocalPlayerIsAdminOrHost() is unreliable on a pure client
@@ -60,7 +70,6 @@ namespace LostScrollsII.Ranking
             ZRoutedRpc.instance.Register<string>(RpcRankEvent, OnRankEvent);
             ZRoutedRpc.instance.Register<string>(RpcReportParty, OnReportParty);
             ZRoutedRpc.instance.Register<string>(RpcPartyRankEvent, OnPartyRankEvent);
-            ZRoutedRpc.instance.Register<string>(RpcTourJoin, OnTourJoin);
             ZRoutedRpc.instance.Register<string>(RpcTourJoinAck, OnTourJoinAck);
             ZRoutedRpc.instance.Register<ZPackage>(RpcTourPush, OnTourPush);
             ZRoutedRpc.instance.Register<string>(RpcTourRequest, OnTourRequest);
@@ -76,6 +85,13 @@ namespace LostScrollsII.Ranking
             ZRoutedRpc.instance.Register<ZPackage>(RpcTourReseal, OnTourReseal);
             ZRoutedRpc.instance.Register<string>(RpcAdminChk, OnAdminChk);
             ZRoutedRpc.instance.Register<string>(RpcAdminChkResp, OnAdminChkResp);
+            ZRoutedRpc.instance.Register<string>(RpcWagerStart, OnWagerStart);
+            ZRoutedRpc.instance.Register<string>(RpcTourReady, OnTourReady);
+            ZRoutedRpc.instance.Register<string>(RpcWagerPay, OnWagerPay);
+            ZRoutedRpc.instance.Register<string>(RpcWagerPrize, OnWagerPrize);
+            ZRoutedRpc.instance.Register<ZPackage>(RpcInvite, OnInvite);
+            ZRoutedRpc.instance.Register<ZPackage>(RpcInvitePush, OnInvitePush);
+            ZRoutedRpc.instance.Register<string>(RpcInviteReq, OnInviteRequest);
             _bound = true;
             Plugin.Log.LogInfo("[ladder] RPCs registered.");
         }
@@ -95,9 +111,11 @@ namespace LostScrollsII.Ranking
             var result = DuelResult.Decode(encoded);
             if (result == null) return;
 
-            // A tournament match is decided by the same duel report — resolve it
-            // even if the bout isn't ladder-eligible (e.g. pair cooldown).
+            // A tournament match, or a staked duel invite, is decided by this same
+            // duel report — resolve either even if the bout isn't ladder-eligible
+            // (e.g. pair cooldown). A companion id belongs to at most one of them.
             TournamentService.NotifyDuelResult(result.WinnerId, result.LoserId);
+            DuelInviteService.NotifyDuelResult(result.WinnerId, result.LoserId);
 
             if (!LeaderboardStore.ApplyDuel(result,
                     Plugin.RankingKFactor.Value, Plugin.RankingPairCooldown.Value,
@@ -190,31 +208,10 @@ namespace LostScrollsII.Ranking
         private static string TourSubject(int caste)
             => caste < 0 ? "party" : ((DvergrCaste)caste).ToString();
 
-        public static void SendTournamentJoin(string entrantId, long ownerId, string ownerName,
-            string label, int caste, int seedRating)
-        {
-            if (ZRoutedRpc.instance == null) return;
-            string S(string s) => (s ?? string.Empty).Replace('|', '/');
-            var payload = string.Join("|", new[]
-            {
-                S(entrantId), ownerId.ToString(), S(ownerName), S(label), caste.ToString(), seedRating.ToString(),
-            });
-            ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.instance.GetServerPeerID(), RpcTourJoin, payload);
-        }
-
-        private static void OnTourJoin(long sender, string payload)
-        {
-            if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
-            var p = payload.Split('|');
-            if (p.Length < 6) return;
-            long.TryParse(p[1], out var ownerId);
-            int.TryParse(p[4], out var caste);
-            int.TryParse(p[5], out var seed);
-            var status = TournamentService.Join(p[0], ownerId, p[2], p[3], caste, seed);
-            bool ok = status.StartsWith("Registered", System.StringComparison.Ordinal);
-            var ack = string.Join("|", new[] { ok ? "1" : "0", TourSubject(caste), status });
-            ZRoutedRpc.instance.InvokeRoutedRPC(sender, RpcTourJoinAck, ack);
-        }
+        // (The original non-escrow join RPC was removed: registration has been
+        // escrow-only since the tournament panel landed, and keeping a second entry
+        // point that could not carry a totem payload, a slot key or a stake meant
+        // three signatures to keep in step for a path nothing called.)
 
         private static void OnTourJoinAck(long sender, string payload)
         {
@@ -222,7 +219,7 @@ namespace LostScrollsII.Ranking
             var p = payload.Split('|');
             if (p.Length < 3) return;
             if (MessageHud.instance != null)
-                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, p[2]);
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.TopLeft, p[2]);
             if (p[0] == "1") ServerGuideBridge.RaiseTournamentJoined(p[1]);
         }
 
@@ -408,8 +405,9 @@ namespace LostScrollsII.Ranking
         // escrow on the entrant. A ZPackage is used (not a pipe string) because the
         // payloads are arbitrary base64. The client removes the item(s) optimistically
         // when it sends; if the server rejects the join it returns them via RpcTourReturn.
-        public static void SendTournamentJoinEscrow(string entrantId, long ownerId, string ownerName,
-            string label, int caste, int seedRating, System.Collections.Generic.List<string> payloads, int level = 0)
+        public static void SendTournamentJoinEscrow(string key, string entrantId, long ownerId, string ownerName,
+            string label, int caste, int seedRating, System.Collections.Generic.List<string> payloads, int level = 0,
+            int clientPaidCoins = 0)
         {
             if (ZRoutedRpc.instance == null) return;
             var pkg = new ZPackage();
@@ -422,6 +420,11 @@ namespace LostScrollsII.Ranking
             pkg.Write(payloads != null ? payloads.Count : 0);
             if (payloads != null) foreach (var p in payloads) pkg.Write(p ?? string.Empty);
             pkg.Write(level);
+            // Slot key + the Coin stake the client has already removed from its own
+            // inventory. Appended AFTER `level` so the reader's existing tolerance
+            // for a short payload keeps working.
+            pkg.Write(key ?? string.Empty);
+            pkg.Write(clientPaidCoins);
 
             if (ZNet.instance != null && ZNet.instance.IsServer()) { HandleJoinEscrow(0L, pkg); return; }
             ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.instance.GetServerPeerID(), RpcTourJoinEsc, pkg);
@@ -443,43 +446,67 @@ namespace LostScrollsII.Ranking
             var payloads = new System.Collections.Generic.List<string>(n);
             for (int i = 0; i < n; i++) payloads.Add(pkg.ReadString());
             int level = 0;
-            try { level = pkg.ReadInt(); } catch { /* older client payload without a level field */ }
+            string key = string.Empty;
+            int clientPaidCoins = 0;
+            try
+            {
+                level = pkg.ReadInt();
+                key = pkg.ReadString();
+                clientPaidCoins = pkg.ReadInt();
+            }
+            catch { /* older client payload without level / slot key / stake */ }
 
             string totemPayload = caste >= 0 && payloads.Count > 0 ? payloads[0] : null;
             var teamPayloads = caste < 0 ? payloads : null;
-            var status = TournamentService.Join(entrantId, ownerId, ownerName, label, caste, seed, totemPayload, teamPayloads, level);
-            bool ok = status.StartsWith("Registered", System.StringComparison.Ordinal);
-            Plugin.Log.LogInfo($"[tourney] join from sender={sender}: owner={ownerId}/'{ownerName}', label='{label}', level={level}, payloadLen={(totemPayload?.Length ?? 0)} => \"{status}\" (entrants now {TournamentService.Snapshot?.entrants?.Count ?? -1}).");
 
-            // Ack (message + dvergr_tournament_joined) via the existing path.
-            var ack = string.Join("|", new[] { ok ? "1" : "0", TourSubject(caste), status });
-            if (sender == 0L) ShowLocal(status);
-            else ZRoutedRpc.instance.InvokeRoutedRPC(sender, RpcTourJoinAck, ack);
-            if (ok && sender == 0L) ServerGuideBridge.RaiseTournamentJoined(TourSubject(caste));
-
-            // Rejected: the client already removed the totem(s) — hand them back.
-            if (!ok && payloads.Count > 0)
-                ReturnEscrowToOwners(new System.Collections.Generic.Dictionary<long, System.Collections.Generic.List<string>>
+            // Registration is now ASYNCHRONOUS: a Valcoin entry fee is a remote
+            // ledger call, so the entrant is only added once the stake settles and
+            // the ack has to wait for the same answer. (A Coin entry still resolves
+            // in the same frame — the callback just fires immediately.)
+            TournamentService.Join(key, entrantId, ownerId, ownerName, label, caste, seed,
+                totemPayload, teamPayloads, level, clientPaidCoins, (ok, status) =>
                 {
-                    { ownerId, payloads },
+                    Plugin.Log.LogInfo($"[tourney] join from sender={sender} into slot '{key}': owner={ownerId}/'{ownerName}', " +
+                        $"label='{label}', level={level}, paidCoins={clientPaidCoins}, payloadLen={(totemPayload?.Length ?? 0)} => \"{status}\" " +
+                        $"(entrants now {TournamentService.Get(key)?.entrants?.Count ?? -1}).");
+
+                    var ack = string.Join("|", new[] { ok ? "1" : "0", TourSubject(caste), status ?? string.Empty });
+                    if (sender == 0L) ShowLocal(status);
+                    else ZRoutedRpc.instance.InvokeRoutedRPC(sender, RpcTourJoinAck, ack);
+                    if (ok && sender == 0L) ServerGuideBridge.RaiseTournamentJoined(TourSubject(caste));
+
+                    // Rejected: the client already removed the totem(s) AND any Coin
+                    // stake — hand both back.
+                    if (!ok)
+                    {
+                        if (payloads.Count > 0)
+                            ReturnEscrowToOwners(new System.Collections.Generic.Dictionary<long, System.Collections.Generic.List<string>>
+                            {
+                                { ownerId, payloads },
+                            });
+                        if (clientPaidCoins > 0) SendWagerPayout(ownerId, clientPaidCoins, "entry refunded");
+                    }
                 });
         }
 
-        public static void SendTournamentWithdraw()
+        public static void SendTournamentWithdraw(string key)
         {
             var lp = Player.m_localPlayer;
             if (lp == null || ZRoutedRpc.instance == null) return;
-            if (ZNet.instance != null && ZNet.instance.IsServer()) { HandleWithdraw(0L, lp.GetPlayerID().ToString()); return; }
-            ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.instance.GetServerPeerID(), RpcTourWithdraw, lp.GetPlayerID().ToString());
+            var payload = lp.GetPlayerID() + "|" + (key ?? string.Empty);
+            if (ZNet.instance != null && ZNet.instance.IsServer()) { HandleWithdraw(0L, payload); return; }
+            ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.instance.GetServerPeerID(), RpcTourWithdraw, payload);
         }
 
-        private static void OnTourWithdraw(long sender, string ownerIdStr) => HandleWithdraw(sender, ownerIdStr);
+        private static void OnTourWithdraw(long sender, string payload) => HandleWithdraw(sender, payload);
 
-        private static void HandleWithdraw(long sender, string ownerIdStr)
+        private static void HandleWithdraw(long sender, string payload)
         {
             if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
-            long.TryParse(ownerIdStr, out var ownerId);
-            var payloads = TournamentService.Withdraw(ownerId, out var status);
+            var p = (payload ?? string.Empty).Split('|');
+            long.TryParse(p[0], out var ownerId);
+            var key = p.Length > 1 ? p[1] : string.Empty;
+            var payloads = TournamentService.Withdraw(key, ownerId, out var status);
             if (sender == 0L) ShowLocal(status);
             else ZRoutedRpc.instance.InvokeRoutedRPC(sender, RpcAdminAck, status);
             if (payloads.Count > 0)
@@ -487,6 +514,148 @@ namespace LostScrollsII.Ranking
                 {
                     { ownerId, payloads },
                 });
+        }
+
+        // ---- Wagered events (docs/Wagers.md) ---------------------------------
+        //
+        // Three client->server actions any player may take (no admin gate), and one
+        // server->client payout. They live here rather than in a second RPC layer so
+        // there stays one registration list and one lifecycle to reason about.
+
+        // Open a staked tournament. `clientPaidCoins` is the Coin stake the client
+        // has already removed from its own inventory (0 for a Valcoin tournament,
+        // which the server debits itself).
+        public static void SendStartWagered(string currency, int clientPaidCoins)
+        {
+            var lp = Player.m_localPlayer;
+            if (lp == null || ZRoutedRpc.instance == null) return;
+            var payload = string.Join("|", new[]
+            {
+                currency ?? string.Empty,
+                lp.GetPlayerID().ToString(),
+                (lp.GetPlayerName() ?? string.Empty).Replace('|', '/'),
+                clientPaidCoins.ToString(),
+            });
+            if (ZNet.instance != null && ZNet.instance.IsServer()) { HandleStartWagered(0L, payload); return; }
+            ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.instance.GetServerPeerID(), RpcWagerStart, payload);
+        }
+
+        private static void OnWagerStart(long sender, string payload) => HandleStartWagered(sender, payload);
+
+        private static void HandleStartWagered(long sender, string payload)
+        {
+            if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
+            var p = (payload ?? string.Empty).Split('|');
+            if (p.Length < 4) return;
+            var currency = Economy.Wager.Parse(p[0]);
+            long.TryParse(p[1], out var hostId);
+            var hostName = p[2];
+            int.TryParse(p[3], out var paidCoins);
+
+            // The Coin stake was taken client-side before the request was sent, so a
+            // refusal here has to hand it straight back.
+            if (currency == Economy.WagerCurrency.Coins && paidCoins < Economy.Wager.TournamentFee(currency))
+            {
+                Reply(sender, "You do not have the Coins to open a tournament.");
+                if (paidCoins > 0) SendWagerPayout(hostId, paidCoins, "tournament not opened");
+                return;
+            }
+
+            TournamentService.StartWagered(currency, hostId, hostName, (ok, msg) =>
+            {
+                Reply(sender, msg);
+                if (!ok && paidCoins > 0) SendWagerPayout(hostId, paidCoins, "tournament not opened");
+            });
+        }
+
+        // "I am ready to fight" for the caller's current tournament match. The
+        // pairing is only summoned once BOTH owners have said so, which is what
+        // lets the two players agree on where the duel happens.
+        public static void SendTournamentReady(string key)
+        {
+            var lp = Player.m_localPlayer;
+            if (lp == null || ZRoutedRpc.instance == null) return;
+            var payload = lp.GetPlayerID() + "|" + (key ?? string.Empty);
+            if (ZNet.instance != null && ZNet.instance.IsServer()) { HandleReady(0L, payload); return; }
+            ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.instance.GetServerPeerID(), RpcTourReady, payload);
+        }
+
+        private static void OnTourReady(long sender, string payload) => HandleReady(sender, payload);
+
+        private static void HandleReady(long sender, string payload)
+        {
+            if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
+            var p = (payload ?? string.Empty).Split('|');
+            long.TryParse(p[0], out var ownerId);
+            var key = p.Length > 1 ? p[1] : string.Empty;
+            Reply(sender, TournamentService.SetReady(key, ownerId));
+        }
+
+        // Server -> all: pay a player vanilla Coins (a purse, a prize, or a refund).
+        // Broadcast with the owner id embedded and acted on only by the matching
+        // client, exactly like the totem return — Coins are inventory items, so only
+        // the owning client can actually add them.
+        public static void SendWagerPayout(long ownerId, int amount, string reason)
+        {
+            if (ZRoutedRpc.instance == null || amount <= 0) return;
+            var payload = string.Join("|", new[] { ownerId.ToString(), amount.ToString(), (reason ?? string.Empty).Replace('|', '/') });
+            ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcWagerPay, payload);
+        }
+
+        private static void OnWagerPay(long sender, string payload)
+        {
+            var lp = Player.m_localPlayer;
+            if (lp == null) return;
+            var p = (payload ?? string.Empty).Split('|');
+            if (p.Length < 2) return;
+            long.TryParse(p[0], out var ownerId);
+            if (ownerId != lp.GetPlayerID()) return;   // not mine
+            int.TryParse(p[1], out var amount);
+            if (amount <= 0) return;
+
+            Economy.Wager.GiveCoins(lp, amount);
+            var reason = p.Length > 2 ? p[2] : string.Empty;
+            ShowLocal(string.IsNullOrEmpty(reason) ? $"+{amount} Coins" : $"+{amount} Coins — {reason}");
+        }
+
+        // Server -> all: the champion of a VALCOIN tournament fires the prize
+        // trigger on their own client, so the guidance entry (and through it the
+        // donations mod's quest table) grants the purse to the right player. This
+        // mod never states the Valcoin amount that is actually paid.
+        public static void SendTournamentPrize(string targetName, string currency, int amount)
+        {
+            if (ZRoutedRpc.instance == null) return;
+            var payload = string.Join("|", new[]
+            {
+                (targetName ?? string.Empty).Replace('|', '/'), currency ?? string.Empty, amount.ToString(), "tournament",
+            });
+            ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcWagerPrize, payload);
+        }
+
+        // (A duel invite needs no equivalent: its purse is exactly the two stakes
+        // that were collected, so it is paid by moving them — WagerService.Pay,
+        // which credits Valcoins through the donations ledger. Nothing is minted,
+        // so nothing has to be priced elsewhere. Only the TOURNAMENT purse exceeds
+        // what the entry fees collected, which is why that one alone goes through
+        // the quest-key path.)
+
+        private static void OnWagerPrize(long sender, string payload)
+        {
+            var lp = Player.m_localPlayer;
+            if (lp == null) return;
+            var p = (payload ?? string.Empty).Split('|');
+            if (p.Length < 4) return;
+            if (!string.Equals(p[0], lp.GetPlayerName(), System.StringComparison.Ordinal)) return;
+            int.TryParse(p[2], out var amount);
+            ServerGuideBridge.RaiseTournamentPrize(p[1], amount);
+        }
+
+        // Status line back to whoever asked — the local host, or a remote client.
+        private static void Reply(long sender, string message)
+        {
+            if (string.IsNullOrEmpty(message)) return;
+            if (sender == 0L) { ShowLocal(message); return; }
+            if (ZRoutedRpc.instance != null) ZRoutedRpc.instance.InvokeRoutedRPC(sender, RpcAdminAck, message);
         }
 
         // Server -> all: give escrowed totem(s) back to their owner. Broadcast with
@@ -529,7 +698,7 @@ namespace LostScrollsII.Ranking
                 restored++;
             }
             if (restored > 0 && MessageHud.instance != null)
-                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center,
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.TopLeft,
                     restored == 1 ? "Your companion totem is returned." : $"{restored} companion totems returned.");
         }
 
@@ -541,9 +710,16 @@ namespace LostScrollsII.Ranking
         // the matching client summons (no server-side peer lookup, works for the
         // listen host too). The client tags each summoned companion so it reseals +
         // despawns when the match resolves (TournamentCombatant).
+        // Which system a summoned companion belongs to, so the client-side driver
+        // knows where to look up "is my match over yet?" — the tournament bracket or
+        // the duel-invite board. Both use the identical summon/reseal/despawn
+        // machinery, and this tag is the only thing that differs.
+        public const string ContextTournament = "tourney";
+        public const string ContextInvite = "invite";
+
         public static void SummonForMatch(long ownerId, string entrantId, string mode,
             string opponentEntrantId, string opponentLabel, int round,
-            System.Collections.Generic.List<string> payloads)
+            System.Collections.Generic.List<string> payloads, string context = ContextTournament)
         {
             if (ZRoutedRpc.instance == null) return;
             var pkg = new ZPackage();
@@ -555,6 +731,7 @@ namespace LostScrollsII.Ranking
             pkg.Write(round);
             pkg.Write(payloads != null ? payloads.Count : 0);
             if (payloads != null) foreach (var p in payloads) pkg.Write(p ?? string.Empty);
+            pkg.Write(context ?? ContextTournament);
             ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcTourSummon, pkg);
         }
 
@@ -573,7 +750,9 @@ namespace LostScrollsII.Ranking
             int n = pkg.ReadInt();
             var payloads = new System.Collections.Generic.List<string>(n);
             for (int i = 0; i < n; i++) payloads.Add(pkg.ReadString());
-            Companions.TournamentClient.SummonForMatch(lp, entrantId, mode, opponentEntrantId, opponentLabel, round, payloads);
+            string context = ContextTournament;
+            try { context = pkg.ReadString(); } catch { /* pre-invite payload */ }
+            Companions.TournamentClient.SummonForMatch(lp, entrantId, mode, opponentEntrantId, opponentLabel, round, payloads, context);
         }
 
         // Client -> server: an updated escrow payload set after a match (the winner
@@ -599,13 +778,152 @@ namespace LostScrollsII.Ranking
             int n = pkg.ReadInt();
             var payloads = new System.Collections.Generic.List<string>(n);
             for (int i = 0; i < n; i++) payloads.Add(pkg.ReadString());
-            TournamentService.UpdateEscrow(entrantId, payloads);
+            // An entrant id is a stable companion GUID, so it belongs to at most one
+            // of the two systems — try the bracket, then the invite board.
+            if (TournamentService.FindEntrant(entrantId) != null) TournamentService.UpdateEscrow(entrantId, payloads);
+            else DuelInviteService.UpdateEscrow(entrantId, payloads);
         }
 
+        // ---- Duel invites (docs/Wagers.md) -----------------------------------
+        //
+        // One client->server RPC carrying an action verb, rather than four
+        // near-identical ones: post / accept / ready / withdraw all move the same
+        // fields (an invite id, a totem payload, a stake), and a single pipe keeps
+        // the registration list and the argument order in one place.
+        public static void SendInviteAction(string action, string inviteId, string currency,
+            string entrantId, string label, int level, int caste, string payload, int clientPaidCoins)
+        {
+            var lp = Player.m_localPlayer;
+            if (lp == null || ZRoutedRpc.instance == null) return;
+            var pkg = new ZPackage();
+            pkg.Write(action ?? string.Empty);
+            pkg.Write(inviteId ?? string.Empty);
+            pkg.Write(currency ?? string.Empty);
+            pkg.Write(lp.GetPlayerID());
+            pkg.Write(lp.GetPlayerName() ?? string.Empty);
+            pkg.Write(entrantId ?? string.Empty);
+            pkg.Write(label ?? string.Empty);
+            pkg.Write(level);
+            pkg.Write(caste);
+            pkg.Write(payload ?? string.Empty);
+            pkg.Write(clientPaidCoins);
+
+            if (ZNet.instance != null && ZNet.instance.IsServer()) { HandleInvite(0L, pkg); return; }
+            ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.instance.GetServerPeerID(), RpcInvite, pkg);
+        }
+
+        private static void OnInvite(long sender, ZPackage pkg) => HandleInvite(sender, pkg);
+
+        private static void HandleInvite(long sender, ZPackage pkg)
+        {
+            if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
+            pkg.SetPos(0);
+            var action = pkg.ReadString();
+            var inviteId = pkg.ReadString();
+            var currency = pkg.ReadString();
+            var ownerId = pkg.ReadLong();
+            var ownerName = pkg.ReadString();
+            var entrantId = pkg.ReadString();
+            var label = pkg.ReadString();
+            var level = pkg.ReadInt();
+            var caste = pkg.ReadInt();
+            var payload = pkg.ReadString();
+            var paidCoins = pkg.ReadInt();
+
+            // A rejected post/accept has to hand back BOTH what the client already
+            // gave up: the totem it removed and any Coin stake it took itself.
+            void Reject(string message)
+            {
+                Reply(sender, message);
+                if (!string.IsNullOrEmpty(payload))
+                    ReturnEscrowToOwners(new System.Collections.Generic.Dictionary<long, System.Collections.Generic.List<string>>
+                    {
+                        { ownerId, new System.Collections.Generic.List<string> { payload } },
+                    });
+                if (paidCoins > 0) SendWagerPayout(ownerId, paidCoins, "stake refunded");
+            }
+
+            switch (action)
+            {
+                case "post":
+                    DuelInviteService.Post(Economy.Wager.Parse(currency), ownerId, ownerName,
+                        entrantId, label, level, caste, payload, paidCoins,
+                        (ok, msg) => { if (ok) Reply(sender, msg); else Reject(msg); });
+                    break;
+
+                case "accept":
+                    DuelInviteService.Accept(inviteId, ownerId, ownerName,
+                        entrantId, label, level, caste, payload, paidCoins,
+                        (ok, msg) => { if (ok) Reply(sender, msg); else Reject(msg); });
+                    break;
+
+                case "ready":
+                    Reply(sender, DuelInviteService.SetReady(inviteId, ownerId));
+                    break;
+
+                case "withdraw":
+                {
+                    var refunds = DuelInviteService.Withdraw(inviteId, ownerId, out var status);
+                    Reply(sender, status);
+                    var byOwner = new System.Collections.Generic.Dictionary<long, System.Collections.Generic.List<string>>();
+                    foreach (var kv in refunds)
+                    {
+                        if (!byOwner.TryGetValue(kv.Key, out var l)) { l = new System.Collections.Generic.List<string>(); byOwner[kv.Key] = l; }
+                        l.Add(kv.Value);
+                    }
+                    if (byOwner.Count > 0) ReturnEscrowToOwners(byOwner);
+                    break;
+                }
+
+                default:
+                    Reply(sender, $"Unknown invite action '{action}'.");
+                    break;
+            }
+        }
+
+        public static void BroadcastInvites()
+        {
+            if (ZRoutedRpc.instance == null) return;
+            var pkg = new ZPackage();
+            pkg.Write(DuelInviteService.SerializeSnapshot());
+            ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcInvitePush, pkg);
+        }
+
+        private static void SendInvitesToPeer(long peer)
+        {
+            if (ZRoutedRpc.instance == null) return;
+            var pkg = new ZPackage();
+            pkg.Write(DuelInviteService.SerializeSnapshot());
+            ZRoutedRpc.instance.InvokeRoutedRPC(peer, RpcInvitePush, pkg);
+        }
+
+        private static void OnInvitePush(long sender, ZPackage pkg)
+        {
+            if (ZNet.instance != null && ZNet.instance.IsServer()) return;
+            DuelInviteService.ApplySnapshot(pkg.ReadString());
+        }
+
+        public static void RequestInvites()
+        {
+            if (ZRoutedRpc.instance == null) return;
+            if (ZNet.instance != null && ZNet.instance.IsServer()) return;
+            ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.instance.GetServerPeerID(), RpcInviteReq, string.Empty);
+        }
+
+        private static void OnInviteRequest(long sender, string _)
+        {
+            if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
+            SendInvitesToPeer(sender);
+        }
+
+        // Every status line here is the answer to something the player did on the
+        // F7 panel — a join ack, an admin ack, a refund. They go TOP-LEFT because a
+        // centred MessageHud line renders behind that panel's canvas and would be
+        // invisible exactly when it matters most. See TournamentRegistration.Msg.
         private static void ShowLocal(string msg)
         {
             if (!string.IsNullOrEmpty(msg) && MessageHud.instance != null)
-                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, msg);
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.TopLeft, msg);
         }
 
         // Runs on the server/host only. Parses the admin command and routes to the
@@ -623,13 +941,17 @@ namespace LostScrollsII.Ranking
                     var eliminationType = p.Length > 3 ? p[3] : "single";
                     return TournamentService.Start(mode, size, eliminationType);
                 }
-                case "begin":   return TournamentService.Begin();
-                case "cancel":  return TournamentService.Cancel();
-                case "forfeit": return p.Length > 1 ? TournamentService.Forfeit(p[1]) : "Usage: forfeit <name>.";
+                // Every tournament action now names the slot it applies to. The slot
+                // is the LAST argument on each of these so an older command string
+                // (no slot) still parses and falls through to the free tournament,
+                // which is the only one those commands could ever have meant.
+                case "begin":   return TournamentService.Begin(Slot(p, 1));
+                case "cancel":  return TournamentService.Cancel(Slot(p, 1));
+                case "forfeit": return p.Length > 1 ? TournamentService.Forfeit(Slot(p, 2), p[1]) : "Usage: forfeit <name>.";
                 case "release":
                 {
                     if (p.Length < 2) return "Usage: release <entrant name>.";
-                    var payloads = TournamentService.ReleaseEntrant(p[1], out var ownerId, out var status);
+                    var payloads = TournamentService.ReleaseEntrant(Slot(p, 2), p[1], out var ownerId, out var status);
                     if (payloads.Count > 0)
                         ReturnEscrowToOwners(new System.Collections.Generic.Dictionary<long, System.Collections.Generic.List<string>>
                         {
@@ -637,10 +959,30 @@ namespace LostScrollsII.Ranking
                         });
                     return status;
                 }
-                case "activate": return TournamentService.ActivateCurrentRound();
+                case "activate": return TournamentService.ActivateCurrentRound(Slot(p, 1));
+                // Season resets run here rather than in the console command itself:
+                // the stores are server-owned, so a remote admin's client can't touch
+                // them directly. Routing through this admin-authenticated path is what
+                // lets an admin reset a season without being sat at the host.
+                case "season":
+                {
+                    int archived = LeaderboardStore.SeasonReset();
+                    BroadcastTable();
+                    return $"Duel season reset — archived {archived} record(s).";
+                }
+                case "bountyseason":
+                {
+                    int archived = Bounty.BountyLeaderboardStore.SeasonReset();
+                    Bounty.BountySync.BroadcastLadder();
+                    return $"Bounty season reset — archived {archived} hunter record(s).";
+                }
                 default:        return $"Unknown admin action '{(p.Length > 0 ? p[0] : "")}'.";
             }
         }
+
+        // Optional trailing slot argument; absent means the free admin tournament.
+        private static string Slot(string[] parts, int index)
+            => parts != null && parts.Length > index ? parts[index] : string.Empty;
 
         // ---- Push the table (server -> clients) ------------------------------
 
@@ -710,6 +1052,7 @@ namespace LostScrollsII.Ranking
                 {
                     LeaderboardStore.LoadForCurrentWorld();
                     TournamentService.LoadForCurrentWorld();
+                    DuelInviteService.LoadForCurrentWorld();
                     TournamentService.SerializerSelfTest();
                 }
             }
@@ -733,6 +1076,7 @@ namespace LostScrollsII.Ranking
                 EnsureRegistered();
                 SendTableToPeer(peer.m_uid);
                 SendTournamentToPeer(peer.m_uid);
+                SendInvitesToPeer(peer.m_uid);
             }
         }
 
@@ -745,6 +1089,7 @@ namespace LostScrollsII.Ranking
                 if (__instance != Player.m_localPlayer) return;
                 RequestTable();
                 RequestTournament();
+                RequestInvites();
                 RequestAdminStatus();
             }
         }

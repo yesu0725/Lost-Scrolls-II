@@ -19,6 +19,63 @@ namespace LostScrollsII.Integration
 
         public static bool IsLoaded => Chainloader.PluginInfos.ContainsKey(ServerGuideGuid);
 
+        // ---- Direct Discord announcements (SERVER side) ----------------------
+        //
+        // Competitive events are server-authoritative and mostly have no single
+        // "player it happened to" — a bracket draw, a pairing, an end-of-event
+        // summary. Routing those through a `type: discord` reward would mean
+        // inventing a per-player trigger for each one and firing it on some
+        // arbitrary client, which is both awkward and wrong.
+        //
+        // ServerGuide already exposes exactly the right primitive:
+        // DiscordAnnouncer.AnnounceRaw is public, server-side, and reads the
+        // webhook URL from the server's own config (it is what the `discord` reward
+        // ultimately calls after its RPC hop). So the wager/tournament/duel-invite
+        // announcements post straight from the server with no new trigger types, no
+        // new template variables, and no ServerGuide release needed.
+        //
+        // Per-player rewards (a champion's prize, a rank milestone) still go through
+        // the trigger + guidance path, because those DO target one player.
+        //
+        // No-ops with a log line when ServerGuide is absent or the webhook is unset.
+        public static void AnnounceDiscord(string message)
+        {
+            if (!IsLoaded || string.IsNullOrEmpty(message)) return;
+            // Only the authoritative instance posts, or every connected client would
+            // fire the same webhook.
+            if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
+            try { AnnounceDiscordInternal(message); }
+            catch (Exception e) { Plugin.Log.LogWarning($"ServerGuide integration (discord announce) failed: {e}"); }
+        }
+
+        private static void AnnounceDiscordInternal(string message)
+        {
+            ValheimServerGuide.Discord.DiscordAnnouncer.AnnounceRaw(message);
+        }
+
+        // Fired on the CHAMPION's client when a wagered tournament pays out in a
+        // currency this mod is not allowed to price (Valcoins). The guidance entry
+        // behind it grants the purse by setting the donations mod's
+        // `VC.Q.ls_tournament_prize` key, so the amount lives in that server's
+        // valcoin_quests.yaml and never travels from here — the same discipline the
+        // bounty Valcoin payout follows. Subject = the currency key.
+        public static void RaiseTournamentPrize(string currency, int amount)
+        {
+            if (!IsLoaded) return;
+            try
+            {
+                RaiseSimple("dvergr_tournament_prize", currency ?? string.Empty,
+                    new System.Collections.Generic.Dictionary<string, object>
+                    {
+                        { "mode", currency ?? string.Empty },
+                        // Display only — the guidance entry decides what is actually
+                        // granted; this just lets the message name a figure.
+                        { "bracketSize", amount },
+                    });
+            }
+            catch (Exception e) { Plugin.Log.LogWarning($"ServerGuide integration (dvergr_tournament_prize) failed: {e}"); }
+        }
+
         public static void RaiseRecruited(DvergrCaste caste)
         {
             if (!IsLoaded) return;
@@ -107,6 +164,50 @@ namespace LostScrollsII.Integration
             if (!IsLoaded) return;
             try { RaisePartyRankChangedInternal(ownerName, rank, rating, partyName); }
             catch (Exception e) { Plugin.Log.LogWarning($"ServerGuide integration (dvergr_party_rank_changed) failed: {e}"); }
+        }
+
+        // Bounty hunting (docs/Bounty-Hunting.md). Fired on the hunter's own client so
+        // ServerGuide's rewards land on the right player. Subject = the effective tier
+        // as a string, which the `tier:` YAML filter matches, so one guidance entry per
+        // tier carries its own reward bundle and NO loot table lives in this mod.
+        public static void RaiseBountyResolved(int tier, string tierName, string biome, string method)
+        {
+            if (!IsLoaded) return;
+            try
+            {
+                RaiseSimple("dvergr_bounty_resolved", tier.ToString(),
+                    new System.Collections.Generic.Dictionary<string, object>
+                    {
+                        { "tier", tier },
+                        { "tierName", tierName ?? string.Empty },
+                        { "bountyBiome", biome ?? string.Empty },
+                        // "killed" or "communed" — the rite is a legitimate way to close
+                        // a bounty (requirement 1), so reward text can acknowledge it.
+                        { "method", method ?? string.Empty },
+                    });
+            }
+            catch (Exception e) { Plugin.Log.LogWarning($"ServerGuide integration (dvergr_bounty_resolved) failed: {e}"); }
+        }
+
+        // Fired ONLY when the Valcoin payout roll already succeeded — the chance is
+        // decided in this mod (off the player's duel/tournament standing), so the
+        // guidance entry behind this trigger just grants the coins. Its only reward
+        // should be the `set_player_key: VC.Q.<id>` bridge that Valheim Donations
+        // reads; that mod owns the actual ledger and the payout amount, so no coin
+        // value is ever sent from here (docs/Bounty-Hunting.md, Dependency 3).
+        public static void RaiseBountyValcoin(int tier, string tierName)
+        {
+            if (!IsLoaded) return;
+            try
+            {
+                RaiseSimple("dvergr_bounty_valcoin", tier.ToString(),
+                    new System.Collections.Generic.Dictionary<string, object>
+                    {
+                        { "tier", tier },
+                        { "tierName", tierName ?? string.Empty },
+                    });
+            }
+            catch (Exception e) { Plugin.Log.LogWarning($"ServerGuide integration (dvergr_bounty_valcoin) failed: {e}"); }
         }
 
         // Tournament triggers (docs/Tournaments.md). Subject = caste name (1v1) or

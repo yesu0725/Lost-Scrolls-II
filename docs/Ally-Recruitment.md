@@ -1,5 +1,14 @@
 # Ally Recruitment — The Communion Rite
 
+> **The Block button now drives two rites.** Holding Block on an *unrecruited,
+> subdued* Dvergr begins the Communion Rite described here; holding it on *your
+> own Follow-stance companion* (with a Dead Raiser equipped and a Wisp in your
+> pack) begins the **sealing** rite instead — see
+> [Companion-Totems.md](Companion-Totems.md). They are separate classes and each
+> early-outs on the other's target, so they can never both fire, and the sealing
+> path is silent unless the staff is actually equipped.
+
+
 ## Concept
 
 Recruiting a Dvergr ally is performed in-world as the **Communion Rite**, not a generic "tame with food" mechanic. This is the gameplay expression of the Lore.md premise: you are freeing a corrupted Dvergr, not domesticating a wild animal.

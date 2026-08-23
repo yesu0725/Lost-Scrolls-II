@@ -49,6 +49,13 @@ namespace LostScrollsII.Patches
             // the component — belt-and-suspenders skip.
             if (character.GetComponent<DvergrCompanion>() != null) return;
 
+            // Bounty targets are aggravated the moment they spawn, and the lore says
+            // they're already hardened — the corruption isn't waking in them, they
+            // turned it into a weapon long ago (docs/Bounty-Hunting.md). Showing the
+            // awakening line for them would both misread the story and spam whenever
+            // an escort spawns.
+            if (character.GetComponent<Bounty.BountyTarget>() != null) return;
+
             var local = Player.m_localPlayer;
             if (local == null || MessageHud.instance == null) return;
             if (Vector3.Distance(local.transform.position, character.transform.position) > NearRange) return;

@@ -11,6 +11,12 @@ namespace LostScrollsII.Companions
         public string EntrantId;
         public bool Party;
         public int Round;
+
+        // Which system summoned this companion — the tournament bracket or the
+        // staked duel-invite board (LeaderboardSync.ContextTournament / ContextInvite).
+        // The summon, reseal and despawn are identical for both; only "is my match
+        // over?" is looked up in a different place.
+        public string Context = Ranking.LeaderboardSync.ContextTournament;
     }
 
     // Client-side driver for the escrow tournament (docs/Tournaments.md — escrow &
@@ -33,7 +39,8 @@ namespace LostScrollsII.Companions
         private void Awake() => _instance = this;
 
         public static void SummonForMatch(Player owner, string entrantId, string mode,
-            string opponentEntrantId, string opponentLabel, int round, List<string> payloads)
+            string opponentEntrantId, string opponentLabel, int round, List<string> payloads,
+            string context = null)
         {
             if (owner == null || payloads == null || payloads.Count == 0) return;
 
@@ -77,11 +84,15 @@ namespace LostScrollsII.Companions
                 tag.EntrantId = entrantId;
                 tag.Party = party;
                 tag.Round = round;
+                tag.Context = string.IsNullOrEmpty(context) ? LeaderboardSync.ContextTournament : context;
                 i++; summoned++;
             }
 
+            // Top-left, not centred: a summon can land while the player still has
+            // the F7 panel open (they just pressed Ready), and a centred line draws
+            // behind it.
             if (summoned > 0 && MessageHud.instance != null)
-                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center,
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.TopLeft,
                     $"Your companion enters the arena — opponent: {opponentLabel}.");
         }
 
@@ -91,6 +102,17 @@ namespace LostScrollsII.Companions
             if (_tick < 1f) return;
             _tick = 0f;
             ResolveFinishedMatches();
+
+            // This component lives on the plugin GameObject, so it also ticks on a
+            // dedicated server (where there is no local Player at all). That makes it
+            // the natural home for the two server-side upkeep passes the wagered
+            // systems need: expiring an unfilled tournament and clearing settled
+            // duel invites. Both no-op instantly off the server.
+            if (ZNet.instance != null && ZNet.instance.IsServer())
+            {
+                TournamentService.Tick();
+                DuelInviteService.Tick();
+            }
         }
 
         // Group this client's combatants by entrant, and finish any whose match is
@@ -118,8 +140,10 @@ namespace LostScrollsII.Companions
             {
                 var entrantId = kv.Key;
                 var members = kv.Value;
-                int round = members[0].GetComponent<TournamentCombatant>()?.Round ?? 0;
-                if (!MatchDecided(entrantId, round)) continue;
+                var tag0 = members[0].GetComponent<TournamentCombatant>();
+                int round = tag0?.Round ?? 0;
+                var context = tag0?.Context ?? LeaderboardSync.ContextTournament;
+                if (!MatchDecided(entrantId, round, context)) continue;
 
                 // Reseal all members of this entrant with their current (leveled-up)
                 // state, then despawn them back into escrow.
@@ -134,13 +158,21 @@ namespace LostScrollsII.Companions
             }
         }
 
-        // A summoned entrant is "done" when the tournament ended, its entry is gone,
-        // or its match in the summoned round now has a winner.
-        private static bool MatchDecided(string entrantId, int round)
+        // A summoned entrant is "done" when its event ended, its entry is gone, or
+        // its match now has a winner. Both wagered systems reach this from the same
+        // 1 Hz pass, so the lookup branches on the tag the summon carried.
+        private static bool MatchDecided(string entrantId, int round, string context)
         {
-            var s = TournamentService.Snapshot;
+            if (context == LeaderboardSync.ContextInvite)
+            {
+                var invite = DuelInviteService.FindByEntrant(entrantId);
+                // Gone from the board, or no longer running (settled/withdrawn) —
+                // either way this companion's work is finished.
+                return invite == null || invite.phase != "running";
+            }
+
+            var s = TournamentService.FindByEntrant(entrantId);
             if (s == null || !s.active || s.phase != "running") return true;
-            if (s.Find(entrantId) == null) return true;
             foreach (var m in s.matches)
             {
                 if (m.round != round) continue;
