@@ -22,7 +22,7 @@ namespace LostScrollsII
     {
         public const string PluginGuid = "com.lostscrollsii";
         public const string PluginName = "Lost Scrolls II";
-        public const string PluginVersion = "0.9.0";
+        public const string PluginVersion = "0.9.1";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }

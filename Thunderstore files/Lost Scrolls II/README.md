@@ -31,7 +31,7 @@ Install on the server and on every client in multiplayer. Some features (duels) 
 
 ## Companion mod — required for rankings & tournaments
 
-> **Install [Valheim ServerGuide](https://thunderstore.io/c/valheim/p/TaegukGaming/ValheimServerGuide/) (0.9.0 or newer) if you want the ranking and tournament features — 0.14.0 or newer for bounty hunting.**
+> **Install [Valheim ServerGuide](https://thunderstore.io/c/valheim/p/TaegukGaming/ValheimServerGuide/) (0.9.0 or newer) if you want the ranking and tournament features — 0.15.0 or newer for bounty hunting.**
 
 Lost Scrolls II uses ServerGuide as its messaging and reward engine. **Without it the ranking and tournament systems are effectively silent** — no rank-up announcements, no milestone or champion rewards, no tournament join/pairing/result messages, and no Discord posts. Also install the guidance files (easiest: use the **Lost Scrolls II — Quest** pack, which bundles them).
 
@@ -61,5 +61,5 @@ This mod is **free to use as is**. Voluntary support is appreciated.
 
 ---
 
-**Version:** 0.9.0
+**Version:** 0.9.1
 **Source / issues / wiki:** https://github.com/yesu0725/Lost-Scrolls-II

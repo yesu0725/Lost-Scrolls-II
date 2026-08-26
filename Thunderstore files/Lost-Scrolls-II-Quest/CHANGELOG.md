@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.1
+
+- Requires **Lost Scrolls II 0.9.1** and **ValheimServerGuide 0.15.0**.
+- **Haldor’s commission is opened with `Shift + E`.** The guidance said “hold [E]”, which was correct until ValheimServerGuide changed that key in 0.14.0. A plain `E` still opens his store.
+- No new content — the nine guidance files are otherwise unchanged from 0.9.0.
+
+> **This is the first Quest pack release since 0.7.0.** Upgrading from 0.7.0 brings two releases at once: the bounty-hunting guidance and rewards (0.8.0) and the wagered tournaments and duel invites (0.9.0). Nothing needs deleting — every file lives in the same `config/ValheimServerGuide/LostScrollsII/` subfolder.
+
 ## 0.9.0
 
 - Requires **Lost Scrolls II 0.9.0** and **ValheimServerGuide 0.15.0**.

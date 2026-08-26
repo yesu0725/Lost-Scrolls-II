@@ -51,7 +51,7 @@ All installed automatically as dependencies:
 
 - **BepInEx** for Valheim (`denikson-BepInExPack_Valheim`).
 - **Lost Scrolls II** — the base gameplay mod (the companion system).
-- **Valheim ServerGuide** (`TaegukGaming-ValheimServerGuide-0.14.0`) — delivers the story and handbook. The floor is 0.14.0, not 0.9.0: the bounty rewards use a `tier:` filter added there, and an older build ignores it and fires **every** tier at once.
+- **Valheim ServerGuide** (`TaegukGaming-ValheimServerGuide-0.15.0`) — delivers the story and handbook. The floor is 0.15.0, and both reasons are hard ones: the bounty rewards use a `tier:` filter added in 0.14.0, which an older build ignores while firing **every** tier at once; and Haldor’s commission hands out its reward from a dialogue choice, which no build before 0.15.0 grants at all — so on 0.14.0 the conversation plays, you accept, and no first bounty is ever marked.
 
 ## Setup
 
@@ -75,5 +75,5 @@ This mod is **free to use as is**. Voluntary support is appreciated.
 
 ---
 
-**Version:** 0.9.0
+**Version:** 0.9.1
 **Source / issues / wiki:** https://github.com/yesu0725/Lost-Scrolls-II

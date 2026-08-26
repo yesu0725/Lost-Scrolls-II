@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.1
+
+A one-line correction, but to the line that tells you how to start bounty hunting.
+
+- **The Wanted Board named the wrong key.** It told you to *hold* **[E]** on Haldor to take the warden’s commission. That was right when bounty hunting shipped, but ValheimServerGuide changed the key to **Shift + E** in its 0.14.0, so the board had been teaching a way in that no longer worked — and the board is the only place the game explains how to begin. It now says **Shift + E**. A plain `E` still opens Haldor’s store, as always.
+
+> **Running the Quest pack for bounty hunting?** It now requires **ValheimServerGuide 0.15.0**. Rewards attached to a dialogue choice were silently discarded by every earlier build, and that is exactly how Haldor hands over your first commission — on 0.14.0 the conversation plays, you accept, and no bounty is ever marked on your map.
+
 ## 0.9.0
 
 **Put a companion on the line.** Staked tournaments and duels that any player can start, plus a faster way to pack a companion for the road.

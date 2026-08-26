@@ -126,7 +126,45 @@ no manual file copying. They are byte-identical to the in-game-verified copies
 This is the complete, single-player-ready experience.
 
 
-## 0.9.0 — release notes and upload order  *(current)*
+## 0.9.1 — release notes and upload order  *(current)*
+
+Cut **2026-08-25**. A patch release, and a lesson: **0.9.0 was already published**
+(2026-08-23 16:05 UTC) when the wrong-key bug was found, and Thunderstore never lets a
+version be replaced — so the fix needed a new number even though the change is three
+lines. Always check what is actually live before assuming a built zip can still go up.
+
+**What changed since the published 0.9.0:**
+
+- `src/Bounty/BountyBoardPanel.cs` — the Wanted Board said *hold* **[E]** on Haldor.
+  ServerGuide moved that key to **Shift + E** in its 0.14.0, so the board was teaching a
+  way in that no longer worked, and the board is the only in-game explanation of how to
+  begin bounty hunting.
+- The Quest pack's `guidance.bounty.yaml` (same correction) and its dependency pins.
+
+**Dependency pins now:**
+
+- Quest → `TaegukGaming-Lost_Scrolls_II-0.9.1`
+- Quest → `TaegukGaming-ValheimServerGuide-0.15.0` — **hard floor.** Haldor's commission
+  hands out `LS_BountyStart` from a node dialogue choice, and no ServerGuide before
+  0.15.0 grants rewards on that kind of choice at all: the conversation plays, the player
+  accepts, and no bounty is ever posted, silently. 0.14.0 remains the floor for the
+  bounty rewards' `tier:` filter as well.
+
+**Built zips:**
+
+- `Thunderstore files/Lost_Scrolls_II_0.9.1.zip` (256 KB)
+- `Thunderstore files/Lost_Scrolls_II_Quest_0.9.1.zip` (146 KB, 9 guidance files)
+
+**Upload order:** Lost Scrolls II 0.9.1 → Lost Scrolls II Quest 0.9.1.
+**ServerGuide 0.15.0 is already published** — nothing to do there.
+
+> **The Quest pack was two releases behind on Thunderstore** — stuck at 0.7.0, which
+> predates bounty hunting entirely (5 guidance files, ServerGuide pinned at 0.9.0).
+> Anyone installing the complete pack was getting no bounty and no wager content at all.
+> 0.9.1 is the first Quest release since; check the live listing, not just the local
+> folder, when deciding what still needs uploading.
+
+## 0.9.0 — release notes and upload order
 
 Cut **2026-08-23**. Adds the wagered tournaments / staked duel invites, Dead Raiser
 field sealing, and the inventory menu bar on top of 0.8.0's bounty hunting.
