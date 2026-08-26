@@ -131,19 +131,31 @@ This is the complete, single-player-ready experience.
 Cut **2026-08-23**. Adds the wagered tournaments / staked duel invites, Dead Raiser
 field sealing, and the inventory menu bar on top of 0.8.0's bounty hunting.
 
-**ServerGuide is unchanged at 0.14.0** — the wager batch needed nothing from it. Its
-Discord output goes straight to `DiscordAnnouncer.AnnounceRaw` (server-wide facts, not
-per-player rewards), and its one new trigger, `dvergr_tournament_prize`, rides
-`MatchesTrigger`'s `default: return true`. So ServerGuide only needs uploading if
-0.14.0 isn't on Thunderstore yet.
+**ServerGuide 0.15.0 must go up first, and the Quest pack now pins it.** The wager
+batch itself needed nothing from ServerGuide — its Discord output goes straight to
+`DiscordAnnouncer.AnnounceRaw` (server-wide facts, not per-player rewards) and its one
+new trigger, `dvergr_tournament_prize`, rides `MatchesTrigger`'s `default: return true`.
+But a bug found on 2026-08-25 changed the picture: **rewards on a node dialogue choice
+were silently discarded by every ServerGuide up to 0.14.0**, which is exactly how
+Haldor's bounty commission hands out `LS_BountyStart`. On 0.14.0 the conversation plays,
+the player accepts, and no first bounty is ever posted — the whole bounty feature is
+unreachable through its intended route. Fixed in ServerGuide **0.15.0**, so the Quest
+pack's dependency was moved from `-0.14.0` to `-0.15.0`.
 
 **Built zips:**
 
-- `Thunderstore files/Lost_Scrolls_II_0.9.0.zip` (256 KB)
-- `Thunderstore files/Lost_Scrolls_II_Quest_0.9.0.zip` (145 KB, 9 guidance files)
+- `Thunderstore files/Lost_Scrolls_II_0.9.0.zip` (262 KB)
+- `Thunderstore files/Lost_Scrolls_II_Quest_0.9.0.zip` (149 KB, 9 guidance files)
+- `../Valheim ServerGuide/ValheimServerGuide_0.15.0.zip` (250 KB)
 
-**Upload order:** ServerGuide 0.14.0 (if not already up) → Lost Scrolls II 0.9.0 →
-Lost Scrolls II Quest 0.9.0.
+**Upload order:** ServerGuide **0.15.0** → Lost Scrolls II 0.9.0 → Lost Scrolls II
+Quest 0.9.0. Thunderstore validates the Quest pack's dependencies at publish time, so
+uploading it before ServerGuide 0.15.0 exists will be rejected.
+
+**Also corrected in this cut:** the Wanted Board and `guidance.bounty.yaml` both told
+players to **hold [E]** on Haldor. ServerGuide changed that key to **Shift + E** in
+0.14.0, so the board was teaching a way in that no longer worked. Both now say Shift + E
+— keep them in step with `NpcConversationTrigger` if that key ever moves again.
 
 **Server-side setup for the Valcoin half** — the donations mod's `valcoin_quests.yaml`
 needs, all with **`capped: false`**:

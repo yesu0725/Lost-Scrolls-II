@@ -296,10 +296,14 @@ namespace LostScrollsII.Bounty
                 // Locked. Point at the conversation rather than showing an empty list,
                 // so the board itself teaches the way in.
                 sb.Append("<color=#AAAAAA>The board is not yours to read yet.</color>\n\n");
+                // The key is ServerGuide's, not ours: its npc_conversation trigger moved
+                // from hold-E to Shift+E in 0.14.0. Keep this in step with whatever
+                // NpcConversationTrigger actually listens for, or the board teaches a
+                // way in that does not work.
                 sb.Append("Seek out <color=#FFD24A>Haldor</color>, the trader in the black woods, " +
-                          "and <color=#FFD24A>hold [E]</color> to speak with him rather than open his " +
-                          "store. He keeps the postings, and he will not hand them to a stranger who " +
-                          "has never answered one.\n\n");
+                          "and press <color=#FFD24A>Shift + E</color> to speak with him rather than " +
+                          "open his store. He keeps the postings, and he will not hand them to a " +
+                          "stranger who has never answered one.\n\n");
             }
             else
             {

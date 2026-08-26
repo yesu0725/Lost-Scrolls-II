@@ -2,7 +2,14 @@
 
 ## 0.9.0
 
-- Requires **Lost Scrolls II 0.9.0**.
+- Requires **Lost Scrolls II 0.9.0** and **ValheimServerGuide 0.15.0**.
+- **The bounty quest actually works now.** Haldor's commission grants its reward on a dialogue
+  choice, and rewards on that kind of choice were silently discarded by every ServerGuide up to
+  0.14.0 — so the conversation played, you accepted the commission, and no first bounty was ever
+  marked on your map. Fixed in ServerGuide 0.15.0, which is why the dependency moved. Nothing in
+  this pack needed changing.
+- Haldor's commission is opened with **Shift + E** (a plain `E` still opens his store). The pack
+  said "hold [E]", which was right until ServerGuide 0.14.0 changed the key.
 - **New guidance file — `guidance.wagers.yaml`** (9 files in total now). Teaches the staked tournaments and duel invites added in 0.9.0: what they cost, that the bracket starts by itself when it fills, that you and your opponent pick where each duel happens, and that an unfilled tournament refunds everything.
 - It also carries the **Valcoin champion's purse**. As with the bounty rewards, this mod never states a Valcoin amount — it sets a key the **Valheim Donations** mod reads and prices from the server's own config.
 

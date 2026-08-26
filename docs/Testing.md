@@ -1302,14 +1302,14 @@ character should not be able to reach a posting without it.
 
 **The gate holds:**
 - [ ] On a **character that has never done the quest**, `F8` shows "The board is not
-      yours to read yet" and names Haldor + hold-[E]. **No postings are listed and
+      yours to read yet" and names Haldor + Shift + E. **No postings are listed and
       no Accept buttons appear**, even though the server has open postings
       (`de_bounty_board` on the server still shows them).
 - [ ] The locked panel still shows your standing and the hunter list — only the
       postings are withheld.
 
 **The conversation:**
-- [ ] Find Haldor and **hold [E]** (~0.5 s). The warden's conversation opens instead
+- [ ] Find Haldor and press **Shift + E**. The warden's conversation opens instead
       of his store. A **short press must still open the store** normally.
 - [ ] The dialogue branches: both "what do you mean" and "why keep the list" lead
       onward, and "Another time" / "Not my trouble" exit without granting anything.

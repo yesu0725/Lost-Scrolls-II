@@ -11,6 +11,7 @@
 - **Seal a companion in the field.** With a **Dead Raiser** equipped, a **Wisp** in your pack and **Blood Magic 20+**, hold **Block** on your own Follow-stance companion to seal it into a Communion Totem anywhere — no walk back to an Incinerator. It takes 5 seconds at Blood Magic 20, down to 2 seconds at 100. The Incinerator ritual is unchanged, and both produce exactly the same totem.
 - **Buttons for every panel.** The Bounty Board button at the top of your inventory screen is now a row of three — **Rankings**, **Tournaments**, **Bounty Board** — so you don't have to remember F6/F7/F8. The keys still work.
 - Messages triggered from a panel now appear in the **top-left** instead of behind the panel, and the tournament panel's buttons no longer sit under its own text.
+- The Wanted Board told you to **hold [E]** on Haldor to take the warden's commission. That key changed to **Shift + E** in ValheimServerGuide 0.14.0, so the board was teaching a way in that no longer worked. It now says Shift + E.
 
 > **Valcoin stakes** need the **Valheim Donations** mod on the server (and a small config entry for the champion's purse). Coin stakes work with this mod alone; where Valcoins aren't available the option is refused with a clear reason.
 

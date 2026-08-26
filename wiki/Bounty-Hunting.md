@@ -17,8 +17,8 @@ Those Dvergr are posted on the **Wanted Board**, and answering a posting pays.
 The board isn't open to strangers. To get in:
 
 1. Find **Haldor**, the trader in the Black Forest.
-2. **Hold `E`** on him for about half a second. (A *short* press still opens his
-   store as normal — holding is what starts a conversation.)
+2. Press **`Shift + E`** on him. (A *short* press of `E` still opens his store as
+   normal — `Shift + E` is what starts a conversation.)
 3. Hear him out and accept the commission. He marks a first bounty on your map:
    always an easy one, always close by.
 4. Answer it. The board is yours from then on.
