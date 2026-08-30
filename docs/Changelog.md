@@ -7,6 +7,59 @@ marked passed** — assume "unverified in a live session" otherwise.
 
 ---
 
+## The bounty gate never opened — released 0.9.1 (2026-08-25)  ✅ VERIFIED
+
+A player reported finishing Haldor's conversation and getting no bounty pinned on
+the map. The mod side was healthy — the feature gate logged `ON`, the board held
+three postings — so the break was upstream, in ServerGuide.
+
+**Root cause: a reward on a node dialogue choice was silently discarded.** The
+commission grants `set_player_key: LS_BountyStart` from a choice inside
+`conversation.nodes:`. Those parse into `NodeChoiceSpec`, which had **no
+`Rewards` property at all**, and ServerGuide's loader runs
+`IgnoreUnmatchedProperties()` — so the block was thrown away while the file was
+still being read, with nothing in the log. Even had it parsed,
+`OnNodeChoiceSelected` never called `RewardDispatcher`. Only the *flat*
+`conversation.choices:` path (`ChoiceSpec` → `OnChoiceSelected`) ever granted a
+choice reward. `git log -S` confirmed the property had been absent since
+ServerGuide v0.1.0, so this had never worked — §23g was presumably verified with
+the `de_bounty_commission` console tool rather than through Haldor.
+
+The bitter part: `guidance.bounty.yaml`'s own header comment had diagnosed half
+of it ("node conversations end through `OnNodeConversationEnd`, which never calls
+`RewardDispatcher` … the reward must sit on a ChoiceSpec") and then put the
+reward on a *node* choice, which is a different class. Right reasoning, wrong
+object.
+
+**Fixed in ServerGuide 0.15.0**, not here: `NodeChoiceSpec.Rewards` plus a
+`GrantChoiceRewards` call placed *before* the `goto_node`/`goto` branch, so a
+reward works whether the choice ends the conversation or carries on. Rewards are
+latched once per open conversation — node trees may legitimately loop, and
+without that a loop through a rewarding choice would pay every pass. Recorded as
+**invariant 20** in ServerGuide's `CLAUDE.md`: the two conversation shapes must
+stay at feature parity. It is invariant 16 (the `label:`/`text:` synonym) with
+worse consequences — a missing label is visible the moment you look at the
+button, a missing reward is invisible forever.
+
+**Second bug, found while packaging:** every place we named the key was wrong.
+ServerGuide's `npc_conversation` trigger moved from hold-`E` to **`Shift + E`** in
+its 0.14.0, but `BountyBoardPanel`'s locked teaser, `guidance.bounty.yaml`, the
+wiki page and Testing.md all still said hold-`E`. Only the dedicated server's copy
+had been hand-corrected, which is how it survived. The board is the *only*
+in-game explanation of how to start bounty hunting, so this was the difference
+between a discoverable feature and a dead end.
+
+**Why 0.9.1 and not a re-cut of 0.9.0:** 0.9.0 was already published
+(2026-08-23 16:05 UTC) and Thunderstore never allows a version to be replaced.
+Check the live listing before assuming a built zip can still go up.
+
+Also in this cut: the Quest pack's ServerGuide floor is now a hard
+**0.15.0** pin, both package README floors were raised to match, and the LSII
+GitHub wiki was synced — it had been stuck at 0.7.0, missing `Bounty-Hunting`
+and `Wagers` entirely.
+
+---
+
 ## Field sealing + wagered tournaments & duel invites — released 0.9.0 (2026-08-23)  ⬜ UNVERIFIED
 
 Three additions, one of which reaches outside this mod. Full design in
