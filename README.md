@@ -35,12 +35,17 @@ The build publicizes `assembly_valheim` and deploys the DLL to your BepInEx/r2mo
 
 ## Releases (Thunderstore)
 
-Two packages ship from `Thunderstore files/` (see [`docs/Publishing.md`](docs/Publishing.md) for full detail and rebuild steps):
+**One package** ships from `Thunderstore files/` (see [`docs/Publishing.md`](docs/Publishing.md) for full detail and rebuild steps):
 
-- **Lost Scrolls II** — the base gameplay mod (companion system; BepInEx dependency only, ServerGuide optional).
-- **Lost-Scrolls-II-Quest** — the complete, single-player-ready pack: bundles the story + Companion Handbook and pulls in the base mod and ServerGuide as dependencies.
+- **Lost Scrolls II** — the mod itself (BepInEx dependency only; ServerGuide optional).
 
-Publish the base package first — Thunderstore validates the Quest pack's base-mod dependency at publish time.
+The story and reward content is not packaged. It lives in [`guidance/`](guidance/) and is
+copied into `BepInEx/config/ValheimServerGuide/LostScrollsII/` by hand — see that folder's
+README.
+
+> The second package, **Lost-Scrolls-II-Quest**, is **discontinued as of 0.10.0**. Its last
+> release was 0.9.1 and it remains installable; the files it bundled are the ones now in
+> `guidance/`, unchanged.
 
 ## Optional companion mod
 

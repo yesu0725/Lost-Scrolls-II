@@ -34,7 +34,7 @@ Install on the server and on every client in multiplayer. Some features (duels) 
 
 > **Install [Valheim ServerGuide](https://thunderstore.io/c/valheim/p/TaegukGaming/ValheimServerGuide/) (0.9.0 or newer) if you want the ranking and tournament features — 0.15.0 or newer for bounty hunting.**
 
-Lost Scrolls II uses ServerGuide as its messaging and reward engine. **Without it the ranking and tournament systems are effectively silent** — no rank-up announcements, no milestone or champion rewards, no tournament join/pairing/result messages, and no Discord posts. Also install the guidance files (easiest: use the **Lost Scrolls II — Quest** pack, which bundles them).
+Lost Scrolls II uses ServerGuide as its messaging and reward engine. **Without it the ranking and tournament systems are effectively silent** — no rank-up announcements, no milestone or champion rewards, no tournament join/pairing/result messages, and no Discord posts. You also need the **guidance files** — download them from [the `guidance/` folder in the repo](https://github.com/yesu0725/Lost-Scrolls-II/tree/main/guidance) and drop them into `BepInEx/config/ValheimServerGuide/LostScrollsII/`. (They used to ship as the *Lost Scrolls II — Quest* package, which is discontinued as of 0.10.0.)
 
 To be precise about what still works without ServerGuide: the ladders themselves keep recording, and `F6` / `de_ladder` still show the standings — you just lose everything that *tells* players about it.
 
@@ -42,7 +42,7 @@ ServerGuide also delivers the mod's **story** and the in-game **Companion Handbo
 
 ## Bounty hunting — a server feature
 
-Bounty hunting runs **only on a server (or local host) that has all three of BiomeLords, ValheimServerGuide and Valheim Donations installed**, plus the guidance files from the **Quest** pack. It is deliberately all-or-nothing: the reward tables live in ServerGuide, the difficulty tiers echo BiomeLords' biome progression, and the optional coin payouts go through Valheim Donations' own ledger.
+Bounty hunting runs **only on a server (or local host) that has all three of BiomeLords, ValheimServerGuide and Valheim Donations installed**, plus [the guidance files](https://github.com/yesu0725/Lost-Scrolls-II/tree/main/guidance) in its config folder. It is deliberately all-or-nothing: the reward tables live in ServerGuide, the difficulty tiers echo BiomeLords' biome progression, and the optional coin payouts go through Valheim Donations' own ledger.
 
 Everywhere else — including single player — **the `F8` panel and the inventory button still work**, and explain what bounty hunting is and where it runs. Nothing else in the mod changes.
 

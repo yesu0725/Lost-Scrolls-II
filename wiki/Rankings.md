@@ -45,7 +45,7 @@ An admin can reset the boards with `de_season_reset`. The outgoing ladder is arc
 
 ServerGuide is the messaging and reward engine. Without it the ladders still record and `F6` still shows the standings — but **nothing announces or rewards them**: no rank-up messages, no "new #1" celebration, no milestone rewards, and no Discord posts.
 
-The guidance files that produce those messages come bundled in the **Lost Scrolls II — Quest** pack (installed to `BepInEx/config/ValheimServerGuide/LostScrollsII/`).
+The guidance files that produce those messages are downloaded from [the repo's `guidance/` folder](https://github.com/yesu0725/Lost-Scrolls-II/tree/main/guidance) and copied into `BepInEx/config/ValheimServerGuide/LostScrollsII/`.
 
 ## Discord announcements (optional)
 

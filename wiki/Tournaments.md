@@ -72,7 +72,7 @@ The **entrant cap** is set by the server (default **4**). Starting a tournament 
 
 > **Install [Valheim ServerGuide](https://thunderstore.io/c/valheim/p/TaegukGaming/ValheimServerGuide/) (0.9.0+) for tournaments to announce and reward anything.**
 
-The bracket itself runs without it, but ServerGuide delivers every message and prize: join confirmations, round pairing notices, the champion announcement, the prize bundle, and Discord posts. The guidance files come bundled in the **Lost Scrolls II — Quest** pack.
+The bracket itself runs without it, but ServerGuide delivers every message and prize: join confirmations, round pairing notices, the champion announcement, the prize bundle, and Discord posts. The guidance files are downloaded from [the repo's `guidance/` folder](https://github.com/yesu0725/Lost-Scrolls-II/tree/main/guidance) and copied into `BepInEx/config/ValheimServerGuide/LostScrollsII/`.
 
 ## Notes
 

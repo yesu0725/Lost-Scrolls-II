@@ -9,7 +9,8 @@ Those Dvergr are posted on the **Wanted Board**, and answering a posting pays.
 
 > **This is a server feature.** Bounty hunting only runs on a server (or a local
 > host) that has **BiomeLords**, **ValheimServerGuide** and **Valheim Donations**
-> installed together, with the Quest pack's guidance files. Everywhere else the
+> installed together, with [the guidance files](https://github.com/yesu0725/Lost-Scrolls-II/tree/main/guidance) in the server's ServerGuide
+> config folder. Everywhere else the
 > board still opens and explains itself — nothing else in the mod is affected.
 
 ## Getting started — the Warden's Commission

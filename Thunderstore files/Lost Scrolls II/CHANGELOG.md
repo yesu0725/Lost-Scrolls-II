@@ -14,6 +14,12 @@
 
 > Purely optional: InterServerPortal is not required. Nothing here changes if you don't run it.
 
+### The Quest pack is discontinued
+
+The separate **Lost Scrolls II — Quest** package is no longer being published; 0.9.1 was its last release. All it ever did was bundle the story and reward files for ValheimServerGuide, and those files are unchanged — they now live in the [`guidance/` folder of the GitHub repo](https://github.com/yesu0725/Lost-Scrolls-II/tree/main/guidance), to be copied into `BepInEx/config/ValheimServerGuide/LostScrollsII/`. That folder's README has the steps and the version floor.
+
+**Already have the Quest pack installed?** Nothing breaks — keep it. If you'd rather switch to the manual files, uninstall the package **first**: mod managers leave behind files a package no longer ships, and two copies means every entry is defined twice.
+
 ## 0.9.1
 
 A one-line correction, but to the line that tells you how to start bounty hunting.

@@ -36,8 +36,8 @@ Pages: `Home`, `Installation`, `Recruiting-Companions`, `Companion-Commands`,
 
 ## Thunderstore packages
 
-Two packages ship from `Thunderstore files/`. Both use the vanilla-assets-only mod;
-the difference is whether the narrative content is bundled.
+**One package** ships from `Thunderstore files/` as of 0.10.0. The second (the Quest
+pack) is discontinued — see below.
 
 ### 1. Base mod — `Lost Scrolls II`
 
@@ -58,73 +58,41 @@ it, so it is deliberately *not* a hard dependency of the base package.
 Gameplay-only edition: install this if you want the companion system without the story,
 or if your server ships its own ServerGuide guidance.
 
-### 2. Complete pack — `Lost-Scrolls-II-Quest`
+### 2. Complete pack — `Lost-Scrolls-II-Quest`  *(DISCONTINUED)*
 
-Folder: `Thunderstore files/Lost-Scrolls-II-Quest/`
+**Retired at 0.10.0 (2026-08-31) at the owner's request. Do not cut a new one.** Its last
+release was **0.9.1**, which stays installable on Thunderstore.
 
-A **content pack** that bundles the story and pulls the gameplay mod + story engine in
-as dependencies. It does **not** bundle the DLL — the base mod arrives via dependency.
+All it ever did was bundle the nine guidance YAMLs under
+`config/ValheimServerGuide/LostScrollsII/` and pull the base mod + ServerGuide in as
+dependencies — it never shipped a DLL. Those files were byte-identical to
+`E:\Valheim Modding\Valheim ServerGuide\examples\LostScrollsII\` (verified before
+removal), and they now live in this repo at **[`guidance/`](../guidance/)** with a README
+carrying the install steps and the ServerGuide version floor. Players copy them into
+`BepInEx/config/ValheimServerGuide/LostScrollsII/` by hand.
 
-```
-Lost-Scrolls-II-Quest/
-  manifest.json        name Lost_Scrolls_II_Quest, version 0.10.0
-  icon.png             256×256 RGBA PNG (author-supplied)
-  README.md
-  CHANGELOG.md
-  config/
-    ValheimServerGuide/
-      LostScrollsII/                (own subfolder so our guidance stays separate — 0.4.0)
-        guidance.lost-scrolls.yaml   (the biome-descent story)
-        guidance.companions.yaml     (the Companion Handbook)
-        guidance.rankings.yaml       (ladder pages, rank milestones, new-#1 + Discord) [0.3.0, upd 0.4.0]
-        guidance.tournaments.yaml    (tournament announcements + champion prize)       [0.3.0, upd 0.4.0]
-        guidance.duels.yaml          (every duel win -> chat + Discord)                [0.4.0]
-        guidance.bogwitch-rite.yaml  (weekly Bog Witch rite: first companions w/o Mistlands) [0.7.0]
-        guidance.bounty.yaml         (Haldor's warden commission — opens the board)    [0.8.0]
-        guidance.bounty-rewards.yaml (per-tier reward bundles + the Valcoin bridge)    [0.8.0]
-        guidance.wagers.yaml         (staked tournaments/duels + the Valcoin purse)    [0.9.0]
-```
+The package folder is gone from `Thunderstore files/`; recover it from git history
+(before commit `35fa0cb`'s successor) if it is ever needed. Its historical zips
+`Lost_Scrolls_II_Quest_0.3.0` … `_0.9.1.zip` are left in place as build artifacts of
+already-published releases — **the never-published `_0.10.0.zip` was deleted**, since the
+only thing that could go wrong here is someone uploading it.
 
-**Nine files as of 0.9.0.** Keep this list in step with what is actually in the
-folder — it was two versions stale once already.
+**Considered and rejected:** folding the guidance into the base package's own `config/`
+subtree (Thunderstore routes a package's top-level `config/` to `BepInEx/config/`, so it
+would work and players would get the story automatically). The owner chose repo-only, so
+the base package stays gameplay-only exactly as it always was.
 
-> **Why the `LostScrollsII/` subfolder (new in 0.4.0):** ServerGuide **0.8.0+** loads
-> guidance **recursively** from any depth under `BepInEx/config/ValheimServerGuide/`,
-> so nesting keeps our files from mixing with a server's own guidance (and makes them
-> trivial to remove). This *requires* ServerGuide ≥ 0.8.0 — on an older build the
-> nested files are simply never read. The Quest pack depends on 0.9.0, so it's safe.
->
-> **Upgrade note:** players coming from 0.3.0 have the old **flat** copies in
-> `config/ValheimServerGuide/`. Mod managers don't delete files the new version no
-> longer ships, so the stale flat copies can linger and load *alongside* the nested
-> ones — duplicate ids. Tell upgraders to delete the old top-level
-> `guidance.lost-scrolls/companions/rankings/tournaments.yaml`.
+**Consequences to keep in mind:**
 
-> **ServerGuide version requirement (resolved in 0.4.0):** the bundled guidance uses
-> template variables (`{rank}`, `{rating}`, `{winSize}`, `{round}`, `{opponent}`,
-> `{mode}`, `{bracketSize}`, `{partyName}`, …) and the `dvergr_rank_first` /
-> `dvergr_party_rank_first` triggers. Those, plus **reward-message templating** (so
-> `chat_message`/`discord` rewards expand the same tokens), ship in
-> **ValheimServerGuide 0.9.0** — hence the bumped dependency. On an older ServerGuide
-> the entries still fire but the `{...}` placeholders render literally and the
-> Discord reward text is not templated.
-
-**Dependencies (all installed automatically):**
-
-- `denikson-BepInExPack_Valheim-5.4.2333`
-- `TaegukGaming-Lost_Scrolls_II-0.10.0` — the base gameplay mod
-- `TaegukGaming-ValheimServerGuide-0.15.0` — the story/handbook engine (+ templating, Discord, the `tier:` filter the bounty rewards need, and rewards on node dialogue choices, without which Haldor's commission grants nothing)
-
-**Why `config/ValheimServerGuide/` works out of the box:** ServerGuide loads and
-auto-merges every `*.yaml` under `BepInEx/config/ValheimServerGuide/` — recursively,
-at any depth, since 0.8.0 (`GuidanceConfigLoader` + `Paths.ConfigPath/PluginName`).
-Thunderstore/r2modman routes a package's top-level `config/` folder to
-`BepInEx/config/`, so the bundled YAMLs land exactly where ServerGuide reads them —
-no manual file copying. They are byte-identical to the in-game-verified copies
-(Testing.md §10b–d), sourced from `E:\Valheim Modding\Valheim ServerGuide\examples/`.
-
-This is the complete, single-player-ready experience.
-
+- The base mod's README and the wiki now link
+  `https://github.com/yesu0725/Lost-Scrolls-II/tree/main/guidance` wherever they used to
+  say "use the Quest pack". If that folder is ever moved or renamed, those links break in
+  a published package and on the wiki.
+- Anyone still running Quest 0.9.1 is fine — its bundled files are the same ones. But a
+  player who installs the manual files **without** uninstalling the package first ends up
+  with two copies of every id.
+- The story content is no longer versioned alongside a package. `guidance/` is the
+  distribution point now; keep it in step with the ServerGuide `examples/` source of truth.
 
 ## 0.10.0 — release notes and upload order  *(current)*
 
@@ -150,18 +118,21 @@ and worth keeping to.
   inter-server crossing seals them into totems and summons them on arrival. Soft dependency:
   absent that mod, nothing changes.
 
-**No ServerGuide release, and no Quest-pack content change.** Nothing this batch touches
-guidance, triggers or templating; the Quest pack is a dependency bump only (its nine files
-are byte-identical to 0.9.1). ServerGuide stays at the already-published **0.15.0**.
+**No ServerGuide release.** Nothing this batch touches guidance, triggers or templating,
+so ServerGuide stays at the already-published **0.15.0**.
 
-**Built zips:**
+**The Quest pack is discontinued in this release** (owner's decision, 2026-08-31). Its
+0.10.0 zip was built and then deleted unpublished; the guidance it carried moved to
+[`guidance/`](../guidance/) in this repo. See the retired section above for the full
+consequences.
 
-- `Thunderstore files/Lost_Scrolls_II_0.10.0.zip` (261 KB)
-- `Thunderstore files/Lost_Scrolls_II_Quest_0.10.0.zip` (146 KB, 9 guidance files)
+**Built zip:**
 
-**Upload order:** Lost Scrolls II 0.10.0 → Lost Scrolls II Quest 0.10.0. The base package
-must exist before the Quest pack, which pins `TaegukGaming-Lost_Scrolls_II-0.10.0` and is
-validated at publish time.
+- `Thunderstore files/Lost_Scrolls_II_0.10.0.zip` (261 KB) — one package now
+
+**Upload:** Lost Scrolls II 0.10.0. Nothing else. (The zip was rebuilt after the Quest
+removal, because the package README ships inside it and had to be repointed at the new
+`guidance/` folder.)
 
 > **Version numbering:** `0.10.0`, not `0.9.2`. Thunderstore sorts semver, so 0.10.0 > 0.9.1
 > correctly — but read it as *ten*, not *one*, if you ever sort these by hand.
@@ -197,6 +168,9 @@ lines. Always check what is actually live before assuming a built zip can still 
 
 **Upload order:** Lost Scrolls II 0.9.1 → Lost Scrolls II Quest 0.9.1.
 **ServerGuide 0.15.0 is already published** — nothing to do there.
+
+> **Confirmed 2026-08-31: both 0.9.1 packages were uploaded.** Quest 0.9.1 is the last
+> Quest release there will ever be — the pack was discontinued at 0.10.0.
 
 > **The Quest pack was two releases behind on Thunderstore** — stuck at 0.7.0, which
 > predates bounty hunting entirely (5 guidance files, ServerGuide pinned at 0.9.0).
@@ -296,18 +270,15 @@ dotnet build "E:\Valheim Modding\Dvergr Expanded\src\LostScrollsII.csproj" -c Re
 Copy-Item "E:\Valheim Modding\Dvergr Expanded\src\bin\Release\LostScrollsII.dll" `
           "$ls\Lost Scrolls II\LostScrollsII.dll" -Force
 
-# Base mod
-Compress-Archive -Path "$ls\Lost Scrolls II\*"        -DestinationPath "$ls\Lost_Scrolls_II_0.9.0.zip"       -Force
-# Quest pack (preserves the config/ subtree)
-Compress-Archive -Path "$ls\Lost-Scrolls-II-Quest\*"  -DestinationPath "$ls\Lost_Scrolls_II_Quest_0.9.0.zip" -Force
+# Base mod — the only package now (the Quest pack is discontinued)
+Compress-Archive -Path "$ls\Lost Scrolls II\*"    -DestinationPath "$ls\Lost_Scrolls_II_0.10.0.zip"      -Force
 # ServerGuide (only when its DLL changed — see the caution below)
-Compress-Archive -Path "$sg\ValheimServerGuide\*"     -DestinationPath "$sg\ValheimServerGuide_0.14.0.zip"   -Force
+Compress-Archive -Path "$sg\ValheimServerGuide\*" -DestinationPath "$sg\ValheimServerGuide_0.15.0.zip"   -Force
 ```
 
 Produced zips (gitignored):
-- `Thunderstore files/Lost_Scrolls_II_0.9.0.zip`
-- `Thunderstore files/Lost_Scrolls_II_Quest_0.9.0.zip`
-- `../Valheim ServerGuide/Thunderstore files/ValheimServerGuide_0.14.0.zip` *(that project
+- `Thunderstore files/Lost_Scrolls_II_0.10.0.zip`
+- `../Valheim ServerGuide/Thunderstore files/ValheimServerGuide_0.15.0.zip` *(that project
   tracks its zips in git, unlike this one — cut it from there, not here)*
 
 > **Caution — ServerGuide is a separate project with its own release cadence.** At the
@@ -317,44 +288,41 @@ Produced zips (gitignored):
 > else's half-finished feature. Cut the ServerGuide release from that project when its
 > own work is ready, then upload it first. Check `git status` there before zipping.
 
-Verify each zip has `manifest.json`, `icon.png` and `README.md` at the **root** (and,
-for the Quest pack, the `config/ValheimServerGuide/` subtree) before uploading.
+Verify the zip has `manifest.json`, `icon.png`, `README.md` and `LostScrollsII.dll` at the
+**root** before uploading.
 
-## Upload order (important)
+## Upload order
 
-Thunderstore validates dependencies at publish time, so publish in **dependency
-order** — the Quest pack lists both other packages and will fail to validate until
-they exist at the listed versions:
+Only one Lost Scrolls II package remains, so there is nothing to order among them — but
+**ServerGuide still goes first whenever it changed**, because it is a genuine runtime
+dependency of the ranking, tournament and bounty features. It has not changed since
+0.15.0.
 
-1. **ValheimServerGuide 0.9.0** (its own Thunderstore page) — needed for the Quest
-   pack's `TaegukGaming-ValheimServerGuide-0.9.0` dependency. **Already published and
-   unchanged for 0.7.0** (no ServerGuide code changes in this cut) — only re-upload if
-   you've since cut a newer build.
-2. **Lost Scrolls II 0.7.0** (base) — needed for `TaegukGaming-Lost_Scrolls_II-0.7.0`.
-3. **Lost Scrolls II Quest 0.7.0** (complete pack) — last.
+1. **ValheimServerGuide** (its own Thunderstore page) — only when you have cut a new one.
+2. **Lost Scrolls II** (base) — the only package this repo publishes.
+
+The guidance YAMLs are not uploaded anywhere; they ship in the GitHub repo at
+[`guidance/`](../guidance/).
 
 ## Version bumping a release
 
 When cutting a new version, keep these in lockstep:
 - `src/LostScrollsII.csproj` `<Version>` and `src/Plugin.cs` `PluginVersion`
-- both package `manifest.json` `version_number`s
-- the Quest pack's `TaegukGaming-Lost_Scrolls_II-<version>` dependency string
-- both package `CHANGELOG.md`s
-- both package `README.md` version footers *(these were missed at 0.8.0 and still read 0.7.0)*
+- the package `manifest.json` `version_number`
+- the package `CHANGELOG.md`
+- the package `README.md` version footer *(this was missed at 0.8.0 and still read 0.7.0)*
 - re-copy `src/bin/Release/LostScrollsII.dll` into the base package — build **Release**,
-  not Debug, and confirm the DLL really carries the new version string before zipping
-- refresh the Quest pack's `config/ValheimServerGuide/LostScrollsII/*.yaml` from
-  `E:\Valheim Modding\Valheim ServerGuide\examples\LostScrollsII\` (source of truth —
-  at the 0.9.0 cut four files there had gained `highlight:` blocks and rune theming the
-  packaged copies lacked), then rebuild both zips
+  not Debug, hash it against `bin/Release`, and confirm the DLL really carries the new
+  version string before zipping
+- if any **player-facing README/wiki text** changed, rebuild the zip: the package README
+  ships *inside* it, so editing it after zipping leaves a stale archive
 
 If the release also changes **ServerGuide** (new triggers, templating, Discord), cut a
 ServerGuide release alongside it and keep *those* in lockstep too — its
 `src/ValheimServerGuide.csproj` `<Version>`, `src/Plugin.cs` `PluginVersion`, its
-package `manifest.json` + `CHANGELOG.md`, its staged DLL — and bump the Quest pack's
-`TaegukGaming-ValheimServerGuide-<version>` dependency. (Watch for drift: at 0.7.1 the
+package `manifest.json` + `CHANGELOG.md`, its staged DLL. (Watch for drift: at 0.7.1 the
 code and the package manifest had disagreed, with the manifest already at 0.8.0.)
 
-Also refresh the Quest pack's `config/ValheimServerGuide/*.yaml` from the source of
-truth in `E:\Valheim Modding\Valheim ServerGuide\examples\` so the bundled guidance
-matches what was tested.
+If the release changes the **guidance YAMLs**, sync `guidance/` from the source of truth in
+`E:\Valheim Modding\Valheim ServerGuide\examples\LostScrollsII\` and push — that folder
+is now the distribution point, so a stale copy there is a stale copy for every player.
