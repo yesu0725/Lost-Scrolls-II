@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.0
+
+- Requires **Lost Scrolls II 0.10.0** and **ValheimServerGuide 0.15.0**.
+- No content change — the nine guidance files are identical to 0.9.1. This release exists only to pull in the base mod's 0.10.0, which keeps companions at your side in a fight, mends them while you rest at camp, fixes sealed totems reverting to Fuling Totems after a relog, and lets them travel through InterServerPortal's network and inter-server portals.
+
 ## 0.9.1
 
 - Requires **Lost Scrolls II 0.9.1** and **ValheimServerGuide 0.15.0**.

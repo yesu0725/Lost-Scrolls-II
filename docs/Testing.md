@@ -1582,6 +1582,142 @@ of the inventory screen is the discoverable way in; the function keys still work
 - [ ] Open a panel from a button, close it, and confirm player input is restored
       (the panels' input capture is unchanged by how they were opened).
 
+## 28. Sealed totems survive a relog  ✅ PASSED
+
+The bug: a Communion Totem came back from a relog named **Fuling Totem**, stacking
+like one. The player inventory (and every container) is loaded by
+`Inventory.Load`, which rebuilds each item from its prefab — a path the old
+`ItemDrop.LoadFromZDO` patches never saw.
+
+- [x] Seal a companion, **log out and back in**: the item is still called
+      **Communion Totem**, keeps its description, its `⚔ <name>` stat block and
+      the crafter line.
+- [x] Seal **two different** companions, put both totems in the inventory, relog:
+      they are still **two separate items in two slots**, never merged into a
+      stack of 2. Summon each and confirm you get the right companion back — with
+      its own name, level, XP and pack.
+- [x] Same two checks with the totems inside a **chest** (containers load through
+      the same path), and with one **dropped on the ground** through a
+      server/world reload.
+- [x] A **real Fuling Totem** is unaffected: still named Fuling Totem, still
+      stacks with other Fuling Totems.
+- [x] Carry a totem through a **seal → relog → summon → reseal** cycle and confirm
+      nothing is lost.
+
+## 29. Companion combat leash, chore and standby passivity  ✅ PASSED
+
+Three related behaviour fixes. Note the old implementation set `m_alertRange = 0`
+to make an ally "passive", which never did anything: vanilla acquires targets
+through `m_viewRange`/`m_hearRange`, and the one place `m_alertRange` leashes a
+target is gated on `IsTamed()`, which a freed Dvergr is not. The gate now sits on
+`BaseAI.CanSenseTarget` plus a per-frame target drop.
+
+**Follow leash (`Companions/FollowEngageRange`, default 20 m — a workbench radius):**
+
+- [x] Stand with a Follow companion near a distant Greydwarf (> 20 m from you):
+      the ally **ignores it** and stays at your side.
+- [x] Let something come within 20 m of you: the ally engages it normally.
+- [x] While it is fighting, **walk away**. The moment the ally is more than 20 m
+      from you it **breaks off** and comes back — it does not finish the fight.
+- [x] It still fights normally in **Guard** stance (which has no master to stand
+      beside) and while in a **duel** or **party duel**.
+- [x] PvP is unaffected: a player who attacks you or the ally is still answered,
+      even past the leash.
+- [x] Change `FollowEngageRange` in the config and confirm the new radius applies.
+- [x] After a **relog**, a Follow companion walks back to you on its own (the
+      follow target is re-asserted; it is not persisted by vanilla).
+
+**Chore worker (req 3):**
+
+- [x] Assign a chore, then walk a Greydwarf past the station: the ally **does not
+      react** — no alert, no chase, it keeps working.
+- [x] Let that creature **hit** the ally: it fights back, then returns to the
+      station once the threat is gone.
+- [x] Friendly fire from **your own other companion** does not set the two on
+      each other.
+
+**Standby (req 4):**
+
+- [x] Set an ally to Standby and watch it for a minute: it **stands still** — no
+      idle wandering around the spot.
+- [x] Creatures walking past are ignored; it never becomes alerted on its own.
+- [x] Hit it with a creature: it defends itself, and stops moving again afterwards.
+
+## 30. Companions through InterServerPortal (requires that mod)  ✅ PASSED
+
+Neither of InterServerPortal's modes runs the vanilla teleport, so each needed its
+own hook. Confirm the log line `[portal] InterServerPortal detected …` at startup.
+
+**Network mode (same world):**
+
+- [x] Walk a Follow companion into a **network** portal, pick a destination: the
+      ally arrives with you, spread around the exit.
+- [x] Guard / Standby / chore / dueling allies **stay behind**.
+- [x] Back out of the destination menu: nothing is teleported.
+- [x] A follower carrying a **non-teleportable** item blocks the crossing with the
+      same message a wood portal gives.
+
+**Inter-server mode (different world):**
+
+- [x] Cross with Follow companions: you are told they are **sealed into totems**,
+      and the totems are in your pack on the other side.
+- [x] They are **summoned back beside you** automatically a few seconds after the
+      destination world loads, with name, level, XP and pack intact.
+- [x] With a **full pack**: the crossing still happens, you are warned, and the
+      unsealed companions are still in the origin world when you return.
+- [x] Crossing to a server **without this mod**: the totems simply stay in the
+      pack (and summon on your return).
+- [x] A crossing that fails and drops you back at the origin still summons them.
+- [x] **Regression:** cross with **two or more** followers and watch the log for
+      `Collection was modified` — sealing destroys each companion, which mutates the
+      static registry the follower list is read from.
+- [x] **Regression:** the world switch itself must always happen. If anything in the
+      sealing fails it is logged as `[portal] Sealing companions for the crossing
+      failed` and the crossing continues without those allies — it must never leave
+      you standing in the origin world.
+
+## 31. Resting at camp mends Follow companions  ✅ PASSED
+
+- [x] Damage a Follow companion, then **sit by a campfire** with it beside you: its
+      health climbs steadily and a **Resting** icon appears above its health bar.
+- [x] It reaches full in about `RestedHealSeconds` (default **120 s**), and the
+      healing **stops the moment you stand up and walk away** — confirm it does NOT
+      keep healing on the lingering *Rested* buff (that is the whole point of using
+      the `Resting` effect instead).
+- [x] Same result **under a roof with a fire lit** while standing, not just sitting.
+- [x] Walk the ally more than `RestedHealRadius` (default 10 m) from you while you
+      stay seated: it stops mending and the icon clears.
+- [x] **Guard**, **Standby**, **chore-assigned**, **dueling** and **feral** allies
+      are NOT healed while you rest.
+- [x] Another player's companion sitting at your fire is not healed by you, and you
+      do not see a Resting icon on it.
+- [x] **Multiplayer:** the ally is healed even when its ZDO is owned by a different
+      client (the heal goes through `RPC_Heal`) — check with a friend standing
+      closer to it than you.
+- [x] `RestedHealSeconds = 0` disables the feature entirely.
+- [x] A companion already at full health generates no healing traffic (nothing in
+      the log, no floating heal numbers).
+
+## 32. The alert bark plays once, not once per hit  ✅ PASSED
+
+`BaseAI.SetAlerted` spawns `m_alertedEffects` (the Dvergr's alert shout) on every
+false→true transition, and vanilla re-asserts `true` on every hit taken. Anything
+that clears the flag on a repeating tick therefore makes an ally bark per hit.
+
+- [x] Let a creature beat on a companion that **can't fight back** — one on
+      **Standby**, one **working a chore**, and one lagging **past the follow
+      leash**. Each should shout **once**, not on every blow.
+- [x] Overload a companion's pack past the weight cap and let something hit it:
+      again one shout, not a stream (this path ran every frame and is the
+      pre-existing half of the bug).
+- [x] Normal combat is unchanged: a Follow ally engaging near you shouts once as it
+      alerts, then fights quietly.
+- [x] After breaking off, the ally keeps the alert pose for a few seconds and then
+      settles — vanilla's 30 s no-contact timeout, not us.
+- [x] Cycle stance mid-fight and confirm it still calms down properly (the latch
+      resets on a deliberate stance change).
+- [x] With several companions out, a fight is not a wall of overlapping shouts.
+
 ## Highest-risk items to watch
 
 - **Duel mode cross-client engagement** (#9) — the reworked `DE_Duel` ZDO flag must replicate so two different players' duelists actually pair up; confirm they seek each other (needs two players). Non-lethal now rides on the confirmed `Character.Damage` prefix, so that specific error risk is gone.
@@ -1597,6 +1733,11 @@ of the inventory screen is the discoverable way in; the function keys still work
 - **Assigned-opponent targeting** (#21d) — with two matches active at once, each summoned companion must engage ONLY its bracket opponent (the `MatchesDuelAssignment` gate in `CompanionIsEnemyPatch`).
 - **Wager refunds are the money path** (#25, #26) — every rejection, withdrawal, cancellation and expiry must return BOTH the totem and the stake. The dangerous cases are the asynchronous ones: a Valcoin charge that settles after the tournament filled, was cancelled, or the player joined something else. Each of those re-checks and refunds; confirm with a slow/failing backend if you can.
 - **Completion grace** (#25) — escrowed totems are returned 6 s after a bracket completes so the winner's reseal lands first. If a client is lagging worse than that, the champion gets a pre-final totem. Check the returned level/XP.
+- ~~**Sealed totems across a relog** (#28)~~ — **verified 2026-08-31.** Keep the two-totem case in any future regression pass: the dangerous half is the stack cap, not the name, and one totem will never show it.
+- ~~**The combat leash drops targets every frame** (#29)~~ — **verified 2026-08-31** at the 20 m default; no boundary oscillation observed.
+- ~~**Inter-server crossing is a seal, not a teleport** (#30)~~ — **verified 2026-08-31.** Two rules survive it: a totem must never be dropped on the ground in the world you are leaving, and our hooks run as Harmony **prefixes** on the host mod's commit path, so a throw there cancels the whole world switch — every hook is wrapped and must stay wrapped.
+- ~~**Rest healing is read on one client only** (#31)~~ — **verified 2026-08-31.** Still true by design: an ally at someone else's fire with its owner far away is not healed.
+- **Never write `SetAlerted` on a repeating tick** (#32) — fix verified 2026-08-31, but the rule is permanent: it is edge-triggered and spawns `m_alertedEffects` on each false→true flip, while vanilla re-asserts `true` on every hit. Any future "make the ally stand down" code must go through `DvergrCompanion.StandDown()`, never touch the flag directly.
 - **Valcoin availability is a server fact** (#25) — a client without the donations mod must not be told Valcoin wagers are unavailable on a server that has it.
 - **Dead Raiser sealing must never eat a companion** (#24) — the totem is the companion. Confirm the full-inventory drop path and that no failure mode consumes the wisp without producing a totem.
 - **Discord de-dup** (#21c) — each duel/party/#1/champion event should post exactly one webhook message; watch for doubles on cross-client resolution.

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.10.0
+
+**Your companions stay with you now** — by your side in a fight, mended at your fire, and along for the ride through more kinds of portal.
+
+- **They stop running off.** A **Follow** companion now fights only within about **20 metres** of you — roughly a workbench's build radius. It won't set off across a field after something far away, and if a chase drags it past that ring it breaks off and comes back. Protecting you is the job. (Tunable: `Companions/FollowEngageRange`.)
+- **Working allies work.** A companion on a **chore** no longer downs tools to chase whatever wandered past. It stays at its station and only fights something that actually hits it, then goes back to work.
+- **Standby means standby.** An ally set to Standby holds its ground properly — no idle wandering off the spot, no picking fights — and defends itself if attacked. Previously it did neither.
+- **One shout, not a chorus.** A companion that was being hit while it couldn't fight back — lagging behind, on a chore, on Standby, or overloaded — let out its alert cry on **every single blow**. Now it calls out once, as it should.
+- **Rest at camp to heal them.** Sit by a campfire, or stand under a roof with one lit, and every Follow companion near you heals to full over about two minutes, with a **Resting** icon above its health bar. The healing stops the moment you get up and move on. (Tunable: `Companions/RestedHealSeconds`, `RestedHealRadius`.)
+- **Your sealed companions keep their names.** A Communion Totem in your pack or a chest reverted to a plain **Fuling Totem** after a relog. Worse, it also got its ability to stack back — so two sealed companions sitting in one slot could merge, and **one of them would be gone**. Fixed on every path an item can load from. If you have been carrying sealed companions, they are safe now.
+- **Companions come with you through InterServerPortal.** Follow-stance allies now travel through that mod's **network portals** exactly as they do through a vanilla one. And on an **inter-server** crossing — where the world itself changes and a companion simply cannot be carried across — they are sealed into their Communion Totems as you leave and summoned back beside you on arrival. If your pack is full the ally stays behind in the old world rather than risking its totem.
+
+> Purely optional: InterServerPortal is not required. Nothing here changes if you don't run it.
+
 ## 0.9.1
 
 A one-line correction, but to the line that tells you how to start bounty hunting.

@@ -52,6 +52,10 @@ On success the Wisp is spent and the totem goes into your pack. If your pack is 
 
 Put the totem on your hotbar and **press its slot number** (or right-click → Use in your inventory). The companion spawns **where you're looking**, owned by you, at its sealed level and XP with its name intact. The totem is consumed.
 
+## Crossing between worlds
+
+If your server runs **InterServerPortal**, stepping through an **inter-server** portal seals every Follow-stance companion into a totem automatically as you leave, and summons them back beside you on the other side. You don't have to prepare anything — but a full pack means an ally is left behind in the old world, so leave a slot or two free before you cross.
+
 ## Good to know
 
 - A sealed companion's progress rides on the **item**, so it survives saving, dropping, and trading — you can hand a companion to another player as a totem.

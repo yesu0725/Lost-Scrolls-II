@@ -22,7 +22,7 @@ namespace LostScrollsII
     {
         public const string PluginGuid = "com.lostscrollsii";
         public const string PluginName = "Lost Scrolls II";
-        public const string PluginVersion = "0.9.1";
+        public const string PluginVersion = "0.10.0";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -75,6 +75,15 @@ namespace LostScrollsII
         // also carries a rename field — req 3). See CompanionInventory /
         // CompanionInventoryGui and docs/Ally-Inventory.md.
         public static ConfigEntry<KeyCode> InventoryKey { get; private set; }
+
+        // How far a Follow-stance companion may get from its owner before it
+        // stops fighting and just comes back — and the radius inside which it will
+        // pick a fight at all. See DvergrCompanion.AllowsCombatTarget.
+        public static ConfigEntry<float> FollowEngageRange { get; private set; }
+
+        // Resting at camp mends your Follow companions — see CompanionRestedHeal.
+        public static ConfigEntry<float> RestedHealSeconds { get; private set; }
+        public static ConfigEntry<float> RestedHealRadius { get; private set; }
 
         // Feature add: show a live minimap pin at each of the local player's own
         // companions. Client-side, so other players never see your companions.
@@ -301,6 +310,24 @@ namespace LostScrollsII
                 "InventoryKey",
                 KeyCode.Y,
                 "Press while hovering your companion to open its inventory (a chest-like panel that also lets you rename it).");
+
+            FollowEngageRange = Config.Bind(
+                "Companions",
+                "FollowEngageRange",
+                20f,
+                "How many metres a Follow-stance companion may stray from you before it stops fighting and comes back. The same radius bounds what it will attack in the first place, so it never charges off after something far from you. The default matches a workbench's build radius, so it reads as \"the ground around me\". Guard, Standby and chore-assigned allies are not affected.");
+
+            RestedHealSeconds = Config.Bind(
+                "Companions",
+                "RestedHealSeconds",
+                120f,
+                "How long your Follow-stance companions take to heal to full while you rest at camp (sitting by a fire, or under a roof with one lit). Healing runs only while you are actually resting and stops when you get up. 0 disables it.");
+
+            RestedHealRadius = Config.Bind(
+                "Companions",
+                "RestedHealRadius",
+                10f,
+                "How close a companion must be to you to mend while you rest. The default matches the radius vanilla itself uses when working out a shelter's comfort.");
 
             ShowMapPins = Config.Bind(
                 "Companions",
@@ -633,9 +660,18 @@ namespace LostScrollsII
             _harmony = new Harmony(PluginGuid);
             _harmony.PatchAll();
 
+            // Soft dependency: let Follow-stance companions come along through
+            // InterServerPortal's network and inter-server portals, neither of
+            // which runs the vanilla teleport our own portal patch hooks.
+            // No-ops when that mod isn't installed.
+            Companions.InterServerPortalBridge.ApplyPatches(_harmony);
+
             // Client-side companion map pins (see CompanionMapPins). Lives on the
             // plugin GameObject so it persists across scene loads.
             gameObject.AddComponent<CompanionMapPins>();
+
+            // Mends the local player's Follow companions while they rest at camp.
+            gameObject.AddComponent<Companions.CompanionRestedHeal>();
 
             // Drives the channeled Communion Rite (hold-to-recruit with fail
             // conditions). See CommunionRite / docs/Ally-Recruitment.md.
@@ -663,6 +699,10 @@ namespace LostScrollsII
             // accepted bounty and spawns it on arrival (docs/Bounty-Hunting.md).
             gameObject.AddComponent<Bounty.BountyBoardRunner>();
             gameObject.AddComponent<Bounty.BountyBoardPanel>();
+
+            // Releases companions sealed for an inter-server crossing once the
+            // destination world is up (see PortalTransferPatches).
+            gameObject.AddComponent<Companions.InterServerArrival>();
 
             Log.LogInfo($"{PluginName} v{PluginVersion} loaded.");
         }

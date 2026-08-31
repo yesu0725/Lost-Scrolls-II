@@ -26,8 +26,47 @@ If feeding still doesn't detect a potion you're holding, `MeadFeedingService.Try
 - **Flow**: press while hovering your companion to cycle Follow → Guard → Standby → Follow.
 - **Follow**: `MonsterAI.SetFollowTarget(player)`. Attacks monsters, and players only as governed by the threat rules below.
 - **Guard**: clears the follow target, anchors a `MonsterAI.SetPatrolPoint()`, and multiplies `m_alertRange` (×2.5) so it proactively engages threats near its post.
-- **Standby** (new): passive — `m_alertRange` set to 0 and target cleared each tick, so it does **nothing**, including not attacking monsters. The only exception is retaliation (see below). Holds position.
+- **Follow**: follows you and fights **only near you** — see the combat leash below.
+- **Standby**: fully passive. It acquires **nothing** — no target, never alerted by a passer-by — and **stands still** (`m_randomMoveRange` is zeroed, which collapses `BaseAI`'s idle wander onto its own position, so there is no idle shuffling). The only exception is retaliation: something that actually hurts it, creature or player, is answered. Holds position.
 - *(The earlier "Stay" stance was removed; Standby replaces the need for it.)*
+
+### The combat leash (Follow) and how passivity is actually enforced
+
+A Follow companion fights only within **`Companions/FollowEngageRange`** (default
+**20 m** — the same radius a workbench covers, so it reads as "the ground around
+me") of its owner, measured on both sides: it will not pick a fight with
+something far from you, and it **breaks off a chase** the moment the chase has
+dragged it more than that from you — protecting you is the job, not hunting. Guard
+has no master to stand beside and is not leashed; duel and party-duel modes own
+their own targeting; a hostile **player** is exempt (the leash is about chasing
+wildlife, not about PvP). The same per-frame tick re-asserts the follow target
+when a Follow ally has none, which is what makes a **relogged** companion walk
+back to you — vanilla does not persist `MonsterAI.m_follow`.
+
+Breaking off goes through **`DvergrCompanion.StandDown()`**, which drops the target
+but clears the AI's *alerted* flag at most once per stand-down. That matters more
+than it looks: `BaseAI.SetAlerted` is edge-triggered and spawns `m_alertedEffects`
+— the Dvergr's alert shout — on every false→true flip, while vanilla re-asserts
+`true` from `MonsterAI.UpdateAI` and from `OnDamaged` on **every hit taken**.
+Clearing it on a repeating tick therefore made an ally that couldn't fight back
+shout once per incoming blow. **Never write `SetAlerted` from a tick.**
+
+All of this — the leash, Standby, and chore passivity — runs through one method,
+`DvergrCompanion.AllowsCombatTarget`, enforced in the two places vanilla splits
+the decision: a postfix on `BaseAI.CanSenseTarget` for **acquisition**, and a
+per-frame target drop (ZDO owner only) for **retention**, because
+`MonsterAI.UpdateTarget` keeps a locked target between its own throttled scans.
+
+> **Do not go back to `m_alertRange` for this.** The original implementation set
+> `m_alertRange = 0` to make an ally passive and it did nothing at all: targets
+> are acquired through `m_viewRange`/`m_hearRange`, and the one place
+> `m_alertRange` leashes a target is gated on `m_character.IsTamed()` — a freed
+> Dvergr is not tamed. `CanSenseTarget` was also chosen over `BaseAI.IsEnemy`
+> deliberately: `IsEnemy` is symmetric and is read by `HaveFriendInRange`, so
+> suppressing it would have made a passive Support mage start **healing
+> greydwarves**. `CanSenseTarget` is one-directional, so other creatures can
+> still see and attack a passive ally — which is the route by which it gets
+> provoked in the first place.
 - **Still a cycle, not a menu.** An in-world stance-selection menu was considered but kept as the lightweight `E`-cycle, consistent with discarding the chore menu (the cycle already reaches all three stances in two presses). Revisit only if cycling proves clumsy in play.
 
 ## Hover tooltip (crosshair)
@@ -54,7 +93,7 @@ If feeding still doesn't detect a potion you're holding, `MeadFeedingService.Try
 - **Selective hostility to players** is injected via a `BaseAI.IsEnemy` postfix (`CompanionIsEnemyPatch`) keyed off `DvergrCompanion.IsHostileTo`, so vanilla targeting then does the rest — no faction hacks:
   - **Guard**: every non-owner player is a threat.
   - **Follow**: only players the **owner attacked** (timed, 30s), wired from a `Character.Damage` prefix (`CompanionDamagePatch`).
-  - **Any stance (incl. Standby/chores)**: a player who **attacks the companion** is retaliated against (timed, 30s) — `Retaliate` marks them hostile and sets them as the immediate target.
+  - **Any stance (incl. Standby/chores)**: whatever **attacks the companion** is retaliated against (timed, 30 s). A player goes through `Retaliate`; a **creature** attacker is marked hostile by `CompanionDamagePatch` (excluding friendly fire from the same owner's other allies, so a stray cleave can't set two companions on each other). That mark is what lets a passive ally fight back at all — it acquires nothing on its own.
   - **Butcher-knife betrayal**: if any player (owner included) strikes a companion with a **butcher knife** (`KnifeButcher`), it goes **feral** — `GoFeral` makes `IsHostileTo` return true for *every* player, permanently (until it dies), not timed. A deliberate release action. Detected in `CompanionDamagePatch` by the attacker's equipped weapon name. (A duel-mode companion is immune to player hits, so this only applies outside duel mode — see [Duel-Arena.md](Duel-Arena.md).)
   - The **owner is never** a threat (unless the companion has gone feral).
 - **Busy guard**: stance changes are blocked (with a message) while the companion is chore-assigned ([Ally-Chores.md](Ally-Chores.md)) or actively dueling ([Duel-Arena.md](Duel-Arena.md)), since both of those already drive the companion's `MonsterAI` directly.
@@ -95,6 +134,35 @@ If feeding still doesn't detect a potion you're holding, `MeadFeedingService.Try
 - **Persistent** (`save = true`) — it stays like a tombstone marker until you click
   it away. Config `ShowDeathMarker` (default on).
 
+## Resting at camp mends your allies
+
+Sit by a campfire (or stand under a roof with one lit) and every **Follow**-stance
+companion at your side regenerates health, reaching full in
+`Companions/RestedHealSeconds` (default **120 s**). Allies must be within
+`RestedHealRadius` (default **10 m**, the radius vanilla itself uses when working
+out a shelter's comfort). Chore, Guard, Standby, dueling and feral allies are not
+mended — this is for the ones camped with you.
+
+- **The signal is the vanilla `Resting` status effect, not `Rested`.** They are
+  different things and the distinction is the whole design: `Resting` is the LIVE
+  state (`Player.UpdateEnvStatusEffects` adds it while near a fire and either
+  sitting or sheltered, and removes it the instant you get up), while `Rested` is
+  the lingering buff that state accrues, which survives five-plus minutes of
+  travelling. Keying off `Rested` would have healed allies halfway across the map;
+  keying off `Resting` makes the healing start and stop exactly with the camp.
+- **Runs on the owner's client** (`CompanionRestedHeal`, a component on the plugin
+  GameObject, ticking every 2 s to match vanilla's own creature-regen cadence).
+  That is deliberate: the rest state is computed locally and isn't reliably
+  replicated, so the owner's machine is the only place it can be read honestly.
+  Healing from there is safe because `Character.Heal` routes to the companion's ZDO
+  owner over `RPC_Heal` and clamps to max HP — the same reason mead feeding was
+  moved onto it.
+- A **Resting** status icon (the vanilla effect's own sprite) appears above the
+  ally's health bar while it mends. Like the map pins it is owner-side, so other
+  players don't see it.
+- The heal is a fraction of the ally's **own** pool, so a level-10 companion with a
+  bigger pool still takes the same time to mend.
+
 ## Travelling with the owner — ships & portals
 
 Two ways a **Follow**-stance ally comes along when the owner moves between places.
@@ -120,6 +188,37 @@ where it is) and use vanilla mechanics — no new assets.
   - The only requirement is Follow — this replaces the removed `LadderClimbAI`
     ladder-climbing experiment as the reliable "get the ally to where I am" path.
 
+### InterServerPortal's two extra modes
+
+[InterServerPortal](../../InterServerPortal) flags a portal into **Network** mode
+(same world, pick a destination from a menu) or **Inter-server** mode (a different
+world entirely). **Neither runs the vanilla teleport** — that mod prefixes
+`TeleportWorld.Teleport` and returns false for any flagged portal, driving the
+crossing itself — so `CompanionPortalPatch` never saw them and allies were left
+behind. `PortalTransferPatches.cs` handles both, as a **soft dependency** applied
+by reflection at startup and skipped silently when the mod isn't installed.
+
+- **Network mode** ends in an ordinary `Player.TeleportTo`, so a postfix on
+  `NetworkController.Travel` reuses the same move-to-the-exit code as a vanilla
+  portal. `IsTeleporting()` distinguishes a real crossing from a `Travel` call that
+  bailed out (locked portal, refused toll), where `m_teleportTargetPos` would still
+  hold a stale destination. A prefix applies the wood-portal cargo rule: a follower
+  carrying a non-teleportable item blocks the crossing with the same message.
+- **Inter-server mode** cannot teleport anything. It leaves the world entirely
+  (`Game.Logout` → start scene → join another world), and a companion is a **ZDO in
+  the world being left** — the only thing that crosses is the player's character
+  file. So the crossing **seals each follower into a Communion Totem**
+  ([Companion-Totems.md](Companion-Totems.md)) via a prefix on
+  `WorldSwitcher.Leave` — the commit point, one line before the saving logout — and
+  `InterServerArrival` summons them back beside the player once the destination
+  world is up. If the pack is full the companion **stays behind** rather than the
+  totem being dropped in a world you are about to leave: an ally left in the origin
+  world is recoverable, an abandoned totem is not. On a destination that doesn't run
+  this mod the player simply keeps the totems.
+- All three paths share one definition of who travels — `CompanionTeleport.Followers`
+  (this player's own, Follow stance, free of chore/duel/feral, alive, loaded nearby)
+  — so they can never disagree about it.
+
 ## Needs In-Game Verification
 
 - Whether `SetPatrolPoint()` actually keeps a companion anchored, or whether it still wanders within some radius (untested — name suggests "patrol" which may imply roaming between points, not a hard anchor).
@@ -128,3 +227,6 @@ where it is) and use vanilla mechanics — no new assets.
 - Whether the flat per-potion heal feels right on higher-level companions (their max-health pool grows with level, so a fixed potion heal is proportionally smaller — by design, but unverified in play).
 - Whether the **minimap pins** track smoothly and clear on despawn, and that in multiplayer each player only ever sees their **own** companions' pins ([Testing.md](Testing.md) §14).
 - Whether **portal follow** actually lands the ally at the destination after the zone finishes loading (ZDO position commit vs. zone unload timing), only brings Follow-stance own companions, and behaves in multiplayer ([Testing.md](Testing.md) §15).
+- Whether the **combat leash** settles an ally beside its master rather than oscillating at the 10 m boundary, and whether chore/Standby passivity now truly holds ([Testing.md](Testing.md) §29).
+- Whether **InterServerPortal** travel works in both modes — and in particular that an inter-server crossing never loses a totem ([Testing.md](Testing.md) §30).
+- Whether the **rest heal** reads the camp correctly in practice — that it starts within a second or two of sitting down, stops on standing up, and that 120 s to full feels right rather than trivialising food and mead ([Testing.md](Testing.md) §31).

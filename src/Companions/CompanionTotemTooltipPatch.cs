@@ -45,4 +45,44 @@ namespace LostScrollsII.Patches
             TotemConversionService.ReapplyTotemShared(itemData);
         }
     }
+
+    // The player's own inventory (and every Container) is NOT loaded through
+    // ItemDrop.LoadFromZDO — Inventory.Load rebuilds each item by instantiating
+    // its prefab, so a saved companion totem comes back with the stock
+    // "Fuling Totem" SharedData: vanilla name AND m_maxStackSize 20. That is the
+    // root cause of "my sealed Dvergr turns back into a Fuling Totem after a
+    // relog", and the stack cap coming back is the dangerous half — two sealed
+    // companions sharing a slot would merge (Valheim stacks by shared NAME and
+    // ignores m_customData) and one companion would be lost.
+    //
+    // The re-apply therefore has to happen BEFORE the stacking decision, not
+    // after the load: Inventory.Load -> AddItem(name, ..., customData, ...) sets
+    // m_customData and then calls this private AddItem overload, which is where
+    // the "same shared name -> merge into that slot" check lives. Patching its
+    // prefix is the first point at which the item is both identifiable as a
+    // companion totem and still un-stacked.
+    [HarmonyPatch(typeof(Inventory), "AddItem",
+        new[] { typeof(ItemDrop.ItemData), typeof(int), typeof(int), typeof(int) })]
+    public static class CompanionTotemInventoryAddPatch
+    {
+        public static void Prefix(ItemDrop.ItemData item)
+        {
+            TotemConversionService.ReapplyTotemShared(item);
+        }
+    }
+
+    // Catch-all after a whole inventory has loaded: anything that reached the
+    // list by another route (or was added before its custom data was written)
+    // still gets its name/description/stack cap back. Idempotent and cheap —
+    // ReapplyTotemShared early-outs on every non-totem item.
+    [HarmonyPatch(typeof(Inventory), nameof(Inventory.Load))]
+    public static class CompanionTotemInventoryLoadPatch
+    {
+        public static void Postfix(Inventory __instance)
+        {
+            var items = __instance?.m_inventory;
+            if (items == null) return;
+            for (int i = 0; i < items.Count; i++) TotemConversionService.ReapplyTotemShared(items[i]);
+        }
+    }
 }

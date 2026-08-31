@@ -8,7 +8,7 @@ A spiritual sequel to the deprecated mod **Lost Scrolls** (TaegukGaming), rebuil
 
 - **Recruit companions** — perform the Communion Rite on a subdued Dvergr to free and recruit it. Rogue, Fire Mage, Ice Mage, and Support Mage castes.
 - **Level them up** — companions earn XP (1→10) and grow stronger, with per-caste bonuses. Progress saves on the creature and survives relogs.
-- **Command them** — hover + hotkey: feed/heal (`G`), cycle Follow/Guard/Standby stance (`E`), open its inventory + rename (`Y`), and see them on your private minimap.
+- **Command them** — hover + hotkey: feed/heal (`G`), cycle Follow/Guard/Standby stance (`E`), open its inventory + rename (`Y`), and see them on your private minimap. A **Follow** ally fights what threatens you and breaks off anything that drags it too far away; **Standby** and chore-assigned allies hold their ground and only defend themselves.
 - **Give them a pack** — each companion carries its own 4×2 inventory (opens like a chest). It picks up loot it already carries, eats food for a temporary HP boost, drinks health/resistance meads, and gets encumbered if overloaded. Its pack rides along through totems and drops on death.
 - **Move the storage window** — drag the chest/storage window (companion packs and vanilla chests alike) anywhere on screen by grabbing an empty part of it; your position is remembered. By default it sits two inventory rows lower, so extra rows from other inventory mods stay visible.
 - **Put them to work** — assign allies to vanilla stations by caste: smelting, refining, cooking, brewing, farming (plant + harvest), animal care, and hauling.
@@ -18,7 +18,8 @@ A spiritual sequel to the deprecated mod **Lost Scrolls** (TaegukGaming), rebuil
 - **Bounty hunting** *(server feature)* — hardened Dvergr who **attack on sight**, posted with escorts on a **Wanted Board** (**`F8`**, or the Bounty Board button on your inventory screen). Take a posting, travel to the mark, and **kill it or free it with the Rite** — both pay, in things that take a forge or a cooking fire to make. A quest with **Haldor** opens the board; a hunters' leaderboard tracks who answers the most, and the toughest postings are reserved for the top of the duel ladder. Needs **BiomeLords + ServerGuide + Valheim Donations** on the server — see below.
 - **Discord announcements** *(optional)* — duel wins, a new #1 on either ladder, and tournament champions can be posted to your server's Discord (needs the ServerGuide companion mod + a webhook).
 - **Communion Totems** — seal a companion into a carriable totem (at an Incinerator, using Wisps) and summon it back later, level intact.
-- **Travel together** — Follow-stance allies board your ship and teleport through portals with you.
+- **Travel together** — Follow-stance allies board your ship and teleport through portals with you. If your server runs **InterServerPortal**, they come along through its network portals too, and an inter-server crossing seals them into their totems so they can be summoned again on the other side.
+- **Rest at camp to mend them** — sit by a fire, or shelter under a roof with one lit, and every Follow companion beside you heals back to full over a couple of minutes.
 - **Find & remember them** — companions show as tinted player-icon pins on your private map, and leave a named death marker where they fall.
 
 ## Setup
@@ -61,5 +62,5 @@ This mod is **free to use as is**. Voluntary support is appreciated.
 
 ---
 
-**Version:** 0.9.1
+**Version:** 0.10.0
 **Source / issues / wiki:** https://github.com/yesu0725/Lost-Scrolls-II

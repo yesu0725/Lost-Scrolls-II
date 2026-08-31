@@ -63,6 +63,32 @@ namespace LostScrollsII.Patches
         }
     }
 
+    // Target ACQUISITION gate for companions (reqs 2-4). BaseAI.FindEnemy walks
+    // every loaded character and takes the nearest one that is both an enemy and
+    // CanSenseTarget — so this is the one place a companion decides to notice
+    // something and start a fight, and forcing it to false is what "reduce its
+    // vision range" actually means here.
+    //
+    // Deliberately hooked here rather than on BaseAI.IsEnemy: IsEnemy is
+    // symmetric and is also read by HaveFriendInRange / AggravateAllInArea, so
+    // suppressing it would have made a passive companion register nearby monsters
+    // as FRIENDS (a Support mage would have started healing greydwarves). This
+    // patch is one-directional by construction — __instance is the companion doing
+    // the looking, never the thing being looked at — so other creatures still see
+    // (and can attack) a passive companion normally, which is what leaves the
+    // "unless it has been damaged" retaliation route open.
+    [HarmonyPatch(typeof(BaseAI), nameof(BaseAI.CanSenseTarget),
+        new[] { typeof(Character), typeof(bool) })]
+    public static class CompanionSenseGatePatch
+    {
+        public static void Postfix(BaseAI __instance, Character target, ref bool __result)
+        {
+            if (!__result || __instance == null) return;
+            var comp = __instance.GetComponent<DvergrCompanion>();
+            if (comp != null && !comp.AllowsCombatTarget(target)) __result = false;
+        }
+    }
+
     // Central damage gate for companions. Runs before vanilla Character.Damage so
     // it can both cancel a hit (return false) and drive hostility state.
     [HarmonyPatch(typeof(Character), nameof(Character.Damage))]
@@ -113,6 +139,21 @@ namespace LostScrollsII.Patches
                         return false; // skip the lethal damage
                     }
                     return true; // sub-lethal duel hit lands normally
+                }
+
+                // Not dueling, hurt by a CREATURE (not a player): remember it as a
+                // threat. This is the escape hatch the passive states rely on —
+                // a chore worker or a Standby ally acquires nothing on its own, so
+                // without this mark it could never fight back at all
+                // (AllowsCombatTarget reads exactly this timed hostility).
+                // Friendly fire between the same owner's allies is excluded, or a
+                // stray cleave would set two companions on each other.
+                if (attackerPlayer == null && attackerChar != null && attackerChar != __instance)
+                {
+                    var attackerComp = attackerChar.GetComponent<DvergrCompanion>();
+                    bool sameOwnersAlly = attackerComp != null && attackerComp.OwnerId != 0L
+                                          && attackerComp.OwnerId == victimComp.OwnerId;
+                    if (!sameOwnersAlly) victimComp.MarkHostile(attackerChar);
                 }
 
                 // Not dueling. Player-struck companions:

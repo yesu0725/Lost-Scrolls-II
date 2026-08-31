@@ -7,6 +7,204 @@ marked passed** — assume "unverified in a live session" otherwise.
 
 ---
 
+## Inter-server crossing threw, and the switch never happened — released 0.10.0 (2026-08-30)  ✅ VERIFIED
+
+Reported from a live attempt: `InvalidOperationException: Collection was modified;
+enumeration operation may not execute` out of `CompanionTeleport.Followers`, the
+player stayed in the world, and a following Dvergr despawned and then reappeared.
+
+**Root cause.** `Followers` was a lazy `yield return` iterator walking
+`DvergrCompanion.All` — a **static HashSet** kept in sync by the component's
+`OnEnable`/`OnDisable`. The inter-server crossing seals each follower as it walks
+that sequence, and sealing calls `DespawnToTotem()`, which destroys the
+GameObject, which fires `OnDisable`, which removes the entry from the very set
+being enumerated. The next `MoveNext` threw. `Followers` now builds and returns a
+materialised `List<DvergrCompanion>` snapshot, so no caller — present or future —
+can mutate the registry out from under it.
+
+**Why the switch didn't happen.** The throw came from a Harmony **prefix**, and an
+exception in a prefix propagates to the caller instead of the original method
+running: `WorldSwitcher.Leave()` never executed, so `Game.Logout` was never called.
+Our optional feature had taken the host mod's core flow down with it. All three
+bridge hooks are now wrapped in try/catch that logs and continues — a companion
+left behind is a far better failure than a crossing that silently doesn't happen.
+
+**Why the Dvergr came back.** The companions sealed before the throw were real, and
+`InterServerArrival` correctly saw pending work a few seconds later and summoned
+them — in the same world, since the crossing never happened. That recovery is
+working as designed; it was only visible because of the bug above. One related
+weakness is fixed alongside it: the pending list's timestamp was written *after*
+the seal loop, so a loop that died part-way left `HasPending` true with no expiry.
+It is now stamped as each companion is added.
+
+---
+
+## A companion barked its alert voice on every hit taken — released 0.10.0 (2026-08-30)  ✅ VERIFIED
+
+Reported as "when the Dvergr attacks I hear multiple voices". The mechanism is in
+`BaseAI.SetAlerted`, which acts **only on a transition** — and on a false→true
+transition it does two things that make noise: `m_alertedEffects.Create(...)` (the
+Dvergr's alert shout) and `m_animator.SetBool("alert", true)`.
+
+Vanilla writes that flag `true` from places that run **continuously**:
+`MonsterAI.UpdateAI` sets it every AI tick while the creature can see its target
+(MonsterAI:511), `MonsterAI.OnDamaged` sets it on **every hit taken**, and
+`Character` alerts nearby AI besides. Vanilla gets away with this because nothing
+ever sets it back to false mid-fight — it latches on and the bark plays once.
+
+Two places in this mod wrote it `false` **every frame**, which unlatched it and let
+every one of those vanilla writers re-fire the bark:
+
+* `DvergrCompanion.Update`'s new stance/leash target drop — added in the combat
+  leash batch earlier the same day.
+* `DvergrCompanion.ApplyEncumbrance` — pre-existing. `CompanionInventoryAI` calls it
+  every frame while a pack is over the cap (deliberately, so an overloaded ally
+  can't re-acquire between 1 Hz ticks), and it cleared the alert flag on each call.
+
+Either way an ally that was taking hits while not allowed to fight back — lagging
+past the follow leash, working a chore, on Standby, or overloaded — shouted once
+per incoming hit.
+
+Fixed with a latch: both paths now go through `DvergrCompanion.StandDown()`, which
+always drops the target but clears the alerted flag **at most once per stand-down**.
+The latch resets when the ally legitimately holds a target again, when a load drops
+back under the cap, and on a deliberate stance change. Vanilla's own 30 s
+no-contact timeout in `MonsterAI.UpdateTarget` finishes calming it down, so nothing
+is lost by not writing the flag ourselves — the ally just keeps the alert pose for
+a few seconds after breaking off.
+
+**The rule this leaves behind: never write `SetAlerted` on a repeating tick.** It is
+an edge-triggered, effect-spawning setter, not a state you can safely re-assert.
+
+---
+
+## Resting at camp mends your companions — released 0.10.0 (2026-08-30)  ✅ VERIFIED
+
+Sit by a campfire, or stand under a roof with one lit, and every **Follow**-stance
+ally within `Companions/RestedHealRadius` (default 10 m) regenerates health,
+reaching full in `Companions/RestedHealSeconds` (default 120 s). Chore, Guard,
+Standby, dueling and feral allies are left alone — this is for the ones camped with
+you. A vanilla **Resting** status icon shows above the ally's health bar while it
+mends. ([Ally-Commands.md](Ally-Commands.md), [Testing.md](Testing.md) §31.)
+
+**The design decision worth recording is which status effect it keys off.** Vanilla
+has two and they are easy to confuse: **`Resting`** is the LIVE state
+(`Player.UpdateEnvStatusEffects` adds it while near a fire and either sitting or
+sheltered, and removes it the instant you stand up), while **`Rested`** is the
+lingering buff that state accrues and which survives five-plus minutes of
+travelling. `Rested` is the one players talk about, but keying off it would have
+kept healing allies halfway across the map. `Resting` makes the healing start and
+stop exactly with the camp, which is what "while the master is resting" means.
+
+It runs on the **owner's client** (`CompanionRestedHeal`, on the plugin GameObject,
+ticking every 2 s to match `BaseAI`'s own regen cadence) because the rest state is
+computed locally and is not reliably replicated — the owner's machine is the only
+place the condition can be read honestly. Healing from there is safe because
+`Character.Heal` routes to the companion's ZDO owner over `RPC_Heal` and clamps to
+max HP, the same reason mead feeding was moved onto it. The heal is a fraction of
+the ally's own pool, so a level-10 companion takes the same time to mend as a
+fresh one. Also in this batch: the Follow combat leash's default moved **10 m →
+20 m**, a workbench's build radius.
+
+---
+
+## Totem persistence, the companion combat leash, and InterServerPortal travel — released 0.10.0 (2026-08-30)  ✅ VERIFIED
+
+Three bug fixes and one feature, all from in-game reports. **All verified in a live
+session 2026-08-31** ([Testing.md](Testing.md) §28–§30) and shipped in 0.10.0.
+
+**1. A sealed companion turned back into a Fuling Totem after a relog.** The
+per-instance `SharedData` clone that gives a Communion Totem its name,
+description and — crucially — `m_maxStackSize = 1` was re-applied on the two
+`ItemDrop.LoadFromZDO` overloads only. **The player's inventory and every
+`Container` do not load that way**: `Inventory.Load` rebuilds each item by
+instantiating its prefab, so a saved totem came back with the stock Fuling Totem
+data. The name reset was the visible half; the stack cap coming back was the
+dangerous half, since Valheim stacks by shared **name** and ignores
+`m_customData` — two sealed companions in one slot would have merged and one
+would have been lost.
+
+The re-apply therefore had to move **before** the stacking decision, not after
+the load. `Inventory.Load` → `AddItem(name, …, customData, …)` writes
+`m_customData` and then calls the private `AddItem(ItemData, int, int, int)`,
+which is where the "same shared name → merge into that slot" check lives; a
+prefix there is the first point at which the item is both identifiable as a
+companion totem and still un-stacked. A postfix on `Inventory.Load` sweeps the
+finished list as a catch-all. (The class comment in `TotemConversionService`
+pointed at a `GoblinTotemStackPatch` that was never written — the safeguard it
+described did not exist.)
+
+**2–4. Companions fought when they should not have.** The root cause of all three
+reports was one wrong assumption in the original code: it set
+`MonsterAI.m_alertRange = 0` to make an ally "passive". **That does nothing.**
+Vanilla acquires targets through `BaseAI.FindEnemy` → `CanSenseTarget`, which
+reads `m_viewRange`/`m_hearRange`; the single place `m_alertRange` leashes a
+target is inside `MonsterAI.UpdateTarget` behind `m_character.IsTamed()`, and a
+freed Dvergr is **not** tamed. So chore workers and Standby allies had been
+chasing creatures the whole time.
+
+The rule now lives in one method, `DvergrCompanion.AllowsCombatTarget`, enforced
+in the two places vanilla splits the decision:
+
+* **Acquisition** — a postfix on `BaseAI.CanSenseTarget`. Hooked there rather
+  than on `BaseAI.IsEnemy` deliberately: `IsEnemy` is symmetric and is also read
+  by `HaveFriendInRange`, so suppressing it would have made a passive Support
+  mage treat nearby greydwarves as **friends** to heal. `CanSenseTarget` is
+  one-directional by construction, which also leaves other creatures free to
+  attack a passive ally — the route by which it can be provoked.
+* **Retention** — a per-frame drop in `Update` (ZDO owner only), because
+  `UpdateTarget` keeps a locked target between its own throttled scans. This is
+  what actually breaks off a chase mid-stride.
+
+What the rule says: a **Follow** ally may only fight within
+`Companions/FollowEngageRange` (default **20 m**, a workbench's build radius) of
+its master, measured both ways — it will not set off after something far from the master, and it abandons
+a chase the moment the chase has dragged it out of that radius (req 2). A
+**chore worker** (req 3) and a **Standby** ally (req 4) acquire nothing at all;
+they fight only what has actually hurt them, which is now recorded for creature
+attackers too (`CompanionDamagePatch` marks a non-player attacker hostile, with
+same-owner friendly fire excluded so a stray cleave cannot set two allies on each
+other). Standby also **stops wandering**: `m_randomMoveRange` is zeroed, which
+collapses `BaseAI`'s idle wander target onto the ally's own position — restored
+whenever it has a live target, since the same field doubles as the circling
+radius while charging an attack. A hostile **player** is exempt from the leash;
+the leash is about chasing wildlife, not about PvP. Same tick re-asserts the
+follow target for a Follow ally that has none, which is why a relogged companion
+now walks back to its master (vanilla does not persist `m_follow`).
+
+**5. Companions now travel through InterServerPortal's two extra portal modes**
+(`E:\Valheim Modding\InterServerPortal`). Neither goes through the vanilla
+teleport: that mod prefixes `TeleportWorld.Teleport` and returns false for any
+flagged portal, so `CompanionPortalPatch` never saw them. The two modes are
+genuinely different problems:
+
+* **Network** (same world) ends in an ordinary `Player.TeleportTo`, so a postfix
+  on `NetworkController.Travel` reuses the existing move-to-the-exit path. A
+  prefix applies the same non-teleportable-cargo block a wood portal gives.
+* **Inter-server** leaves the world entirely (`Game.Logout` → start scene → join
+  another world). A companion is a ZDO in the world being left, so there is
+  nothing to move — the only thing that crosses is the character file. So the
+  crossing **seals each follower into a Communion Totem** (a prefix on
+  `WorldSwitcher.Leave`, the commit point, one line before the saving logout) and
+  a poll on the far side summons them back beside the player once the destination
+  world is up. A full pack leaves the companion behind rather than dropping the
+  totem in a world you are about to leave — the ally is recoverable, an abandoned
+  totem is not. On a destination without this mod the player simply keeps the
+  totems.
+
+All of it is a **soft dependency**, patched by reflection at startup and silently
+skipped when InterServerPortal is absent. The "who travels" test is now a single
+`CompanionTeleport.Followers` used by every portal path, so vanilla, network and
+inter-server can never disagree about it.
+
+**Build/deploy:** the client-side deploy targets were cut down to the **one** Gale
+`HB Test` profile. The raw game-install `BepInEx\plugins\LostScrollsII` folder
+and both r2modman profiles are no longer written to (and their stale copies were
+deleted) — several builds of the same DLL across profiles made it impossible to
+tell which one was under test. The dedicated-server target is unchanged.
+
+---
+
 ## The bounty gate never opened — released 0.9.1 (2026-08-25)  ✅ VERIFIED
 
 A player reported finishing Haldor's conversation and getting no bounty pinned on

@@ -20,13 +20,15 @@ Hold a **health mead** and press `G` while hovering any recruited companion to h
 
 Press `E` while hovering your companion to cycle its stance:
 
-- **Follow** — comes with you and fights at your side. Attacks monsters; attacks players only under the threat rules below.
-- **Guard** — holds its ground and proactively engages threats near its post. Treats every non-owner player as a threat.
-- **Standby** — fully passive. Holds position and does nothing, *except* retaliate if attacked.
+- **Follow** — comes with you and fights at your side, **within about 20 metres of you** (roughly a workbench's build radius). It won't charge off across a field after something far away, and if a chase drags it past that ring it breaks off and comes back to you — protecting you is the job. Attacks players only under the threat rules below.
+- **Guard** — holds its ground and proactively engages threats near its post. Treats every non-owner player as a threat. Not distance-limited: it has no master to stand beside.
+- **Standby** — fully passive. Holds its spot without wandering, picks no fights, isn't drawn by creatures passing by — and defends itself if something actually hits it.
+
+A companion **assigned to a chore** behaves like Standby while it works: it stays at its station, ignores whatever wanders past, and only fights something that hits it, then goes back to work.
 
 The companion speaks a short line describing what it can do in its new stance each time you cycle.
 
-> Note: stance is per-session — after a relog you'll want to re-issue Follow.
+> Note: stance is per-session — after a relog a companion is back on Follow. It will walk back to you on its own.
 
 ### Threat behavior (who a companion will fight)
 
@@ -47,7 +49,7 @@ Freed companions stop making hostile-camp Dvergr chatter. Instead they speak sho
 
 ## Minimap pins
 
-Your own companions show as **live pins on your minimap** so you can find them. Pins are private and client-side: other players never see your companions on their map, and you never see theirs. Toggle with the `ShowMapPins` config option (on by default); pick which vanilla pin sprite to use with `MapPinIcon`.
+Your own companions show as **live pins on your minimap** so you can find them. Pins are private and client-side: other players never see your companions on their map, and you never see theirs. Toggle with the `ShowMapPins` config option (on by default); `CompanionPinColor` and `CompanionPinScale` change how they look.
 
 ## Travelling with you
 
@@ -55,5 +57,10 @@ A **Follow**-stance companion comes along when you move between places:
 
 - **Ships** — it boards your ship (climbing a ladder if there is one) and then walks the deck freely, fighting and moving normally while the ship carries it. Companions otherwise avoid deep water. See more under ship riding in the [Home](Home) topics.
 - **Portals** — step through a portal and every nearby Follow-stance companion you own is teleported to the exit with you and keeps following. Note: just like your own inventory, a wood portal won't let you through if one of these companions is carrying a **non-teleportable** item (ore, etc.) in its [pack](Companion-Inventory) — you'll be told which ally and item is blocking it.
+- **InterServerPortal** *(only if your server runs it)* — its **network** portals work just like a vanilla one: pick a destination and your allies arrive with you. An **inter-server** portal changes the world itself, and a companion can't be carried across that — so as you leave, each one is sealed into its [Communion Totem](Communion-Totems) in your pack and summoned back beside you once the new world loads, with everything intact. If your pack is full the ally stays behind in the old world rather than risking its totem, and you're told so.
 
 Only Follow-stance allies travel; a companion that's on a chore, guarding, on standby, dueling, or feral stays put.
+
+## Resting at camp mends them
+
+Sit by a campfire, or stand under a roof with a fire lit — the same rest that earns you the **Rested** buff — and every Follow companion beside you heals back to full over about two minutes. A **Resting** icon appears above its health bar while it mends. The healing stops the moment you get up and move on, so it's a reason to make camp rather than a passive trickle. Companions on a chore, guarding, on standby or dueling aren't mended.

@@ -45,7 +45,7 @@ Folder: `Thunderstore files/Lost Scrolls II/`
 
 | File | Purpose |
 |---|---|
-| `manifest.json` | name `Lost_Scrolls_II`, version `0.9.0` |
+| `manifest.json` | name `Lost_Scrolls_II`, version `0.10.0` |
 | `icon.png` | 256×256 RGBA PNG (author-supplied) |
 | `README.md` | Thunderstore listing copy |
 | `CHANGELOG.md` | per-release notes |
@@ -67,7 +67,7 @@ as dependencies. It does **not** bundle the DLL — the base mod arrives via dep
 
 ```
 Lost-Scrolls-II-Quest/
-  manifest.json        name Lost_Scrolls_II_Quest, version 0.9.0
+  manifest.json        name Lost_Scrolls_II_Quest, version 0.10.0
   icon.png             256×256 RGBA PNG (author-supplied)
   README.md
   CHANGELOG.md
@@ -112,8 +112,8 @@ folder — it was two versions stale once already.
 **Dependencies (all installed automatically):**
 
 - `denikson-BepInExPack_Valheim-5.4.2333`
-- `TaegukGaming-Lost_Scrolls_II-0.9.0` — the base gameplay mod
-- `TaegukGaming-ValheimServerGuide-0.14.0` — the story/handbook engine (+ templating, Discord, and the `tier:` filter the bounty rewards need)
+- `TaegukGaming-Lost_Scrolls_II-0.10.0` — the base gameplay mod
+- `TaegukGaming-ValheimServerGuide-0.15.0` — the story/handbook engine (+ templating, Discord, the `tier:` filter the bounty rewards need, and rewards on node dialogue choices, without which Haldor's commission grants nothing)
 
 **Why `config/ValheimServerGuide/` works out of the box:** ServerGuide loads and
 auto-merges every `*.yaml` under `BepInEx/config/ValheimServerGuide/` — recursively,
@@ -126,7 +126,47 @@ no manual file copying. They are byte-identical to the in-game-verified copies
 This is the complete, single-player-ready experience.
 
 
-## 0.9.1 — release notes and upload order  *(current)*
+## 0.10.0 — release notes and upload order  *(current)*
+
+Cut **2026-08-31**. A companion-behaviour release: three fixes reported from live play,
+one data-loss fix, and two features. **Everything in it was verified in a live session
+before the cut** ([Testing.md](Testing.md) §28–§32 all passed) — unusual for this project
+and worth keeping to.
+
+**What changed since 0.9.1** (all in the base mod):
+
+- **Companion combat leash.** A Follow ally fights only within `Companions/FollowEngageRange`
+  (default **20 m**, a workbench's build radius) of its owner, and breaks off a chase that
+  drags it past that. Chore and Standby allies acquire nothing and only answer what has hurt
+  them; Standby also stops idle-wandering.
+- **The alert bark fired once per hit taken** on any ally that couldn't fight back. Root
+  cause was writing `BaseAI.SetAlerted` from a repeating tick — see the rule in
+  [Ally-Commands.md](Ally-Commands.md).
+- **Sealed totems reverted to Fuling Totems after a relog** — and got their stack cap back
+  with the name, which could merge two sealed companions and lose one. This is the one item
+  in the release that risked destroying player data.
+- **Resting at camp mends Follow companions** (`RestedHealSeconds` / `RestedHealRadius`).
+- **InterServerPortal travel** — companions follow through its network portals, and an
+  inter-server crossing seals them into totems and summons them on arrival. Soft dependency:
+  absent that mod, nothing changes.
+
+**No ServerGuide release, and no Quest-pack content change.** Nothing this batch touches
+guidance, triggers or templating; the Quest pack is a dependency bump only (its nine files
+are byte-identical to 0.9.1). ServerGuide stays at the already-published **0.15.0**.
+
+**Built zips:**
+
+- `Thunderstore files/Lost_Scrolls_II_0.10.0.zip` (261 KB)
+- `Thunderstore files/Lost_Scrolls_II_Quest_0.10.0.zip` (146 KB, 9 guidance files)
+
+**Upload order:** Lost Scrolls II 0.10.0 → Lost Scrolls II Quest 0.10.0. The base package
+must exist before the Quest pack, which pins `TaegukGaming-Lost_Scrolls_II-0.10.0` and is
+validated at publish time.
+
+> **Version numbering:** `0.10.0`, not `0.9.2`. Thunderstore sorts semver, so 0.10.0 > 0.9.1
+> correctly — but read it as *ten*, not *one*, if you ever sort these by hand.
+
+## 0.9.1 — release notes and upload order
 
 Cut **2026-08-25**. A patch release, and a lesson: **0.9.0 was already published**
 (2026-08-23 16:05 UTC) when the wrong-key bug was found, and Thunderstore never lets a

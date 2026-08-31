@@ -9,6 +9,8 @@ namespace LostScrollsII.Patches
     //   * Fed    — a food HP buff is active; shows that food's own item icon.
     //   * Weight — the pack is over the cap; shows the vanilla "Encumbered" status
     //              effect icon.
+    //   * Rested — mending at the owner's camp; shows the vanilla "Resting" status
+    //              effect icon. Owner-side only (see DvergrCompanion.IsResting).
     // Both are real in-game sprites (vanilla-assets-only). We attach a small
     // manager component to each companion's EnemyHud element, so the icons live and
     // die with the hud the game already pools — no manual cleanup, no leaks.
@@ -46,6 +48,8 @@ namespace LostScrollsII.Patches
         private readonly System.Collections.Generic.List<Sprite> _sprites = new System.Collections.Generic.List<Sprite>();
         private static Sprite _encumberedSprite;
         private static bool _encumberedResolved;
+        private static Sprite _restingSprite;
+        private static bool _restingResolved;
 
         private const float IconSize = 22f;
         private const float Gap = 2f;
@@ -59,6 +63,8 @@ namespace LostScrollsII.Patches
             if (companion.IsFed && companion.FedIcon != null) _sprites.Add(companion.FedIcon);
             // req 13: encumbered icon (vanilla Encumbered status effect sprite).
             if (companion.IsEncumbered && EncumberedSprite() != null) _sprites.Add(EncumberedSprite());
+            // Mending at the owner's camp (vanilla Resting status effect sprite).
+            if (companion.IsResting && RestingSprite() != null) _sprites.Add(RestingSprite());
             // req 12: one icon per active resistance the ally is under.
             var character = hud.m_character;
             foreach (var se in CompanionConsumables.ActiveResistEffects(character))
@@ -95,6 +101,18 @@ namespace LostScrollsII.Patches
             img.preserveAspect = true;
             _pool.Add(img);
             return img;
+        }
+
+        private static Sprite RestingSprite()
+        {
+            if (_restingResolved) return _restingSprite;
+            _restingResolved = true;
+            if (ObjectDB.instance != null)
+            {
+                var se = ObjectDB.instance.GetStatusEffect(SEMan.s_statusEffectResting);
+                if (se != null) _restingSprite = se.m_icon;
+            }
+            return _restingSprite;
         }
 
         private static Sprite EncumberedSprite()

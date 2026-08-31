@@ -57,6 +57,20 @@ namespace LostScrollsII.Companions
         // Alert range used in Standby (effectively no proactive target acquisition).
         private const float StandbyAlertRange = 0f;
 
+        // Fallback for Companions/FollowEngageRange, used when the config hasn't
+        // been bound yet (very early spawns / unit-less contexts).
+        private const float DefaultFollowEngageRange = 20f;
+
+        // How far a Follow-stance companion may stray from its owner before it
+        // stops fighting altogether and just comes back. The SAME radius bounds
+        // what it will pick a fight with in the first place, so it never sets off
+        // after something far from its master. Both halves matter: the first stops
+        // a chase that has already dragged it away, the second stops the chase
+        // starting. Guard/Standby/chore allies are not leashed (they have no
+        // master to stand beside).
+        public static float FollowEngageRange =>
+            Plugin.FollowEngageRange != null ? Plugin.FollowEngageRange.Value : DefaultFollowEngageRange;
+
         // How long a player stays a hostile target after triggering retaliation
         // (they hit us) or being attacked by our owner while we Follow.
         private const float HostileDuration = 30f;
@@ -110,6 +124,8 @@ namespace LostScrollsII.Companions
         private MonsterAI _ai;
         private float _baseAlertRange;
         private bool _baseAlertRangeCaptured;
+        private float _baseRandomMoveRange;
+        private bool _baseRandomMoveRangeCaptured;
         private float _baseRunSpeed, _baseSpeed, _baseWalkSpeed;
         private bool _baseSpeedsCaptured;
 
@@ -316,6 +332,8 @@ namespace LostScrollsII.Companions
             {
                 _baseAlertRange = _ai.m_alertRange;
                 _baseAlertRangeCaptured = true;
+                _baseRandomMoveRange = _ai.m_randomMoveRange;
+                _baseRandomMoveRangeCaptured = true;
             }
             ApplyMovementTweaks();
         }
@@ -342,6 +360,12 @@ namespace LostScrollsII.Companions
         //  * IsFed — a food HP buff is currently active (req 10).
         public bool IsEncumbered { get; set; }
         public bool IsFed { get; set; }
+
+        // True while the ally is mending at its owner's camp (see
+        // CompanionRestedHeal). Set on the OWNER's client only — the vanilla rest
+        // state it derives from is computed locally and isn't replicated — so the
+        // matching hud icon is one the owner sees, like the map pins.
+        public bool IsResting { get; set; }
 
         // The icon of the food currently buffing this companion (its item icon),
         // shown by the status-icon patch while IsFed. Set by CompanionInventoryAI.
@@ -370,14 +394,17 @@ namespace LostScrollsII.Companions
             if (encumbered)
             {
                 if (!_baseAlertRangeCaptured) { _baseAlertRange = _ai.m_alertRange; _baseAlertRangeCaptured = true; }
-                _ai.SetTarget(null);
-                _ai.SetAlerted(false);
+                // Latched — this method is called every frame while overloaded, so
+                // writing the alerted flag directly here would re-bark on every hit
+                // the ally takes (see StandDown).
+                StandDown();
                 _ai.m_alertRange = 0f;
                 _encumbranceActive = true;
             }
             else if (_encumbranceActive)
             {
                 _encumbranceActive = false;
+                _stoodDown = false;
                 // A chore worker stays passive; otherwise return to the stance's range.
                 if (ChoreActive) SetPassive(true);
                 else RestoreAlertRangeForStance();
@@ -509,6 +536,100 @@ namespace LostScrollsII.Companions
 
         public bool IsFeral => _feral;
 
+        // The player this companion is leashed to, or null when it has no explicit
+        // owner (legacy allies) or the owner isn't loaded on this machine. Distinct
+        // from OwnerPlayer(), which falls back to the LOCAL player for an ownerless
+        // companion — a fallback that would leash a legacy ally to whoever happens
+        // to be looking at it.
+        private Player LeashOwnerPlayer()
+        {
+            if (_ownerId == 0L) return null;
+            return Player.GetPlayer(_ownerId);
+        }
+
+        // The single rule for "may this companion fight `target` right now?".
+        //
+        // It is enforced in two places because vanilla splits the decision in two:
+        // BaseAI.FindEnemy ACQUIRES through CanSenseTarget (patched in
+        // CompanionSenseGatePatch), while MonsterAI.UpdateTarget KEEPS an already
+        // locked target until it dies or stops being an enemy — so the per-frame
+        // drop in Update() is what actually breaks off a chase.
+        //
+        // Note m_alertRange plays no part in any of this: target acquisition runs
+        // off m_viewRange/m_hearRange, and the one place m_alertRange leashes a
+        // target is gated on m_character.IsTamed(), which a freed Dvergr is not.
+        // That is why the old "SetPassive -> m_alertRange = 0" approach never
+        // actually stopped a chore worker or a Standby ally from running off.
+        // True while the ally has already been stood down from a fight it is not
+        // allowed to have. See StandDown.
+        private bool _stoodDown;
+
+        // Break off an engagement: always drop the target, but clear the ALERTED
+        // flag at most once per stand-down.
+        //
+        // The alerted flag must never be written every frame. BaseAI.SetAlerted
+        // only acts on a transition, and a false->true transition spawns
+        // m_alertedEffects — the Dvergr's alert shout — and re-fires the "alert"
+        // animator bool. Vanilla sets it back to true from places that run
+        // continuously: MonsterAI.UpdateAI while it can see its target, and
+        // MonsterAI.OnDamaged on EVERY hit taken. So forcing it false each frame
+        // turns one bark into one bark per hit, which is the "multiple voices when
+        // the Dvergr attacks" bug. Latching it means the ally calms down once and
+        // then leaves the flag alone; vanilla's own no-contact timeout (30 s in
+        // MonsterAI.UpdateTarget) finishes the job.
+        private void StandDown()
+        {
+            if (_ai == null) return;
+            _ai.SetTarget(null);
+            if (_stoodDown) return;
+            _stoodDown = true;
+            _ai.SetAlerted(false);
+        }
+
+        public bool AllowsCombatTarget(Character target)
+        {
+            if (target == null || target.IsDead()) return false;
+
+            // A duel (1v1 or party) owns its own targeting, and a feral ally is
+            // beyond commanding — neither is subject to stance rules.
+            if (InAnyDuelMode || _feral) return true;
+
+            // Something that has actually hurt us (or that our rules already mark
+            // hostile) may always be answered — this is the "unless it has been
+            // damaged by a creature" escape hatch for the passive states below.
+            bool provoked = IsHostileTo(target);
+
+            // req 3 / req 4: a chore worker and a Standby ally never start a fight.
+            // No proactive acquisition, no getting alerted by a passer-by — only
+            // retaliation.
+            if (ChoreActive || Stance == CompanionStance.Standby) return provoked;
+
+            if (Stance == CompanionStance.Follow)
+            {
+                var owner = LeashOwnerPlayer();
+                if (owner == null) return true; // owner not loaded — leave vanilla behavior alone
+
+                // The leash is about CREATURES — chasing wildlife is what drags an
+                // ally away from its master. A hostile PLAYER is a different matter
+                // (PvP, retaliation, an owner picking a fight), so a provoked ally
+                // always answers one, wherever it is standing.
+                if (provoked && target is Player) return true;
+
+                float range = FollowEngageRange;
+                // req 2a: too far from the master -> follow, nothing else. This
+                // deliberately overrides provocation, since "stop chasing when you
+                // get 20 m out" is exactly a chase that started as a real fight.
+                if (Vector3.Distance(transform.position, owner.transform.position) > range) return false;
+                // req 2b: and don't set off after something that is itself far from
+                // the master — protecting the master is the whole job.
+                if (!provoked &&
+                    Vector3.Distance(target.transform.position, owner.transform.position) > range) return false;
+                return true;
+            }
+
+            return true; // Guard holds its post and engages normally
+        }
+
         // Non-duel change: struck with a butcher knife, the companion turns on
         // all players (docs/Duel-Arena.md "Butcher-knife betrayal"). Distinct
         // from Retaliate — this is not owner-scoped and not timed; the ally is
@@ -589,21 +710,37 @@ namespace LostScrollsII.Companions
 
         private void Update()
         {
-            // Duel mode overrides passive stances entirely (it drives its own
-            // targeting below), so skip the target-drop while dueling.
-            // In Standby OR while doing a chore the companion does nothing
-            // proactively — drop any target that isn't a player it's actively
-            // retaliating against, so it won't wander off to fight monsters.
-            if (!InAnyDuelMode && (Stance == CompanionStance.Standby || ChoreActive) && _ai != null)
+            // Only the ZDO owner runs MonsterAI (BaseAI.Update early-outs on every
+            // other client), so only the ZDO owner touches its state.
+            bool authority = _znv == null || !_znv.IsValid() || _znv.IsOwner();
+
+            // Break off any engagement the current stance no longer allows. Runs
+            // every frame because MonsterAI keeps a locked target between its own
+            // (throttled) target scans, so this — not the acquisition gate — is
+            // what makes a companion abandon a chase mid-stride.
+            if (_ai != null && authority)
             {
                 var tgt = _ai.GetTargetCreature();
-                if (tgt != null && !(tgt is Player p && IsHostileTo(p))) _ai.SetTarget(null);
+                if (tgt != null && !AllowsCombatTarget(tgt)) StandDown();
+                else if (tgt != null) _stoodDown = false;   // fighting something it may fight
+
+                ApplyStanceIdleMovement();
+
+                // Keep a Follow ally actually following: the stance is the default
+                // on load but MonsterAI's follow target isn't persisted, so without
+                // this a relogged companion would stand where it spawned instead of
+                // coming back to its master.
+                if (!InAnyDuelMode && !ChoreActive && !_feral && Stance == CompanionStance.Follow
+                    && _ai.GetFollowTarget() == null)
+                {
+                    var owner = LeashOwnerPlayer();
+                    if (owner != null) _ai.SetFollowTarget(owner.gameObject);
+                }
             }
 
             // Drive a duel only on the instance that owns the ZDO (also runs the
             // MonsterAI), so transitions/targeting aren't duplicated across clients.
             // Bystander clients just read the replicated flags.
-            bool authority = _znv == null || !_znv.IsValid() || _znv.IsOwner();
             if (DuelMode && authority) TickDuel();
             else if (PartyDuelMode && authority) TickPartyDuel();
 
@@ -731,6 +868,7 @@ namespace LostScrollsII.Companions
         public void SetStance(CompanionStance stance, GameObject followTarget)
         {
             Stance = stance;
+            _stoodDown = false;   // a deliberate stance change is a fresh episode
             AnnounceCapability();
 
             if (_ai == null) return;
@@ -755,14 +893,34 @@ namespace LostScrollsII.Companions
                     break;
 
                 case CompanionStance.Standby:
-                    // Passive: no proactive acquisition (alert range 0), holds
-                    // position. Only retaliation (Retaliate) makes it fight.
+                    // Passive: no proactive acquisition (enforced by
+                    // AllowsCombatTarget), holds position. Only retaliation makes
+                    // it fight.
                     _ai.m_alertRange = StandbyAlertRange;
                     _ai.SetFollowTarget(null);
                     _ai.SetPatrolPoint(transform.position);
                     _ai.SetTarget(null);
+                    _ai.SetAlerted(false);
                     break;
             }
+
+            ApplyStanceIdleMovement();
+        }
+
+        // req 4: a Standby ally stands still — no idle wandering. BaseAI's idle
+        // movement is driven entirely by m_randomMoveRange around the patrol point,
+        // so zeroing it collapses the wander target onto the companion's own
+        // position and it simply stops. Restored for every other stance.
+        //
+        // The range is put back while it has a live target, because the same field
+        // also sets the radius MonsterAI circles a target at while charging an
+        // attack — leaving it at 0 would make a retaliating ally hug its attacker.
+        private void ApplyStanceIdleMovement()
+        {
+            if (_ai == null || !_baseRandomMoveRangeCaptured) return;
+            bool freeze = Stance == CompanionStance.Standby && !ChoreActive && !InAnyDuelMode
+                          && _ai.GetTargetCreature() == null;
+            _ai.m_randomMoveRange = freeze ? 0f : _baseRandomMoveRange;
         }
 
         // Stance + caste "what I can do" speech bubble that replaces the vanilla
@@ -1244,6 +1402,7 @@ namespace LostScrollsII.Companions
                 case CompanionStance.Standby: _ai.m_alertRange = StandbyAlertRange; break;
                 default:                      _ai.m_alertRange = baseRange; break;
             }
+            ApplyStanceIdleMovement();
         }
 
         // Chat/speech notification for duel + feral state changes. Shows a speech

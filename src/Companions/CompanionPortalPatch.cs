@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
 
@@ -78,11 +79,21 @@ namespace LostScrollsII.Companions
         // in range) carrying a non-teleportable item? Returns the first offender's
         // display name + the localized item name so the player can be told exactly
         // what's blocking the portal.
-        public static bool TryFindPortalBlocker(Player owner, out string companionName, out string itemName)
+        // The companions a crossing takes along: this player's own, in the Follow
+        // stance, free (no chore / duel / betrayal), alive and loaded nearby. One
+        // definition shared by every portal path — vanilla, network and
+        // inter-server — so they can never disagree about who travels.
+        //
+        // Returns a materialised SNAPSHOT, never a lazy iterator. DvergrCompanion.All
+        // is a static HashSet maintained by OnEnable/OnDisable, and callers act on
+        // what they get back — the inter-server crossing seals each follower, which
+        // destroys the GameObject, which removes it from that set mid-enumeration
+        // and throws "Collection was modified". Building the list up front is the
+        // fix, and doing it here means no future caller can reintroduce the bug.
+        public static List<DvergrCompanion> Followers(Player owner)
         {
-            companionName = null;
-            itemName = null;
-            if (owner == null) return false;
+            var result = new List<DvergrCompanion>();
+            if (owner == null) return result;
             long ownerId = owner.GetPlayerID();
             var from = owner.transform.position;
 
@@ -91,12 +102,25 @@ namespace LostScrollsII.Companions
                 if (comp == null) continue;
                 if (comp.Stance != CompanionStance.Follow) continue;
                 if (comp.OwnerId == 0L || comp.OwnerId != ownerId) continue;
-                if (comp.ChoreActive || comp.DuelMode || comp.IsFeral) continue;
+                if (comp.ChoreActive || comp.InAnyDuelMode || comp.IsFeral) continue;
 
                 var ch = comp.GetComponent<Character>();
                 if (ch == null || ch.IsDead()) continue;
                 if (Vector3.Distance(ch.transform.position, from) > GatherRange) continue;
 
+                result.Add(comp);
+            }
+            return result;
+        }
+
+        public static bool TryFindPortalBlocker(Player owner, out string companionName, out string itemName)
+        {
+            companionName = null;
+            itemName = null;
+            if (owner == null) return false;
+
+            foreach (var comp in Followers(owner))
+            {
                 var inv = comp.GetComponent<CompanionInventory>();
                 var inventory = inv != null ? inv.Inventory : null;
                 if (inventory == null) continue;
@@ -117,21 +141,12 @@ namespace LostScrollsII.Companions
         {
             var dest = owner.m_teleportTargetPos;
             var rot = owner.m_teleportTargetRot;
-            var from = owner.m_teleportFromPos;
-            long ownerId = owner.GetPlayerID();
 
             int moved = 0;
-            foreach (var comp in DvergrCompanion.All)
+            foreach (var comp in Followers(owner))
             {
-                if (comp == null) continue;
-                if (comp.Stance != CompanionStance.Follow) continue;          // Follow only
-                if (comp.OwnerId == 0L || comp.OwnerId != ownerId) continue;   // strictly this player's own
-                if (comp.ChoreActive || comp.DuelMode || comp.IsFeral) continue; // not "following" right now
-
                 var ch = comp.GetComponent<Character>();
-                if (ch == null || ch.IsDead()) continue;
-                if (Vector3.Distance(ch.transform.position, from) > GatherRange) continue;
-
+                if (ch == null) continue;
                 TeleportCompanion(ch, dest + SpreadOffset(moved), rot);
                 moved++;
             }

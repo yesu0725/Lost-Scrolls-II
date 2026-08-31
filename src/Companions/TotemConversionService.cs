@@ -17,8 +17,12 @@ namespace LostScrollsII.Companions
     //    every recruit ZDO flag the DvergrCompanion component reads on Awake.
     //
     // Two totems must never stack (Valheim stacks by shared name and ignores
-    // m_customData, which would merge two companions and lose one). GoblinTotem's
-    // shared max stack is forced to 1 on ObjectDB load — see GoblinTotemStackPatch.
+    // m_customData, which would merge two companions and lose one). The
+    // per-instance SharedData clone carries m_maxStackSize = 1, and because a
+    // saved item is rebuilt from the vanilla prefab on load, that clone is
+    // re-applied on every load path — see the patches in
+    // CompanionTotemTooltipPatch.cs (world drops, container/inventory slots, and
+    // Inventory.Load, which must be caught BEFORE the stacking decision).
     public static class TotemConversionService
     {
         public const string TotemPrefab = "GoblinTotem";
