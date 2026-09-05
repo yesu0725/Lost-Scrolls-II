@@ -44,9 +44,16 @@ namespace LostScrollsII.Patches
             }
             else
             {
-                // A friendly, non-player Players-faction death (tamed wolf, another
-                // ally, etc.) shouldn't feed XP — only hostile creatures do.
+                // A friendly, non-player Players-faction death (another ally, etc.)
+                // shouldn't feed XP — only hostile creatures do.
                 if (__instance.m_faction == Character.Faction.Players) return;
+
+                // Nor should LIVESTOCK, which that test never actually caught:
+                // Character.SetTamed does not touch m_faction, so a tamed boar is
+                // still Faction.Boar. It went unnoticed until the Rogue's husbandry
+                // chore started culling animals, which would have turned a breeding
+                // pen into a renewable XP farm run by the ally itself.
+                if (__instance.IsTamed()) return;
                 xp = BiomeScaledXp(__instance);
             }
 

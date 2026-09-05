@@ -51,6 +51,8 @@ Freed companions stop making hostile-camp Dvergr chatter. Instead they speak sho
 
 Your own companions show as **live pins on your minimap** so you can find them. Pins are private and client-side: other players never see your companions on their map, and you never see theirs. Toggle with the `ShowMapPins` config option (on by default); `CompanionPinColor` and `CompanionPinScale` change how they look.
 
+**A pin never disappears just because you walked away.** The one you most want to find — the ally you left tending a smelter at home — stays on the map at the spot you left it, across the world and across a relog. A pin goes only when the companion is really gone: it died (the skull marker takes over) or you sealed it into a totem. Summon it back and its pin returns.
+
 ## Travelling with you
 
 A **Follow**-stance companion comes along when you move between places:

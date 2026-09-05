@@ -1,4 +1,4 @@
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -33,13 +33,24 @@ namespace LostScrollsII.Companions
 
         private TMP_InputField _nameField;
         private TMP_Text _hpText;
+        private Button _renameButton;
+        private TMP_Text _renameLabel;
         private bool _cloneFailed;
 
-        // True while the player is typing in the companion name field, so
-        // Plugin.Update can suppress every hotkey/bind-key (the typed letters must
-        // not fire stance/feed/chore/etc.).
-        public static bool IsTyping =>
-            _instance != null && _instance._nameField != null && _instance._nameField.isFocused;
+        // Renaming is an explicit MODE, entered and left by the button beside the
+        // field, rather than something that starts when the field happens to take
+        // focus. That distinction is the whole fix for "pressing E while renaming
+        // closed the inventory": the suppression below has to cover the entire edit
+        // session, and a TMP_InputField loses focus for a frame on all sorts of
+        // things (a click landing elsewhere, the panel refreshing). Keying the
+        // suppression off isFocused meant a single dropped frame let E through to
+        // InventoryGui.Update, which closes the open container on the Use bind.
+        private bool _editingName;
+
+        // True while the player is renaming, so Plugin.Update and the ZInput patch
+        // suppress every hotkey/bind-key (the typed letters must not fire
+        // stance/feed/chore/etc., and E must not close the panel).
+        public static bool IsTyping => _instance != null && _instance._editingName;
 
         public static void Open(DvergrCompanion companion, CompanionInventory inventory)
         {
@@ -90,7 +101,8 @@ namespace LostScrollsII.Companions
         {
             // Panel placement isn't our business any more — ContainerPanelPositioner
             // owns where the shared chest/storage panel sits (config + drag-to-move).
-            if (_nameField != null && !_nameField.isFocused)
+            // Never overwrite what the player is in the middle of typing.
+            if (_nameField != null && !_editingName)
                 _nameField.SetTextWithoutNotify(_openCompanion.DisplayName);
 
             if (_hpText != null && _openCharacter != null)
@@ -114,6 +126,7 @@ namespace LostScrollsII.Companions
             try
             {
                 EnsureNameField(panel);
+                EnsureRenameButton(panel);
                 EnsureHpText(panel);
             }
             catch (System.Exception e)
@@ -140,8 +153,96 @@ namespace LostScrollsII.Companions
             if (_nameField == null) { Object.Destroy(clone); return; }
 
             _nameField.onEndEdit.RemoveAllListeners();
-            _nameField.onEndEdit.AddListener(OnNameSubmitted);
+            // Enter still commits, and routes through the same exit path as the
+            // button so the two can never disagree about what mode we are in.
+            _nameField.onSubmit.RemoveAllListeners();
+            _nameField.onSubmit.AddListener(_ => EndRename(commit: true));
             _nameField.characterLimit = 24;
+
+            SetEditing(false);
+        }
+
+        // The button beside the name field: "Rename" arms the field, "Save" commits.
+        // Cloned from the inventory's own Take All button, like every other button
+        // this mod adds, so it is vanilla-styled with no authored assets.
+        private void EnsureRenameButton(RectTransform panel)
+        {
+            if (_renameButton != null) return;
+
+            var source = InventoryGui.instance != null ? InventoryGui.instance.m_takeAllButton : null;
+            if (source == null) return;
+
+            var clone = Object.Instantiate(source.gameObject, panel);
+            clone.name = "CompanionRenameButton";
+
+            // The container panel drives a layout group; opt out of it or the button
+            // is re-positioned every frame (the same reason the inventory menu bar
+            // sets this).
+            var layoutElement = clone.GetComponent<LayoutElement>() ?? clone.AddComponent<LayoutElement>();
+            layoutElement.ignoreLayout = true;
+
+            var rt = clone.GetComponent<RectTransform>();
+            if (rt != null) Park(rt, new Vector2(232f, -44f), new Vector2(84f, 28f));
+
+            _renameLabel = clone.GetComponentInChildren<TMP_Text>();
+            if (_renameLabel != null)
+            {
+                _renameLabel.enableAutoSizing = false;
+                _renameLabel.fontSize = 14f;
+            }
+
+            _renameButton = clone.GetComponent<Button>();
+            if (_renameButton == null) { Object.Destroy(clone); return; }
+
+            _renameButton.onClick.RemoveAllListeners();
+            _renameButton.onClick.AddListener(ToggleRename);
+            _renameButton.interactable = true;
+            clone.SetActive(true);
+
+            SetEditing(false);
+        }
+
+        private void ToggleRename()
+        {
+            if (_editingName) EndRename(commit: true);
+            else BeginRename();
+        }
+
+        private void BeginRename()
+        {
+            if (_nameField == null || _openCompanion == null) return;
+
+            SetEditing(true);
+            _nameField.SetTextWithoutNotify(_openCompanion.DisplayName);
+            _nameField.ActivateInputField();
+            _nameField.caretPosition = _nameField.text.Length;
+        }
+
+        private void EndRename(bool commit)
+        {
+            if (_nameField == null) return;
+
+            if (commit) CommitName(_nameField.text);
+            _nameField.DeactivateInputField();
+            SetEditing(false);
+
+            if (_openCompanion != null) _nameField.SetTextWithoutNotify(_openCompanion.DisplayName);
+        }
+
+        // The field is read-only outside an edit session, so a stray click on it
+        // can't start typing without arming the button first — which is what keeps
+        // IsTyping (and therefore the key suppression) honest.
+        private void SetEditing(bool editing)
+        {
+            _editingName = editing;
+
+            if (_nameField != null)
+            {
+                _nameField.readOnly = !editing;
+                _nameField.interactable = editing;
+            }
+
+            if (_renameLabel != null) _renameLabel.text = editing ? "Save" : "Rename";
         }
 
         private void EnsureHpText(RectTransform panel)
@@ -153,7 +254,8 @@ namespace LostScrollsII.Companions
             var clone = Object.Instantiate(weight.gameObject, panel);
             clone.name = "CompanionHpText";
             var rt = clone.GetComponent<RectTransform>();
-            if (rt != null) Park(rt, new Vector2(236f, -44f), new Vector2(210f, 28f));
+            // Clear of the name field (18..228) and the Rename button (232..316).
+            if (rt != null) Park(rt, new Vector2(324f, -44f), new Vector2(180f, 28f));
             _hpText = clone.GetComponent<TMP_Text>();
             if (_hpText != null)
             {
@@ -176,11 +278,16 @@ namespace LostScrollsII.Companions
 
         private void ShowWidgets(bool show)
         {
+            // Closing the panel mid-rename must not leave the suppression latched on
+            // — that would swallow the player's binds with no field on screen.
+            if (!show && _editingName) EndRename(commit: false);
+
             if (_nameField != null) _nameField.gameObject.SetActive(show);
+            if (_renameButton != null) _renameButton.gameObject.SetActive(show);
             if (_hpText != null) _hpText.gameObject.SetActive(show);
         }
 
-        private void OnNameSubmitted(string text)
+        private void CommitName(string text)
         {
             if (_openCompanion == null) return;
             if (string.IsNullOrWhiteSpace(text)) return;

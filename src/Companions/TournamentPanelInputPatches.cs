@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using LostScrollsII.Companions;
 using UnityEngine;
 
@@ -90,33 +90,30 @@ namespace LostScrollsII.Patches
     [HarmonyPatch(typeof(ZInput), nameof(ZInput.GetButton), new[] { typeof(string) })]
     public static class TournamentPanelBlocksButtonPatch
     {
-        public static bool Prefix(ref bool __result)
+        [HarmonyPriority(Priority.Last)]
+        public static void Postfix(ref bool __result)
         {
-            if (!ModalPanels.AnyOpen) return true;
-            __result = false;
-            return false;
+            if (ModalPanels.AnyOpen) __result = false;
         }
     }
 
     [HarmonyPatch(typeof(ZInput), nameof(ZInput.GetButtonDown), new[] { typeof(string) })]
     public static class TournamentPanelBlocksButtonDownPatch
     {
-        public static bool Prefix(ref bool __result)
+        [HarmonyPriority(Priority.Last)]
+        public static void Postfix(ref bool __result)
         {
-            if (!ModalPanels.AnyOpen) return true;
-            __result = false;
-            return false;
+            if (ModalPanels.AnyOpen) __result = false;
         }
     }
 
     [HarmonyPatch(typeof(ZInput), nameof(ZInput.GetButtonUp), new[] { typeof(string) })]
     public static class TournamentPanelBlocksButtonUpPatch
     {
-        public static bool Prefix(ref bool __result)
+        [HarmonyPriority(Priority.Last)]
+        public static void Postfix(ref bool __result)
         {
-            if (!ModalPanels.AnyOpen) return true;
-            __result = false;
-            return false;
+            if (ModalPanels.AnyOpen) __result = false;
         }
     }
 }

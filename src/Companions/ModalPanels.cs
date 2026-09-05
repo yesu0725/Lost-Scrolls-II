@@ -1,4 +1,4 @@
-namespace LostScrollsII.Companions
+﻿namespace LostScrollsII.Companions
 {
     // Which of our full-screen panels currently owns input.
     //
@@ -13,7 +13,16 @@ namespace LostScrollsII.Companions
     // Any new modal panel should be added here rather than growing its own patch set.
     public static class ModalPanels
     {
+        // Renaming a companion counts. It is not a full-screen panel, but it wants
+        // exactly the same thing: every bind dead until the player is done typing.
+        // It used to carry its own ZInput prefixes (CompanionTypingInputPatch, now
+        // deleted) and they silently did nothing on a live server — a prefix that
+        // returns false is skipped when another mod's prefix returns false first,
+        // which is the very reason the patches here are postfixes. Two copies of one
+        // gate is how that fix got lost; there is now one.
         public static bool AnyOpen =>
-            TournamentRegistration.IsOpen || Bounty.BountyBoardPanel.IsOpen;
+            TournamentRegistration.IsOpen
+            || Bounty.BountyBoardPanel.IsOpen
+            || CompanionInventoryGui.IsTyping;
     }
 }

@@ -11,13 +11,16 @@ a chest:
 - the companion's own **4 columns × 2 rows** (8 slots) of storage,
 - your **own inventory + crafting**, so you can move things in and out,
 - a **total weight** readout for the pack,
-- a **name field** to rename the companion, and
+- a **name field** with a **Rename** button beside it, and
 - a live **HP** readout next to the name.
 
 Only the companion's **owner** can open its pack. While you're typing in the name field
 your normal hotkeys are suppressed, so the letters only edit the name.
 
 The pack is saved on the companion, so its contents survive relogs and world reloads.
+
+
+**Renaming.** The name field is read-only until you click **Rename** next to it. The button then reads **Save** — type the new name and click it again (or press Enter) to commit. While you're typing, every key is dead, so letters that are also hotkeys can't close the panel or send your ally somewhere.
 
 ## What the companion does with its pack
 

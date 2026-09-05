@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace LostScrollsII.Companions
 {
@@ -17,7 +17,7 @@ namespace LostScrollsII.Companions
         private const float TickInterval = 1f;
 
         // req 3/4: pull matching loose drops within this radius straight in (a
-        // radius sweep, matching the hauling chore's established behavior — the
+        // radius sweep, matching the chore system's established behavior — the
         // companion holds its post rather than walking to each item).
         private const float PickupRange = 8f;
 
@@ -111,8 +111,9 @@ namespace LostScrollsII.Companions
             var inventory = _inv.Inventory;
             if (inventory == null) return;
 
-            // Maskless overlap + ItemDrop filter, mirroring the hauling chore
-            // (ChoreAI.ServiceHaul) — the proven way this codebase finds loose drops.
+            // Maskless overlap + ItemDrop filter, mirroring the chore system's own
+            // product sweep (ChoreAI.StoreProducts) — the proven way this codebase
+            // finds loose drops.
             foreach (var hit in Physics.OverlapSphere(transform.position, PickupRange))
             {
                 var drop = hit != null ? hit.GetComponentInParent<ItemDrop>() : null;

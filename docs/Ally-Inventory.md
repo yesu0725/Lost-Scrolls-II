@@ -15,7 +15,7 @@ death-drop, totem carry-over and the wood-portal cargo block all passed a live s
 | Req | Behavior |
 |---|---|
 | 1-2 | Each companion has its own **4 columns × 2 rows** (8-slot) inventory. |
-| 3 | The owner opens it with **`Y`** while hovering the companion; the panel carries both the inventory slots **and** a name/rename field (which suppresses all binds while focused). |
+| 3 | The owner opens it with **`Y`** while hovering the companion; the panel carries both the inventory slots **and** a name field with a **Rename/Save** button (all binds are dead while renaming). |
 | 4-6 | The companion **picks up loose items it already carries**; an empty pack picks up nothing; **combat takes priority** over gathering. |
 | 7-10 | **Food:** eats one at a time, gaining a temporary max-HP buff for the food's duration that gradually decays, with a **fed status icon** on its name (a live `HP cur/max` readout in the panel confirms the bump). |
 | 11 | **Health mead:** starts drinking below **35%** HP and keeps sipping until above **90%**. |
@@ -60,16 +60,41 @@ gives a fully wired, correctly themed field instead of a hand-built one. If clon
 ever fails the inventory still opens; only the in-panel rename degrades. Next to the
 name is a live **`HP cur / max`** readout (gold while a food buff is padding max HP).
 
-**Typing suppresses all binds.** While the name field is focused, `Plugin.Update`
-skips our hotkeys (`CompanionInventoryGui.IsTyping`) **and** a
-`ZInput.GetButtonDown` prefix swallows every vanilla button action
-(`CompanionTypingButtonDownPatch`) — otherwise the game still reacted to raw binds it
-knows about (e.g. `InventoryGui.Update` closes the container on the `"Use"` bind = `E`),
-because the injected `GuiInputField` isn't part of the game's chat/console input gate.
+**Renaming is an explicit mode, held open by a button.** The field sits `readOnly`
+with a **Rename** button beside it; clicking arms the field and the button becomes
+**Save**; clicking again (or pressing Enter) commits and it reverts to **Rename**.
+Closing the panel mid-edit cancels.
+
+That button is not decoration — it is the fix. The suppression used to key off
+`TMP_InputField.isFocused`, and a field drops focus for a frame on all sorts of
+things, so a single dropped frame let `E` through to `InventoryGui.Update`, which
+closes the open container on the `"Use"` bind. `CompanionInventoryGui.IsTyping` is
+now the *mode* flag, which covers the whole edit session; the field being read-only
+outside it means a stray click can't start typing without arming the button first,
+which is what keeps the flag honest.
+
+**While that mode is on, all binds are dead — ours, vanilla's, and other mods'.**
+
+Renaming feeds `ModalPanels.AnyOpen`, the one shared gate the tournament and bounty
+panels already use, rather than carrying a second copy of it. Those are **postfixes**
+on `ZInput.GetButton/GetButtonDown/GetButtonUp`, at `Priority.Last`. The shape
+matters: a prefix returning false is skipped the moment another mod's prefix returns
+false first, which is precisely how an earlier version of this gate came to do
+nothing at all on a live server while looking correct in isolation.
+
+That covers everything routed through `ZInput` — including
+`InventoryGui.Update`, which closes the open container on the `"Use"` bind (`E`).
+It does **not** cover other mods, which almost always read
+`UnityEngine.Input.GetKeyDown(someConfiguredKey)` directly. `RenameKeyBlockPatch`
+mutes `Input.GetKey/GetKeyDown/GetKeyUp` (both overloads) for the length of a
+rename and nothing else. Deliberately left alone: mouse buttons, so the Save button
+stays clickable, and `Input.inputString`/the Event queue, which is how
+`TMP_InputField` actually receives characters — muting `GetKey*` does not stop
+typing.
 
 ## Pickup (reqs 4-6)
 
-A **radius sweep** (~8 m), matching the hauling chore's established behavior — the
+A **radius sweep** (~8 m), matching the chore system's own product sweep — the
 companion holds its post and pulls matching loose `ItemDrop`s straight in rather than
 walking to each one (the walk-to-item approach was tried and reverted for hauling at
 the user's request; we stay consistent).

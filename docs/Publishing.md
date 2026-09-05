@@ -94,7 +94,53 @@ the base package stays gameplay-only exactly as it always was.
 - The story content is no longer versioned alongside a package. `guidance/` is the
   distribution point now; keep it in step with the ServerGuide `examples/` source of truth.
 
-## 0.10.0 — release notes and upload order  *(current)*
+## 0.11.0 — release notes and upload order  *(current)*
+
+Cut **2026-09-05**. A chore-system release. **Everything in it was verified in a live
+session before the cut** ([Testing.md](Testing.md) §8g–§8p all passed), across roughly a
+dozen report-and-fix rounds — that is where most of the value is, and the test sections
+are worth reading as a record of what was actually exercised.
+
+**What changed since 0.10.0** (all in the base mod):
+
+- **A chore is a patch of ground, not a station.** One worker tends every job of its kind
+  within `Chores/ChoreWorkRadius` (**20 m**), walking between them. Cooking and brewing
+  merged into one **Provisioning** domain. Patches are **shared** — press the key again to
+  add another ally; recall is done on the companion.
+- **Every chore files its output in a chest** (`ChoreStorage`), preferring one that already
+  holds the item. What counts as a chest is a structural test, not a prefab list — and the
+  exclusions carry the weight (Obliterator, gravestones, ship holds, companion packs,
+  dungeon chests, other players' private chests, other players' wards).
+- **Husbandry moved to the Rogue and now culls**, and **hauling came back as the other half
+  of the same domain** — one worker does both across one patch.
+- **Farming was rebuilt.** Started by putting a **Cultivator in the ally's pack**; plants and
+  harvests in **level-scaled blocks** on a world-aligned grid; one crop per field while the
+  seed lasts, then the next crop; seed from the pack or any chest in range; vanilla's own
+  `Plant.HaveGrowSpace` clearance test, so it never sows into rocks or wild growth.
+- **Companions open doors** (`Door.Open`, never `Door.Interact` — see
+  [Ally-Chores.md](Ally-Chores.md) for why that distinction is load-bearing on a server).
+- **Map pins outlive the companion's zone**, and persist per world+player under
+  `BepInEx/config/LostScrollsII/`.
+- **Stance persists across a relog** (ZDO `DE_Stance`), and starting a chore ends it.
+- **Renaming is an explicit mode** with a Rename/Save button that kills every key while
+  it is armed — including other mods' hotkeys, which read `UnityEngine.Input` directly.
+
+**No ServerGuide release.** The guidance **content** changed (the four caste chore pages
+were rewritten and version-bumped), but it uses only existing triggers and templating, so
+ServerGuide stays at the already-published **0.15.0**. Sync `guidance/` from the source of
+truth and push — that folder is the distribution point.
+
+> The dedicated server's copy of `guidance.companions.yaml` carries two deliberate local
+> edits (`mode: raven` — `rune` on two entries). They were left alone; don't blind-copy the
+> repo file over it.
+
+**Built zip:**
+
+- `Thunderstore files/Lost_Scrolls_II_0.11.0.zip` — one package
+
+**Upload:** Lost Scrolls II 0.11.0. Nothing else.
+
+## 0.10.0 — release notes and upload order
 
 Cut **2026-08-31**. A companion-behaviour release: three fixes reported from live play,
 one data-loss fix, and two features. **Everything in it was verified in a live session
@@ -271,13 +317,13 @@ Copy-Item "E:\Valheim Modding\Dvergr Expanded\src\bin\Release\LostScrollsII.dll"
           "$ls\Lost Scrolls II\LostScrollsII.dll" -Force
 
 # Base mod — the only package now (the Quest pack is discontinued)
-Compress-Archive -Path "$ls\Lost Scrolls II\*"    -DestinationPath "$ls\Lost_Scrolls_II_0.10.0.zip"      -Force
+Compress-Archive -Path "$ls\Lost Scrolls II\*"    -DestinationPath "$ls\Lost_Scrolls_II_0.11.0.zip"      -Force
 # ServerGuide (only when its DLL changed — see the caution below)
 Compress-Archive -Path "$sg\ValheimServerGuide\*" -DestinationPath "$sg\ValheimServerGuide_0.15.0.zip"   -Force
 ```
 
 Produced zips (gitignored):
-- `Thunderstore files/Lost_Scrolls_II_0.10.0.zip`
+- `Thunderstore files/Lost_Scrolls_II_0.11.0.zip`
 - `../Valheim ServerGuide/Thunderstore files/ValheimServerGuide_0.15.0.zip` *(that project
   tracks its zips in git, unlike this one — cut it from there, not here)*
 

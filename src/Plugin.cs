@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
@@ -22,7 +22,7 @@ namespace LostScrollsII
     {
         public const string PluginGuid = "com.lostscrollsii";
         public const string PluginName = "Lost Scrolls II";
-        public const string PluginVersion = "0.10.0";
+        public const string PluginVersion = "0.11.0";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -56,6 +56,10 @@ namespace LostScrollsII
         // recruited companion as its chore worker. See docs/Ally-Chores.md.
         public static ConfigEntry<KeyCode> ChoreAssignKey { get; private set; }
         public static ConfigEntry<float> ChoreAssignRadius { get; private set; }
+        public static ConfigEntry<float> ChoreChestRadius { get; private set; }
+        public static ConfigEntry<float> ChoreWorkRadius { get; private set; }
+        public static ConfigEntry<int> HusbandryCullLimit { get; private set; }
+        public static ConfigEntry<float> ChoreStationReach { get; private set; }
 
         // Phase 6: press while hovering YOUR OWN companion to toggle its duel
         // mode. A duel-mode companion fights other players' duel-mode companions.
@@ -88,6 +92,10 @@ namespace LostScrollsII
         // Feature add: show a live minimap pin at each of the local player's own
         // companions. Client-side, so other players never see your companions.
         public static ConfigEntry<bool> ShowMapPins { get; private set; }
+
+        // The live map-pin tracker, so a companion that is really gone (dead, sealed
+        // into a totem) can tell it to stop remembering where it was.
+        public static CompanionMapPins MapPins { get; private set; }
         // Companion map pins use the vanilla PLAYER icon, tinted + scaled so they
         // read as "your allies" but stay distinct from your own player marker.
         public static ConfigEntry<string> CompanionPinColor { get; private set; }
@@ -280,6 +288,30 @@ namespace LostScrollsII
                 "ChoreAssignRadius",
                 10f,
                 "Max distance from the player to look for a recruited companion to assign to a chore.");
+
+            ChoreWorkRadius = Config.Bind(
+                "Chores",
+                "ChoreWorkRadius",
+                20f,
+                "How wide a patch one companion tends. A chore is a piece of ground, not a single station: the ally works EVERY job of its kind within this radius of the spot you assigned it at, walking between them — one Fire Mage keeps a whole row of smelters, kilns and blast furnaces going, one Support Mage runs the entire kitchen. Also the size of a field, a pen, and the sweep that collects finished goods.");
+
+            HusbandryCullLimit = Config.Bind(
+                "Chores",
+                "HusbandryCullLimit",
+                3,
+                "How many GROWN animals of each kind a husbandry worker leaves in the pen; the surplus is culled and the drops stored. Young are never culled and a pregnant animal is spared while there is any other candidate. Vanilla stops breeding once four of a kind (young included) are close together, so a limit below that is what keeps the herd turning over. 0 disables culling entirely.");
+
+            ChoreStationReach = Config.Bind(
+                "Chores",
+                "ChoreStationReach",
+                3.4f,
+                "How close a working companion must be to a station before it works it — lower means it has to walk right up to the furnace instead of reaching for it from across the room. There is a hard floor of 3.2: vanilla's follow logic stops the ally 3 m from whatever it is walking to, so anything at or below that is a distance it can never close, and the station would be reported unreachable.");
+
+            ChoreChestRadius = Config.Bind(
+                "Chores",
+                "ChoreChestRadius",
+                10f,
+                "How far a working companion looks for a chest — both to STORE what its chore produces (smelted bars, cooked food, tapped mead, harvested crops, eggs) and to DRAW what the chore needs (ore, fuel, seeds, raw food). Any placed storage piece counts: the four chests, carts, barrels, modded chests. Ships, the Obliterator, gravestones and companion packs never do. The nearest chest that already holds the same item wins; if it is full the ally moves to the next one.");
 
             DuelSelectKey = Config.Bind(
                 "Duels",
@@ -668,7 +700,7 @@ namespace LostScrollsII
 
             // Client-side companion map pins (see CompanionMapPins). Lives on the
             // plugin GameObject so it persists across scene loads.
-            gameObject.AddComponent<CompanionMapPins>();
+            MapPins = gameObject.AddComponent<CompanionMapPins>();
 
             // Mends the local player's Follow companions while they rest at camp.
             gameObject.AddComponent<Companions.CompanionRestedHeal>();
@@ -920,11 +952,29 @@ namespace LostScrollsII
                 {
                     hoveredChore.Unassign();
                     MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Ally returns to your side.");
+                    return;
                 }
-                else
+
+                // FARMING is started here rather than at a crop: a field has no
+                // station to hover, so the switch is the Cultivator in the ally's own
+                // pack. Where it is standing becomes the field.
+                if (ChoreAI.CarriesCultivator(hoveredCompanion))
                 {
-                    MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "This ally has no chore to leave.");
+                    if (hoveredCompanion.Caste != DvergrCaste.SupportMage)
+                    {
+                        MessageHud.instance.ShowMessage(MessageHud.MessageType.Center,
+                            "Only a Support Mage can work a field.");
+                        return;
+                    }
+
+                    var farmChore = hoveredCompanion.GetComponent<ChoreAI>()
+                                    ?? hoveredCompanion.gameObject.AddComponent<ChoreAI>();
+                    farmChore.AssignToFarmHere();
+                    MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Ally works this field.");
+                    return;
                 }
+
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "This ally has no chore to leave.");
                 return;
             }
 
@@ -933,68 +983,50 @@ namespace LostScrollsII
             var station = hoverObject.GetComponentInParent<Smelter>();
             var fermenter = station == null ? hoverObject.GetComponentInParent<Fermenter>() : null;
             var cooker = (station == null && fermenter == null) ? hoverObject.GetComponentInParent<CookingStation>() : null;
-            var crop = (station == null && fermenter == null && cooker == null) ? hoverObject.GetComponentInParent<Pickable>() : null;
-            ItemStand farmStand = null;
+            // Farming is NOT assigned from the world any more — it starts from the
+            // companion holding a Cultivator (see the hovered-companion branch above).
             Character animal = null;
             Container haulChest = null;
-            if (station == null && fermenter == null && cooker == null && crop == null)
+            if (station == null && fermenter == null && cooker == null)
             {
-                // A Cultivator on an item stand marks a field to farm (plant + harvest
-                // in radius around the stand). GetAttachedItem() is the item's prefab name.
-                var stand = hoverObject.GetComponentInParent<ItemStand>();
-                if (stand != null && stand.HaveAttachment() && stand.GetAttachedItem() == "Cultivator") farmStand = stand;
+                var ch = hoverObject.GetComponentInParent<Character>();
+                if (ch != null && ch.IsTamed() && ch.GetComponent<DvergrCompanion>() == null) animal = ch;
 
-                if (farmStand == null)
+                // A chest posts a Rogue to clear the ground around it — the same
+                // domain as the herds, so one worker does both.
+                if (animal == null)
                 {
-                    var ch = hoverObject.GetComponentInParent<Character>();
-                    if (ch != null && ch.IsTamed() && ch.GetComponent<DvergrCompanion>() == null) animal = ch;
-                    if (animal == null) haulChest = hoverObject.GetComponentInParent<Container>();
+                    var ct = hoverObject.GetComponentInParent<Container>();
+                    if (ct != null && ChoreStorage.IsStoragePiece(ct)) haulChest = ct;
                 }
             }
-            if (station == null && fermenter == null && cooker == null && crop == null && farmStand == null && animal == null && haulChest == null) return;
+            if (station == null && fermenter == null && cooker == null && animal == null && haulChest == null) return;
 
             // The exact object a chore is claimed against (matches ChoreAI.BeginChore).
             GameObject anchorGo =
                 station != null ? station.gameObject :
                 fermenter != null ? fermenter.gameObject :
                 cooker != null ? cooker.gameObject :
-                crop != null ? crop.gameObject :
-                farmStand != null ? farmStand.gameObject :
                 animal != null ? animal.gameObject :
                 haulChest != null ? haulChest.gameObject : null;
 
-            // Already being tended? Pressing H on a station your OWN ally works
-            // releases it (toggle-off); otherwise report who's on it and refuse —
-            // two companions never share a chore.
-            var existingClaim = ChoreAI.ClaimantOf(anchorGo);
-
-            // Feeding is claimed by RANGE (one mage tends a whole pen), so also treat
-            // any animal already covered by a feeder's radius as claimed — this is
-            // what blocks a second mage on a pen that's already being fed.
-            if (existingClaim == null && animal != null)
-                existingClaim = ChoreAI.FeederCovering(animal.transform.position);
-            if (existingClaim != null)
-            {
-                var holder = existingClaim.GetComponent<DvergrCompanion>();
-                if (holder != null && holder.IsOwner(player))
-                {
-                    existingClaim.Unassign();
-                    MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Ally returns to your side.");
-                }
-                else
-                {
-                    MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, $"{existingClaim.WorkerName} is already working here.");
-                }
-                return;
-            }
-
-            // Smelter-family stations map to Fire/Ice; Provisioning (fermenter/
-            // cooking), Farm and animal-tending are the Support Mage's; Hauling
-            // (a destination chest) is the Rogue's (docs/Ally-Chores.md).
+            // A patch is NOT exclusive any more: pressing the key on a workplace
+            // always puts ANOTHER free ally on it, so several companions can share a
+            // big workshop or a big pen. Recall is the counterpart, and it is done on
+            // the companion (the branch above) — which is unambiguous when more than
+            // one ally is working the same ground, and the old station toggle was not.
+            // Smelter-family stations map to Fire/Ice by theme; provisioning and
+            // the fields are the Support Mage's; the herds are the Rogue's
+            // (docs/Ally-Chores.md).
+            // Provisioning is the Support Mage's; the herds and the ground are the
+            // Rogue's. Spelled out per case rather than left to a fallback: when the
+            // last branch was "everything else is Haul", a hovered cooking station
+            // or fermenter fell through it and started demanding a Rogue.
             DvergrCaste? requiredCaste =
                 station != null ? ChoreRules.RequiredCaste(station) :
-                haulChest != null ? DvergrCaste.Rogue :
-                DvergrCaste.SupportMage;
+                (fermenter != null || cooker != null) ? ChoreRules.RequiredCaste(ChoreAI.ChoreKind.Provisioning) :
+                animal != null ? ChoreRules.RequiredCaste(ChoreAI.ChoreKind.Husbandry) :
+                ChoreRules.RequiredCaste(ChoreAI.ChoreKind.Haul);
 
             // Only the player's OWN, currently-free companions of the right caste
             // are eligible (an ally already on a chore isn't yanked off it).
@@ -1016,33 +1048,26 @@ namespace LostScrollsII
 
             if (station != null)
             {
-                chore.AssignToSmelter(station);
-                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Ally tends the station.");
+                chore.AssignToStations(station);
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Ally tends the stations here.");
             }
-            else if (fermenter != null)
+            else if (fermenter != null || cooker != null)
             {
-                chore.AssignToFermenter(fermenter);
-                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Ally tends the brew.");
-            }
-            else if (cooker != null)
-            {
-                chore.AssignToCooking(cooker);
-                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Ally tends the cookfire.");
-            }
-            else if (crop != null || farmStand != null)
-            {
-                chore.AssignToFarm(crop != null ? crop.gameObject : farmStand.gameObject);
-                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Ally tends the field.");
+                chore.AssignToProvisioning(fermenter != null ? fermenter.gameObject : cooker.gameObject);
+                // The message names WHICH kitchen job it took, because a mage keeps
+                // to the kind of station it was posted at and the player has to know
+                // to staff the rest.
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, chore.ProvisioningLabel());
             }
             else if (animal != null)
             {
-                chore.AssignToFeedAnimals(animal.gameObject);
-                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Ally tends the animals.");
+                chore.AssignToHusbandry(animal.gameObject);
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Ally tends the herd.");
             }
             else
             {
-                chore.AssignToHaul(haulChest);
-                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Ally hauls to this chest.");
+                chore.AssignToHaul(haulChest.gameObject);
+                MessageHud.instance.ShowMessage(MessageHud.MessageType.Center, "Ally clears this area.");
             }
         }
 

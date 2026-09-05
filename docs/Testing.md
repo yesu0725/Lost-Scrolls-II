@@ -170,15 +170,15 @@ Feeding is deliberately **not** owner-gated (unlike stance/rename/chore/duel).
 3. Relog a leveled companion → the bonus should persist (rebuilt on restore) and **not** double up / compound.
 4. All castes should still hit harder at higher levels (vanilla `SetLevel` damage scaling, independent of the above).
 
-## 7. Stance — Follow / Guard / Standby  ✅ PASSED
+## 7. Stance — Follow / Guard / Standby  ✅ PASSED *(step 6 ⏳ unverified)*
 
 1. Hover your companion, press `E` to cycle **Follow → Guard → Standby → Follow** (watch the stance message).
 2. **Guard:** holds its spot, engages threats in a wider radius.
 3. **Standby:** does **nothing** — won't even attack a monster that walks up (until/unless a *player* attacks it, see §7c). Holds position.
 4. Stance changes blocked (with a message) while chore-assigned or dueling.
-5. **Note:** `E` is vanilla "Use" — since a Dvergr has no interaction, hovering it and pressing `E` only cycles stance. Rebind in the config if it conflicts with anything you have.
-
-**Known caveat:** stance is in-memory only — resets to Follow after relog.
+5. **Persistence (2026-09-03)  ✅ PASSED:** set a companion to **Standby** (or Guard), log out and back in — it must still be on that stance, holding the same post, and must **not** have reverted to Follow or walked back to you. Re-check after a zone reload (walk far enough away that its zone unloads, then return). It should **not** re-speak its capability line on the reload. A companion summoned back from a **Communion Totem** correctly starts on Follow (sealing requires Follow).
+6. **Persistence while on a chore (2026-09-03):** leave an ally working a station, log out and back in **within range of that station** — it must stay at its post and resume working. Watch the first few seconds specifically: it must **not** set off toward you first and then turn back (that gap was the bug). Then repeat while standing far enough away that the station's zone unloads, and walk back — same result. Finally, destroy the station while the ally is away, relog, and confirm that after ~60 s it gives up cleanly and drops to **Standby** — holding position, hover shows `Stance: Standby` — rather than standing there passive with no stance or walking back to you. Same expectation when a chore ends **while you watch**: destroy the station (or let a farm worker finish the crop that anchored its field) and it should hold its post on Standby. Only `H` on the companion, or re-assigning its station, brings it back to Follow.
+7. **Note:** `E` is vanilla "Use" — since a Dvergr has no interaction, hovering it and pressing `E` only cycles stance. Rebind in the config if it conflicts with anything you have.
 
 ## 7f. Companion hover tooltip + rename  ✅ PASSED
 
@@ -264,7 +264,7 @@ Feeding is deliberately **not** owner-gated (unlike stance/rename/chore/duel).
 7. Blockers: no chest → "I have no chest for the harvest/seeds."; full chest → "The harvest chest is full!"; no room → "There's no room left to plant."; nothing to do → "No crops are ready, and no seeds to plant."; out of reach → "I can't reach the field."
 8. **Caste-gating:** a Rogue/other caste hovering a crop + `H` → refusal (no Support Mage nearby).
 
-## 8c. Tamed-animal feeding chore (Support Mage)  ✅ PASSED
+## 8c. Tamed-animal feeding chore  ✅ PASSED *(moved to the Rogue at 0.11 — see §8h)*
 
 1. With a **Support Mage**, build a pen of **tamed** animals (boar/wolf/etc.) and a **chest** with food they eat (e.g. carrots) within ~8 m.
 2. **Tooltip:** hover a **tamed animal** → the crosshair shows `[H] Set companion to feed` (your own recruited allies should **not** show it). Press `H` → "Ally tends the animals."
@@ -287,12 +287,246 @@ Feeding is deliberately **not** owner-gated (unlike stance/rename/chore/duel).
 4. **Stone Oven (regression):** assigning a cooking chore to a **Stone Oven** must **not** spam `CookingStation.IsFireLit` NullReferenceExceptions. The oven is its own heat source (`m_requireFire = false`), so the fire check is skipped and it's treated as always lit — it should cook bread/pies normally.
 5. **Stone Oven collection:** confirm the companion **collects the finished food before it burns** (it spawns by the oven). Earlier it would cook but never collect (food burned) because `Interact()` no-ops on the oven's add-food switch; we now call `OnInteract()` directly. (A "+N" bonus-food popup / a tick of your own cooking skill on collection is a known harmless side effect.)
 
-## 8e. Hauling chore (Rogue)  ✅ PASSED
+## 8e. Hauling chore (Rogue)  ✅ PASSED *(reworked at 0.11 into the Rogue's shared domain — see §8h)*
 
 1. Recruit a **Rogue** (`Dverger` — `[recruit]` log shows `caste Rogue`). Drop loose items on the ground within ~10 m of a **chest**.
 2. Hover the **chest**, press `H` → "Ally hauls to this chest."
 3. Confirm it sweeps the loose items into that chest one per tick (the world items disappear, the chest fills, the lid opens on each deposit). It **stays at the chest — it does not walk out to each item**. When the ground is clear it stays quiet.
-4. Blocker: chest full → "The haul chest is full!". Wrong caste (non-Rogue) hovering the chest → "Only a Rogue can do this — none nearby."
+4. Blocker: assigned chest full → it now **spills into the next nearest chest** rather than stopping; only when nothing in range will take the item does it say so (see §8g). Wrong caste (non-Rogue) hovering the chest → "Only a Rogue can do this — none nearby."
+
+## 8g. Chores store what they produce (2026-09-03)  ✅ PASSED
+
+Config: `Chores/ChoreChestRadius` (default 10 m) governs both storing products and drawing inputs.
+
+1. ✅ **Smelter/kiln:** put a chest within 10 m, assign a **Fire Mage**, let the smelter run. The output bars/coal must be **picked off the ground and stowed** rather than piling up. A charcoal kiln's coal likewise.
+2. ✅ **Same-item preference:** put **two** chests in range, one already holding a few of that bar and one empty, with the empty one **nearer**. The output must go to the chest that already holds the bar.
+3. ✅ **Full → next chest:** fill the preferred chest. The ally must move to the next nearest chest with room, without complaining. *(Failed first pass — the `IsInUse` gate hid a chest from the ally the moment it used it. Gate removed; retest.)*
+4. ✅ **All full / none at all:** fill or remove every chest in range → it says *"Every chest here is full!"* or *"I have no chest to store this!"* and **stops feeding the station** until you make room.
+5. ✅ **Cooking:** a Support Mage on a cooking station must stow the finished food (and burnt food) instead of leaving it on the rack area. **Fermenter:** the tapped meads must be collected.
+6. ✅ **Pen:** a feeding worker must stow **eggs** but must **never pick back up the food it just dropped** for the animals — watch for a loop of drop/collect/drop.
+7. ✅ **It must not steal.** Drop some **ore** next to the tended smelter, and a **mead** next to it: neither is that station's output, so both must be left alone. (Loose items near a **haul** worker are still fair game — that's its job.)
+8. ✅ **Never into its own pack:** open the worker's pack (`Y`) at any point — the products must not be in it.
+9. ✅ **Not into the wrong container:** stand an **Obliterator**, a **cart**, a **ship** and (if you can arrange one) a **gravestone** in range. The cart **must** be used; the Obliterator, ship and gravestone must **not**. Another ally standing next to the station must not have goods stuffed into its pack.
+10. ✅ **Ward:** a chest inside **another player's** guard stone must be refused (the ally reports no chest); your **own** warded chests must still work normally — both drawing inputs and storing products. *(Failed first pass: a ward's creator is not in its own permitted list, so the owner's own base blocked everything. Fixed; retest both halves.)*
+11. ✅ **Dedicated server:** repeat 1–3 on the dedicated server with the chest owned by the server (nobody has opened it since the zone loaded). Deposits must **stick** — re-open the chest after a few ticks and after a relog. This is what the ownership claim is for; before it, writes from a non-owning client were silently reverted.
+12. ✅ **Two workers, one chest:** put two chores (say a smelter and a kiln) next to the **same** chest and confirm both allies use it — neither should complain that it has nowhere to store. *(This is the case the removed `IsInUse` gate broke.)*
+13. ✅ **Stance readout:** hover a working ally — the tooltip must say `Stance: On chore`. Recall it (`H`) and it goes back to reading `Follow`.
+
+## 8h. One worker, a whole workshop + the Rogue's herds (2026-09-04)  ✅ PASSED *(7 reworked into §8i; 15/16/22 not run)*
+
+Config: `Chores/ChoreWorkRadius` (default 20 m), `Chores/HusbandryCullLimit` (default 3).
+
+**Multi-station**
+1. ✅ Build **three or more smelters/kilns** spread out to about 15 m apart. Assign one **Fire Mage** by hovering any one of them. It must work **all of them**, walking from one to the next — not just the one you hovered.
+2. ✅ Hover a *different* station in that group: the tooltip must read *"&lt;name&gt; is already working here."*, and pressing `H` on it must recall **your own** worker (toggle-off) rather than assigning a second.
+3. ✅ Put a station **just outside** 20 m of the post — it must be ignored, and offer a normal assign hint.
+4. ✅ **Mixed patch:** stand an **Eitr Refinery** among the smelters. The Fire Mage must leave it alone; an Ice Mage assigned to it must work it (and only it).
+5. ✅ **Stuck station:** empty the chests of one station's ore but leave another's stocked. The worker must voice the shortage once and keep working the *other* stations — not stall on the empty one. After ~60 s it retries.
+6. ✅ **Provisioning is one chore:** hover a cooking station and assign a **Support Mage**. It must also run **fermenters** in the same patch — loading, tapping, and pulling cooked food before it burns.
+7. ❌ **Farm** with a 20 m field — FAILED ("I have no chest to store this"); the chest search was item-only while the patch is twice its radius. Fixed, and the whole farm chore reworked — retest under §8i.
+8. ✅ **The patch outlives its parts.** Harvest the exact crop you assigned at, or tear down the exact furnace you assigned at, leaving others nearby: the chore must **continue**. Only when the last station/crop/animal in radius is gone does it stand down to **Standby**, after ~60 s.
+9. ✅ **Reachability:** wall a station off. After ~30 s the worker says *"I can't reach my station!"*, sets it aside, and moves to another — it must not say this simply for walking across the patch.
+10. ✅ **Relog** mid-round: the worker returns to the same post and resumes the round (§8f still holds).
+
+**Husbandry (Rogue)**
+11. Hovering a tamed animal must offer `[H] Set companion to tend the herd` and require a **Rogue** — a Support Mage must now be refused.
+12. Breed a pen past three grown animals of one kind. The Rogue must **walk up to** one and kill it **in melee** — confirm it closes to arm's reach and never attacks from across the pen.
+13. The cull **drops must be stored** in a chest, including for a species that eats what it drops (a **wolf** is the case that matters — wolf meat is wolf food, and outside the cull window that exclusion is what stops the feeding chore eating its own tail).
+14. **Young are never culled**; a **pregnant** animal is spared while another candidate exists.
+15. Culling must grant the Rogue **no XP** (watch the `★N` badge / `[xp]` log).
+16. Set `HusbandryCullLimit = 0` → no culling at all, feeding continues.
+17. Feeding still works: hungry animals are fed one per tick from a chest, and the ally must **not** pick the food back up.
+
+**Hauling, as the Rogue's other half**
+18. Hover a **chest** — it must offer `[H] Set companion to clear this area` and require a **Rogue**. Hovering an **Obliterator**, a **ship's hold** or a **gravestone** must offer nothing.
+19. A Rogue posted at a chest **with no animals nearby** must behave as a plain hauler: loose items across the patch go into chests, four per tick, and it stays quiet otherwise.
+20. A Rogue posted at an **animal** must ALSO haul — drop loose items in the pen and confirm they are stored without re-assigning anything. Conversely a Rogue posted at a **chest** with a pen in range must also feed and cull. This is the point of the change: one worker, both jobs.
+21. **It must not haul the herd's feed.** Drop carrots (or whatever the herd eats) in a pen the Rogue covers: they must be left on the ground. Then cull an animal — its drops must be stored even when they are also feed (a **wolf** is the case that matters).
+22. A fed, quiet herd must produce **no** "The animals aren't hungry." line while the Rogue is hauling.
+23. **Legacy:** a companion that was on a haul chore before this batch resumes hauling after a relog; one on a cooking/fermenter chore comes back on **Provisioning**.
+
+## 8i. Farming by Cultivator, doors, shared patches, Rename button (2026-09-04)  ✅ PASSED *(7 and 18 failed → fixed, retest under §8l)*
+
+**Farming (reworked)**
+✅ 1. Put a **Cultivator** in a **Support Mage's** pack (`Y`). Hovering it must now offer `[H] Set companion to farm`. A Rogue/Fire/Ice mage carrying one must be refused; a Support Mage without one must show no farm hint.
+✅ 2. Press `H` on the ally standing on tilled ground → *"Ally works this field."* It farms the ground **where it stood**. Press `H` again → recalled.
+✅ 3. **Take the Cultivator out of its pack** while it works → it says so and drops to Standby.
+✅ 4. Hovering a **crop** or a **Cultivator on an item stand** must no longer offer any farm hint.
+✅ 5. **The §8h #7 failure:** a field ~20 m across with the chest by the post. Crops at the **far edge** must be harvested and stored — no *"I have no chest to store this"*.
+6. **One crop per field.** Plant a few carrots, then put carrot AND turnip seed in the chest. It must only ever plant **carrots** there. Clear the bed completely, leave only turnip seed → it may now start a turnip field, and must then stay on turnips.
+7. **Seeds in the pack.** Put seed in the ally's own bag and none in the chest → it plants from the bag. With both, either source is fine.
+8. **Relog on a BARE field** (everything harvested, nothing growing): the chore must resume, not stand the ally down after 60 s. This is the case the cultivated-ground restore check exists for.
+
+**Doors**
+9. Put a closed **wood door** between a worker and its station. It must open the door, walk through, and — once it has moved off and nobody is in the doorway — **close it again**.
+10. A **Follow** companion must do the same following you through your base.
+11. A **locked** door (one that needs a key) must be left alone.
+12. A door inside **another player's** ward must not be opened; your own must.
+13. It must not stand flicking a door open and shut when it has nowhere to go (park a Standby ally next to one).
+14. **Dedicated server:** repeat 9 — this is the path where `Door.Interact` would have thrown on a null local player.
+
+**Shared patches**
+15. Press `H` on the same smelter twice with two free Fire Mages nearby → **both** are assigned and both work the row. The tooltip must read *"2 allies are working here."* and still offer the assign hint.
+16. Recall one of them by pressing `H` **on that ally**; the other keeps working.
+17. Two **Rogues** on one patch full of loose items: everything is stored and **nothing is duplicated** (count a stack before and after — this is what the drop latch guards).
+
+**Rename**
+18. Open a companion's pack (`Y`). The name field must be **read-only** with a **Rename** button beside it.
+19. Click **Rename** → the field arms, the button reads **Save**. Type a name using letters that are also binds (`e`, `y`, `h`, `j`, `k`) → the panel must stay open and nothing must fire.
+20. Click **Save** → the name commits, the floating name and the panel title update, the button reads **Rename** again, and binds work normally.
+21. Pressing **Enter** must commit the same way and reset the button.
+22. Closing the panel mid-rename must not leave your keys dead.
+
+## 8j. Dead keys, the cook's fire, tidy planting, standing at the station (2026-09-04)  ✅ PASSED *(1 and 2 failed → fixed, retest under §8l)*
+
+**Renaming (retest of §8i 18–22)**
+1. Open a companion's pack, click **Rename**, and type a name containing every letter that is also a bind (`e`, `y`, `h`, `j`, `k`, `f`). **Nothing** may fire and the panel must stay open. This is the one that failed before: the gate was a `ZInput` prefix that another mod out-ordered, and it now runs through the shared `ModalPanels` postfix gate instead.
+2. Test it **on the dedicated server with the other server mods loaded**, not only in single player — the failure was caused by another mod's patch order and would not reproduce alone.
+3. Click **Save** → name commits, binds work again immediately.
+
+**Cooking**
+4. Hover a **cooking station** or a **fermenter** → it must ask for a **Support Mage**, not a Rogue.
+5. A campfire cooking station whose fire has **burned out**: the mage must feed the fire **wood from a chest** and carry on cooking, rather than saying "The cooking fire is out!" and stopping.
+6. With no wood anywhere in range it says *"The fire needs Wood!"*.
+7. A hearth that can be **turned off**, left off but fuelled → the mage relights it.
+8. A **Stone Oven** (no fire required) must be unaffected.
+
+**Planting**
+9. A **level 1** Support Mage must plant **4 at a time in a 2x2 block**, not one seed at a time.
+10. The block must be **square and aligned** — successive batches line up into rows with each other and with crops already in the bed. No more scattered planting.
+11. Level the mage past 4, then 7 → the block grows to 3x3, then 4x4.
+12. With fewer seeds than the block needs, it plants what it has and stops cleanly.
+13. A nearly-full field (odd gaps, no room for a whole block) must still get its gaps filled rather than reporting "There's no room left to plant."
+14. Plants must not end up inside each other's grow radius — check none of the new bed is stunted/blocked.
+
+**Standing at the station**
+15. Workers must walk **up to** the furnace/cooker before working it, not service it from across the room.
+16. Set `Chores/ChoreStationReach` to `1` → it must clamp to 3.2 and still work, NOT stall reporting the station unreachable (vanilla's follow stops at 3 m).
+
+## 8k. Caste separation, stance handover, and seeing the whole field (2026-09-04)  ✅ PASSED
+
+**Caste separation** (build a workshop holding BOTH a smelter and an eitr refinery)
+1. Assign a **Fire Mage** at the smelter. It must feed the smelter and **never touch the refinery** — including not collecting the refinery's **eitr** off the ground. Watch the output specifically; that sweep is what made the castes look like they were sharing.
+2. Assign an **Ice Mage** at the refinery. Same in reverse: it must not collect the smelter's bars.
+3. Check the log for one `[chore] station '<prefab>' -> <Caste>` line per station type, and confirm each is what you expect. Include the **charcoal kiln**, **blast furnace**, **spinning wheel** and **windmill**.
+4. A Fire Mage posted in a patch containing **only** refineries must stand down to Standby after ~60 s rather than standing there forever.
+5. Hovering a cooking station or fermenter must ask for a **Support Mage** (retest of §8j #4).
+6. **Legacy records:** a companion that was on a chore its caste no longer does (e.g. a Support Mage saved mid-feeding chore) says *"This is not my craft."* and drops to Standby on its first tick after the update.
+
+**Stance handover**
+7. Set a companion to **Follow**, then start any chore. It must **stop following you immediately** and go to its work. Repeat for **farming** specifically — that is the one that failed, because a farm post has no anchor object to follow instead.
+8. Repeat from **Guard** and **Standby**: starting a chore must override them too.
+9. Recall the ally → back to Follow at your side (or Standby if the chore ended by itself).
+
+**Seeing the whole field**
+10. Stand a farmer at the **edge** of a large (~20 m) field with bare soil at the far end. It must find and plant that ground, not report *"There's no room left to plant."*
+11. **Raised/elevated** cultivated ground (a terraced bed) must be planted normally, and the seedlings must sit on the soil rather than under it.
+12. A bed the **player** planted by hand (not on the mod's grid) with gaps in it: the ally must still fill the gaps one at a time rather than refusing.
+13. On an empty field it must still lay out a **tidy aligned block** (retest of §8j #10).
+
+## 8l. Input gate, pack seeds, burning food, foraging, destroyed stations (2026-09-05)  ✅ PASSED *(9 failed → fixed; 10-12 reworked, see §8m)*
+
+**Input while renaming** *(retest of §8i 18 and §8j 1–2 — both failed before)*
+1. **On the dedicated server, with the full mod set loaded**, open a companion's pack, click **Rename**, and type a name containing `e`. The panel must **not** close. Single player will not reproduce the original failure: it was another mod's `ZInput` prefix out-ordering ours.
+2. Type letters bound to **other mods'** hotkeys — none of them may fire. (This is the half that needed muting `UnityEngine.Input` directly; `ZInput` gating never sees those.)
+3. Click **Save** → the name commits and every key works again immediately, ours and other mods'.
+4. Check nothing is **stuck**: after Save, walk, attack, open the inventory, use a mod hotkey.
+5. Close the panel **mid-rename** (click away / take a portal / die) → keys must come back.
+
+**Pack seeds** *(retest of §8i 7 — failed before)*
+6. Put seed in the ally's **pack only**, with none in any chest → it must plant from the pack.
+7. Seed in the **chest only** → still works.
+8. Both → the pack is used first.
+9. Do 6 again **after a relog**, so the pack contents are rebuilt from the ZDO. That is the case the old prefab-name match failed on.
+
+**Cooking**
+10. Load a cooking station and walk the ally away to a fermenter at the far end of the patch. When the food is done it must **come straight back for it** and nothing may burn.
+11. A **full rack** of done food must be cleared in one visit, not one item per tick.
+12. Nothing burns over a long unattended run with several stations.
+
+**Farming stays in the field**
+13. Post a farmer in a bed surrounded by **wild** ground with stones, branches, dandelions, mushrooms or berry bushes in range. It must harvest **only** the cultivated bed and leave all of it alone.
+14. Crops on cultivated ground are still harvested normally, including at the far edge of a 20 m patch.
+
+**Destroyed stations**
+15. **Destroy a cooking station while an ally is working it.** No `NullReferenceException` in the log, and the ally moves on to another station (or stands down after 60 s if that was the last one).
+16. Same for a smelter and a fermenter.
+
+## 8m. One kitchen job per mage, and pack seeds after a relog (2026-09-05)  ✅ PASSED
+
+**Provisioning stays put** (build a kitchen with a **wood cooking station**, an **iron cooking station**, a **stone oven** and a **fermenter**, all within 20 m)
+1. Assign a mage at a **cooking station** → message reads *"Ally tends the cookfires."* It must work **both** cooking stations and must **never** touch the oven or the fermenter — including not collecting their output off the ground.
+2. Assign a second mage at the **stone oven** → *"Ally tends the oven."* Ovens only.
+3. Assign a third at the **fermenter** → *"Ally tends the brew."* Fermenters only.
+4. All three working at once: nothing burns, nothing is left, and no two allies fight over a station.
+5. Hovering the fermenter must **not** report the oven mage as working there (and vice versa) — coverage is per kind now.
+6. Remove every station of one mage's kind, leaving the others → that mage stands down to Standby after ~60 s; the others carry on.
+7. **Relog** with all three assigned → each returns to its own kind of station.
+8. **Legacy:** a provisioning ally assigned *before this update* keeps working after a relog, and settles onto whichever kind it restored onto rather than continuing to wander.
+
+**Pack seeds after a relog** *(retest of §8l #9 — failed before)*
+9. **Bare field**, seed in the ally's **pack only**, nothing in any chest. Assign the farm chore, then **relog**. It must plant from the pack — this is the case that failed: the empty-bed path resolved seed names through `ObjectDB` at call time, which is not dependable where the chore runs.
+10. Same, but with a crop already growing in the bed → still works (this half always did).
+11. Check the log for `[farm] planting catalog built: N seed→sapling entries (M by shared name)` and that **M is not 0**.
+
+## 8n. Every chest, every seed, and the right biome (2026-09-05)  ✅ PASSED
+
+**Seeds found wherever they are**
+1. Two chests in range of the field: the **nearest** holding only the harvest, a **further** one holding the seed. The farmer must find the seed. (It used to read only the nearest chest — this is the root of most of §8n.)
+2. Seed split across **three** chests → all of it is used.
+3. Seed in the **pack** and none in any chest → still works, bare field and planted field alike.
+
+**Everything plantable**
+4. Check the log for the one-time catalog census: `[farm] planting catalog built: N ...` followed by a `[farm]   <Seed> -> <sapling>` line per entry. Confirm the crops you use are listed — **`CarrotSeeds`, `Carrot`, `TurnipSeeds`, `Turnip`, `OnionSeeds`, `Onion`, `Barley`, `Flax`** should all appear (vanilla has two saplings per root crop: the seed grows the crop, the crop grows more seed).
+5. A field of carrots with **only `Carrot`** (no `CarrotSeeds`) in the chest: it must plant the carrots to make seed, not say *"I've no more seed for this field."*
+6. Barley and Flax (planted as the crop itself, no seed item) must work in the Plains.
+
+**Crop switching**
+7. A carrot field, carrot seed **exhausted**, turnip seed in the chest → it fills the rest of the bed with turnips rather than stopping.
+8. While carrot seed lasts it must **keep planting carrots** — the one-crop preference still holds first.
+
+**Biome message**
+9. Put **Barley** in the chest with a farmer in the **Meadows** → the bubble must name the crop and the biome: *"Barley won't grow here — it needs the Plains."*
+10. A crop that grows anywhere must not produce a nine-biome recital.
+
+**The empty-field case, again**
+11. **Bare cultivated field, nothing growing**, seed in the chest only → plants. Then repeat with seed in the pack only. Then repeat both **after a relog**.
+12. If it still refuses, the `[farm]` log now says why within 30 s — seed types in reach, chests searched, cultivated cells found, clearance budget left. Please include that line.
+13. Watch for frame hitching on a large field: the per-cell ground raycast is gone, so the scan should be noticeably cheaper than the previous build.
+
+## 8o. Harvest by the armful, no planting in rocks, pins that stay (2026-09-05)  ✅ PASSED *(10 failed → fixed, see §8p)*
+
+**Harvest scales with level**
+1. A **level 1** Support Mage must harvest **4** ripe crops per tick, not one.
+2. Level it past 4 and past 7 → 9 then 16, matching what it plants.
+3. Fill the chests mid-harvest → it keeps what it already gathered that tick and only complains when it could store nothing at all.
+4. It must still harvest **only** cultivated ground (§8l #13 still holds).
+
+**No planting into things**
+5. Put **rocks / surface stone** in the middle of a cultivated bed. The farmer must plant around them, never into them.
+6. Same with **wild pickables** (mushrooms, thistle, berry bushes) standing on or beside the bed.
+7. Same with **build pieces** — a fence post, a workbench, a wall corner inside the field.
+8. Cross-check by hand: anywhere the ally plants, **you** must also be able to place that crop yourself. That is now literally the same test (`Plant.HaveGrowSpace`'s mask).
+9. A normal open bed must still fill with a tidy block — the stricter rule must not make it refuse good ground.
+
+**Map pins**
+10. Leave a companion at your base and **sail to the far side of the map**. Its pin must stay on the map the whole way, at the spot you left it.
+11. Return → the pin snaps back to live tracking as it loads.
+12. **Relog** far from that ally → the pin is still there (restored from `BepInEx/config/LostScrollsII/pins.<world>.<playerId>.txt`; the log says `[map] restored N companion pin(s)`).
+13. **Death:** a companion that dies far away loses its live pin and gains the skull death marker — not both.
+14. **Totem:** sealing an ally removes its pin; **summoning it back restores** one.
+15. A second character on the same world must not see the first character's pins.
+16. Another player's companions must still never appear on your map.
+
+## 8p. Every companion gets a pin (2026-09-05)  ✅ PASSED
+
+1. With **three or more** companions out at once — including at least one recruited **before** this week's builds — **every** one of them must have a map pin. (Only the newest showed before: older allies had no `DE_CompanionId`, and the tracker keyed on it.)
+2. Check the log on first load for `[recruit] backfilled a stable id for a legacy companion` — one line per old ally, once ever.
+3. Each pin must carry the **right name**, and follow a rename.
+4. No **doubled** pins: an ally whose id is backfilled mid-session must not end up with two markers at the same spot.
+5. Walk far away → all pins stay (§8o #10 again, now with several allies).
+6. **Relog** far away → all pins are still there. Allies that got their id backfilled are now saved; any still keyed by session only reappear when next seen, which is acceptable and should not leave a **ghost** pin at an empty spot.
+7. Death and totem-sealing still remove the right pin, and only that one.
 
 ## 9. Duels — duel mode (requires **two players**)  ✅ PASSED
 

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using HarmonyLib;
 using LostScrollsII.Companions;
 using UnityEngine;
@@ -25,6 +25,10 @@ namespace LostScrollsII.Patches
             var localOwner = Player.m_localPlayer;
             if (localOwner != null && companion.OwnerId != 0L && companion.IsOwner(localOwner))
                 CompanionMapPins.AddDeathMarker(companion.DisplayName, __instance.transform.position);
+
+                // The live pin is replaced by the death marker; stop remembering
+                // where this ally was, or the map would show both.
+                CompanionMapPins.Forget(companion);
 
             var inv = __instance.GetComponent<CompanionInventory>();
             var inventory = inv != null ? inv.Inventory : null;

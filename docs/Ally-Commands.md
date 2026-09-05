@@ -97,21 +97,49 @@ per-frame target drop (ZDO owner only) for **retention**, because
   - **Butcher-knife betrayal**: if any player (owner included) strikes a companion with a **butcher knife** (`KnifeButcher`), it goes **feral** — `GoFeral` makes `IsHostileTo` return true for *every* player, permanently (until it dies), not timed. A deliberate release action. Detected in `CompanionDamagePatch` by the attacker's equipped weapon name. (A duel-mode companion is immune to player hits, so this only applies outside duel mode — see [Duel-Arena.md](Duel-Arena.md).)
   - The **owner is never** a threat (unless the companion has gone feral).
 - **Busy guard**: stance changes are blocked (with a message) while the companion is chore-assigned ([Ally-Chores.md](Ally-Chores.md)) or actively dueling ([Duel-Arena.md](Duel-Arena.md)), since both of those already drive the companion's `MonsterAI` directly.
-- **No persistence**: like chore assignment, stance is in-memory only (`DvergrCompanion.Stance`) and resets on reload/relog — the companion will need Follow re-issued. Consistent with the existing chore-assignment limitation, not a new gap.
-- **Implementation**: `DvergrCompanion.SetStance()`, called from `Plugin.HandleStanceCycleInput`.
+- **Persistence**: the stance is written to the companion's ZDO (`DE_Stance`) and re-applied by `DvergrCompanion.Awake`, so an ally left on **Guard** or **Standby** is still holding that post after a relog, a server restart or a zone reload. It used to reset to Follow because the stance lived only in memory and the component is rebuilt from scratch on every spawn (same shape as the old "communed Dvergr reverts to uncommuned" bug — see [Ally-Recruitment.md](Ally-Recruitment.md)). Guard/Standby re-anchor their patrol point at the position the ZDO restored them to, which is the post they were left on; a Follow ally's follow target is *not* persisted by vanilla, so `Update()` re-acquires the master as it already did.
+- **Reads as "On chore" while working.** The crosshair tooltip shows `DvergrCompanion.StanceLabel`, which reports **On chore** for an assigned worker instead of whichever stance it held when you assigned it. The stance underneath is inert until the chore ends (stance changes are refused while it works), so showing it only invites the question of why the key does nothing.
+- **Implementation**: `DvergrCompanion.SetStance()` (persist + announce) calls `ApplyStanceToAi()` for the AI half — alert range, follow target, patrol anchor. `Awake` calls `ApplyStanceToAi()` alone, so a reload doesn't replay the capability bark or rewrite the ZDO. Cycling is `Plugin.HandleStanceCycleInput`.
 
 ## Minimap pins — find your companions
 
 - **A live map pin at each of your own companions.** `CompanionMapPins` (a
   component on the plugin GameObject) maintains one vanilla minimap pin per
   companion the **local player owns**, refreshed to the companion's world position
-  ~4×/second and removed when it despawns.
+  ~4×/second.
+- **A pin outlives the companion's zone.** Pins used to be keyed on the live
+  `DvergrCompanion` and dropped the moment it left `DvergrCompanion.All` — which is
+  to say, the moment you walked far enough away for its zone to unload. That is
+  exactly backwards: an ally left tending a smelter at home is the one you want to
+  find from across the map, and it was the only one guaranteed to have no pin. The
+  tracker now keys on the stable **companion id** and remembers where each ally was
+  last seen, so **distance never removes a pin**. A pin goes only when the companion
+  is really gone: it **died** (the death marker takes over), it was **sealed into a
+  totem**, or it stopped being ours. Summoning one back out of its totem restores
+  its pin — seeing it again un-forgets it.
+  - **Keyed on the stable `DE_CompanionId`, with a ZDOID fallback.** That id
+    arrived with the duel ladders, so an ally freed before them carries none until
+    `CommunionService.RestoreCompanion` backfills it on the next spawn — and keying
+    strictly on it meant those companions got **no pin at all** (only the newest
+    recruit showed). The fallback is unique and stable while the world is loaded,
+    which is enough for a pin and deliberately not enough to save: a ZDOID doesn't
+    survive a reload, so a written one would come back as a ghost pin. Session-only
+    keys are excluded from the file, and an entry is retired when the real id
+    arrives so nothing shows twice.
+  - Remembered positions are written to
+    `BepInEx/config/LostScrollsII/pins.<world>.<playerId>.txt`, keyed by world
+    **and** player so one character's allies never show on another's map, so they
+    survive a relog too. Coordinates use `InvariantCulture` — the rule the
+    competitive stores learned the hard way, since a comma-decimal locale would
+    write numbers the next session can't read. The file is disposable: losing it
+    costs one pin that reappears the next time you see that ally.
 - **Private by design.** Map pins are entirely **client-side**, so pinning only
   companions where `DvergrCompanion.OwnerId == the local player` means **another
   player never sees your companions on their map**, and you never see theirs.
   Unowned/legacy allies (no recorded owner) are deliberately **not** pinned.
-- **Transient.** Pins are added with `save = false`, so nothing is written to the
-  map save file; they rebuild cleanly when the `Minimap` is recreated
+- **Transient in the map file.** Pins are added with `save = false`, so nothing is
+  written to Valheim's own map save; the remembered positions above are ours and
+  live in our own file. They rebuild cleanly when the `Minimap` is recreated
   (entering/leaving a world). The pin label follows the companion's display name
   (renames included).
 - **Player-icon look (2026-07-13).** Live companion pins use the vanilla **player

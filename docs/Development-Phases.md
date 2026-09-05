@@ -187,7 +187,7 @@ Tracked so they aren't lost; raised during feedback, deferred for a focused pass
 - ~~**Replace vanilla Dvergr chatter**~~ — **done.** `NpcTalk` is disabled on the freed state; `DvergrCompanion.AnnounceCapability()` speaks stance+caste "what I can do" lines on recruit and on stance change. See [Ally-Commands.md](Ally-Commands.md).
 - **Stance selection menu** — *decided against for now*: kept as the lightweight `E` cycle (consistent with discarding the chore menu). Revisit only if cycling proves clumsy.
 - **Farm replanting** (harvest-only shipped).
-- **Persistence**: chore assignment now **persists** (ZDO kind + target world position, re-resolved by proximity on spawn, owner-gated, resumes after relog/zone reload). **Stance** is still in-memory only.
+- **Persistence**: chore assignment persists (ZDO kind + target world position, re-resolved by proximity on spawn, owner-gated, resumes after relog/zone reload), and **stance** now persists too (ZDO `DE_Stance`, re-applied on spawn).
 
 ## Phase 8 — Polish & Release
 

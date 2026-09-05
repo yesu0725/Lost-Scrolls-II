@@ -11,7 +11,7 @@ Lost Scrolls II is a spiritual sequel to the deprecated Thunderstore mod **Lost 
 - **[Companion Commands](Companion-Commands)** — the hotkeys: feed/heal, stance (Follow/Guard/Standby), rename, and travelling with you by ship and portal.
 - **[Companion Inventory](Companion-Inventory)** — each ally's own pack: open it with `Y`, and let it pick up loot, eat food, drink meads, and carry your gear (within a weight limit). Also covers **moving the chest/storage window** wherever you want it.
 - **[Companion Leveling](Companion-Leveling)** — how allies earn XP, grow stronger, and show their level.
-- **[Companion Chores](Companion-Chores)** — put allies to work at vanilla workstations: smelting, refining, cooking, brewing, farming, animal care, and hauling.
+- **[Companion Chores](Companion-Chores)** — put allies to work at vanilla workstations: smelting, refining, cooking, brewing, farming, herding, and hauling. One ally covers every job in a 20 m patch.
 - **[Dvergr Duels](Dvergr-Duels)** — non-lethal companion-vs-companion sparring between players.
 - **[Rankings](Rankings)** — the persistent duel and party ladders, the `F6` board, and party names.
 - **[Tournaments](Tournaments)** — bracket competitions: enter by locking a companion's totem into a slot (`F7`).

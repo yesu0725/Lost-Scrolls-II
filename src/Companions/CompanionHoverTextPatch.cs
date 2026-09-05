@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using LostScrollsII.Companions;
 
 namespace LostScrollsII.Patches
@@ -20,12 +20,8 @@ namespace LostScrollsII.Patches
             if (companion == null) return;
             if (!companion.IsOwner(Player.m_localPlayer)) return;
 
-            string stance =
-                companion.Stance == CompanionStance.Guard ? "Guard" :
-                companion.Stance == CompanionStance.Standby ? "Standby" : "Follow";
-
             __result +=
-                $"\n<color=#9FD0FF>Stance: {stance}</color>" +
+                $"\n<color=#9FD0FF>Stance: {companion.StanceLabel}</color>" +
                 $"\n<color=yellow>[{Plugin.StanceCycleKey.Value}] Cycle stance</color>" +
                 $"\n<color=yellow>[{Plugin.InventoryKey.Value}] Inventory / rename</color>";
 
@@ -43,8 +39,13 @@ namespace LostScrollsII.Patches
             }
 
             // Only advertise the chore recall while the ally is actually on a chore.
+            // Otherwise, a Support Mage carrying a Cultivator can be set to farm the
+            // ground it is standing on — the one chore with no station to hover, so
+            // the tool in its pack is the switch (see ChoreAI.CultivatorItem).
             if (__instance.GetComponent<ChoreAI>()?.IsAssigned == true)
                 __result += $"\n<color=yellow>[{Plugin.ChoreAssignKey.Value}] Recall from chore</color>";
+            else if (companion.Caste == DvergrCaste.SupportMage && ChoreAI.CarriesCultivator(companion))
+                __result += $"\n<color=yellow>[{Plugin.ChoreAssignKey.Value}] Set companion to farm</color>";
 
             // Setting 4: surface the duel key when a duel is actually possible —
             // i.e. another player's companion is in range to fight. Show the

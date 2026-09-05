@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.11.0
+
+**The chore system grew up.** One ally now runs a whole workshop instead of one machine, the Rogue took over the herds, and the farmer learned to actually farm.
+
+### One worker, a whole workshop
+
+- **A chore is a patch of ground, not a station.** Post an ally at a smelter and it tends **every** smelter, kiln and blast furnace within about 20 metres, walking from one to the next. One Support Mage runs a whole kitchen. (Tunable: `Chores/ChoreWorkRadius`.)
+- **Several allies can share one patch.** Press the chore key again to add another worker to the same ground. To take one off, press it on **that ally**.
+- **A stuck machine no longer starves the rest.** A furnace with no ore anywhere, or a brew left open to the sky, is set aside for a minute while the worker gets on with the others — and it tells you what was wrong.
+- **The post outlives its parts.** Harvest the crop you assigned at, cull the animal, tear down one furnace of six: the chore carries on. It ends when you recall the ally, or when nothing of its kind has been there for a minute.
+- **Workers stand at the machine** they're working instead of reaching for it from across the room.
+- **Doors are no longer a wall.** Allies open a closed door in their way and shut it behind them. Locked doors and other people's warded doors are left alone.
+
+### Everything a chore makes goes into a chest
+
+- Smelted bars, cooked food, burnt food, tapped mead, eggs, the harvest — none of it is left on the floor now. The ally files it in the **nearest chest that already holds that item**, moves to the next one when that fills, and tells you when nothing will take it.
+- **Chests, barrels and carts all count.** The Obliterator, gravestones, ship holds, other players' personal chests and chests inside someone else's ward never do.
+- It only stows **what the station makes** — ore you dropped beside a smelter is left alone.
+
+### The Rogue keeps the herds, and clears the ground
+
+- **Husbandry moved from the Support Mage to the Rogue**, and it now **culls**. It leaves three grown animals of each kind, spares the young and the pregnant, kills with a blade at arm's reach — never at range — and stores the meat and hides. Valheim stops a pen breeding at four of a kind, so that turnover is what keeps it producing. (Tunable: `Chores/HusbandryCullLimit`; `0` disables culling.)
+- **Hauling is the same job.** Post a Rogue at an animal or at a chest and it does both: tends the herd **and** sweeps loose items into your chests.
+- The one thing it leaves lying is food the herd eats. That was put there on purpose.
+
+### Farming, properly
+
+- **Give the mage a Cultivator** and press the chore key on the **ally itself** — a field is ground, not a machine, so the tool is the switch. Take the Cultivator back and it stops.
+- **It plants a tidy square block**, aligned to a grid, and lines its rows up with what's already in the bed. A new farmer sows 2×2; the block grows as it **levels**, and it **harvests by the same armful**.
+- **One crop per field** while the seed lasts — and when that seed runs out it fills the rest of the bed with whatever else it can reach, rather than standing idle.
+- It takes seed from **its own pack first, then every chest in range**, and it only plants where **you** could have planted by hand: around rocks, wild growth and build pieces, never into them.
+- It harvests the **field**, not the countryside — no more stripping the stones, mushrooms and dandelions around your bed.
+- If a seed can't grow where you've posted it, it says so **and names the biome**.
+
+### Kitchen work
+
+- **A mage keeps to one kind of station**: the cookfires, *or* the stone oven, *or* the fermenters. A cook that wanders is never where the food is when it finishes. Staff the rest with more allies.
+- **Nothing burns.** A station holding finished food jumps the queue, a visit clears the whole rack, and the ally checks back every second while anything is waiting.
+- **The cook keeps its own fire in**, feeding it wood from a chest and relighting a hearth that went out.
+
+### Companions on the map
+
+- **A pin never disappears just because you walked away.** The ally you left tending a smelter at home stays on your map at the spot you left it — across the world, and across a relog. A pin goes only when the companion really is gone: it died, or you sealed it into a totem. Summon it back and its pin returns.
+
+### Fixes
+
+- **Renaming a companion no longer fires your hotkeys.** Typing a name with `E` in it closed the panel; letters bound to other mods set those off. The name field is now read-only until you click **Rename**, and while you're typing every key is dead until you click **Save**.
+- **Stances survive a relog.** An ally left on Guard or Standby stayed there; it used to come back on Follow. Chore workers too — they no longer walk home for a moment before returning to work.
+- **Starting a chore ends the stance** the ally was in, so a Follow companion stops trailing you the moment it gets to work.
+- **The castes stopped sharing chores.** A Fire Mage was collecting the eitr refinery's output and an Ice Mage the smelter's bars.
+- **A chore that ends by itself leaves the ally on Standby**, holding its post, instead of walking home. Only a recall you issued brings it back to your side.
+- **Your own warded base no longer blocks your own allies** from using its chests.
+- Fixed a crash when a cooking station was destroyed under a working companion.
+
 ## 0.10.0
 
 **Your companions stay with you now** — by your side in a fight, mended at your fire, and along for the ride through more kinds of portal.

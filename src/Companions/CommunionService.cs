@@ -1,4 +1,4 @@
-using LostScrollsII.Integration;
+﻿using LostScrollsII.Integration;
 using UnityEngine;
 
 namespace LostScrollsII.Companions
@@ -201,6 +201,7 @@ namespace LostScrollsII.Companions
                 companion = target.gameObject.AddComponent<DvergrCompanion>();
             }
             if (target.GetComponent<ShipRideAI>() == null) target.gameObject.AddComponent<ShipRideAI>();
+            if (target.GetComponent<CompanionDoorOpener>() == null) target.gameObject.AddComponent<CompanionDoorOpener>();
             if (target.GetComponent<CompanionInventory>() == null) target.gameObject.AddComponent<CompanionInventory>();
             companion.SetCaste(caste);
             if (recruiter != null)
@@ -258,9 +259,30 @@ namespace LostScrollsII.Companions
             {
                 target.gameObject.AddComponent<DvergrCompanion>();
             }
+
+            // BACKFILL THE STABLE ID. DE_CompanionId arrived with the duel ladders
+            // (docs/Ranking.md), so an ally freed before that has none — and
+            // anything keyed on it silently skips that companion. It cost the
+            // ladder a record; it cost the map a PIN, which is how it was finally
+            // noticed (only the newest ally showed up). Assign one on the owner as
+            // soon as the companion loads, so an old ally becomes a full citizen
+            // rather than staying invisible to every id-keyed feature.
+            if (znv.IsOwner())
+            {
+                var identity = target.GetComponent<DvergrCompanion>();
+                if (identity != null && string.IsNullOrEmpty(identity.CompanionId))
+                {
+                    identity.EnsureCompanionId();
+                    Plugin.Log.LogInfo($"[recruit] backfilled a stable id for a legacy companion at {target.transform.position}.");
+                }
+            }
             if (target.GetComponent<ShipRideAI>() == null)
             {
                 target.gameObject.AddComponent<ShipRideAI>();
+            }
+            if (target.GetComponent<CompanionDoorOpener>() == null)
+            {
+                target.gameObject.AddComponent<CompanionDoorOpener>();
             }
             if (target.GetComponent<CompanionInventory>() == null)
             {

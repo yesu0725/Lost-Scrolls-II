@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using LostScrollsII.Integration;
 using UnityEngine;
 
@@ -18,6 +18,10 @@ namespace LostScrollsII.Companions
         public const string ZdoKeyOwner = "DE_Owner";
         public const string ZdoKeyOwnerName = "DE_OwnerName";
         public const string ZdoKeyName = "DE_Name";
+        // Commanded stance (Follow/Guard/Standby as an int). Persisted so an ally
+        // left on Standby or Guard is still holding that post after its owner
+        // relogs, instead of silently reverting to Follow — see SetStance.
+        public const string ZdoKeyStance = "DE_Stance";
         // Stable per-companion identity for the duel ladders (docs/Ranking.md).
         // A GUID assigned at recruit and carried through the Communion Totem's
         // m_customData — unlike a ZDOID, it survives seal/summon and relog, so it
@@ -184,6 +188,10 @@ namespace LostScrollsII.Companions
         // despawn (claim ownership so the destroy replicates).
         public void DespawnToTotem()
         {
+            // Sealed into a totem: it is genuinely off the map now, which is a
+            // different thing from being out of render range (CompanionMapPins).
+            CompanionMapPins.Forget(this);
+
             var znv = GetComponent<ZNetView>();
             if (znv != null && znv.IsValid()) { znv.ClaimOwnership(); ZNetScene.instance.Destroy(gameObject); }
             else UnityEngine.Object.Destroy(gameObject);
@@ -313,6 +321,16 @@ namespace LostScrollsII.Companions
                 _ownerName = _znv.GetZDO().GetString(ZdoKeyOwnerName, null);
                 _customName = _znv.GetZDO().GetString(ZdoKeyName, null);
                 _companionId = _znv.GetZDO().GetString(ZdoKeyCompanionId, null);
+                Stance = (CompanionStance)_znv.GetZDO().GetInt(ZdoKeyStance, (int)CompanionStance.Follow);
+
+                // A chore persisted on the ZDO makes this ally a worker again from
+                // frame one. ChoreAI only resolves the actual station a few frames
+                // later (its zone may still be streaming in), and for that whole gap
+                // the companion would otherwise read as "no chore" — which, for the
+                // usual Follow stance, means Update() walks it back to its master and
+                // off the post it was left at. ChoreAI hands ChoreActive back when it
+                // resumes the chore, or clears it if the target never turns up.
+                ChoreActive = ChoreAI.HasPersistedChore(_znv);
 
                 // Re-apply the persisted level on load — Character.SetLevel isn't
                 // itself persisted by vanilla for non-star creatures, so this
@@ -334,6 +352,19 @@ namespace LostScrollsII.Companions
                 _baseAlertRangeCaptured = true;
                 _baseRandomMoveRange = _ai.m_randomMoveRange;
                 _baseRandomMoveRangeCaptured = true;
+
+                // Re-apply the stance the owner left it in. Must run AFTER the base
+                // ranges above are captured (Guard/Standby are expressed as multiples
+                // of them), and without the capability bark SetStance plays — this is
+                // a reload, not a new order. The follow target is left null: Update()
+                // re-acquires the master for a Follow ally (vanilla doesn't persist
+                // m_follow), while Guard/Standby anchor on the position the ZDO
+                // restored them to, which is the post they were left holding.
+                ApplyStanceToAi(null);
+
+                // A worker stays passive regardless of its stance (BeginChore does
+                // the same on a live assignment).
+                if (ChoreActive) SetPassive(true);
             }
             ApplyMovementTweaks();
         }
@@ -352,6 +383,18 @@ namespace LostScrollsII.Companions
         // While true (chore-assigned) the companion is passive like Standby: no
         // proactive target acquisition — only retaliation. ChoreAI toggles it.
         public bool ChoreActive { get; set; }
+
+        // The stance as the PLAYER sees it. A working ally reports "On chore"
+        // rather than whichever stance it happened to hold when you assigned it:
+        // the chore is what it is actually doing, the stance underneath is inert
+        // until the chore ends (and stance changes are refused while it works), so
+        // showing that stance only invites the question of why pressing the key
+        // does nothing.
+        public string StanceLabel =>
+            ChoreActive ? "On chore"
+            : Stance == CompanionStance.Guard ? "Guard"
+            : Stance == CompanionStance.Standby ? "Standby"
+            : "Follow";
 
         // Inventory status flags, set each tick by CompanionInventoryAI (on the
         // ZDO-owner client) and read by the name-badge / status-icon patches.
@@ -854,9 +897,11 @@ namespace LostScrollsII.Companions
             }
         }
 
-        // Feature add: Follow/Guard command. In-memory only — like chore
-        // assignment (see docs/Ally-Chores.md), this does not persist across
-        // reload/relog; the companion resets to Follow on reload. Guard clears
+        // Feature add: Follow/Guard command. PERSISTED on the companion's ZDO
+        // (ZdoKeyStance) and re-applied by Awake, so an ally left on Guard or
+        // Standby is still holding that post after a relog / zone reload rather
+        // than reverting to Follow (which used to happen because the stance lived
+        // only in memory and the component is rebuilt on every spawn). Guard clears
         // the follow target, anchors a patrol point at the companion's current
         // position, and widens its alert range so it proactively engages threats
         // near its post instead of only what wanders directly into it.
@@ -869,8 +914,16 @@ namespace LostScrollsII.Companions
         {
             Stance = stance;
             _stoodDown = false;   // a deliberate stance change is a fresh episode
+            if (_znv != null && _znv.IsValid()) _znv.GetZDO().Set(ZdoKeyStance, (int)stance);
             AnnounceCapability();
+            ApplyStanceToAi(followTarget);
+        }
 
+        // The AI half of a stance: alert range, follow target and patrol anchor.
+        // Split out of SetStance so the persisted stance can be re-applied on spawn
+        // without re-announcing it or re-writing the ZDO.
+        private void ApplyStanceToAi(GameObject followTarget)
+        {
             if (_ai == null) return;
 
             if (!_baseAlertRangeCaptured)
@@ -879,7 +932,7 @@ namespace LostScrollsII.Companions
                 _baseAlertRangeCaptured = true;
             }
 
-            switch (stance)
+            switch (Stance)
             {
                 case CompanionStance.Follow:
                     _ai.m_alertRange = _baseAlertRange;
@@ -937,7 +990,7 @@ namespace LostScrollsII.Companions
                 case DvergrCaste.FireMage:    skill = "tend smelters, kilns and forges"; break;
                 case DvergrCaste.IceMage:     skill = "run the refineries"; break;
                 case DvergrCaste.SupportMage: skill = "farm, cook, brew and tend the beasts"; break;
-                default:                      skill = "haul loose drops to a chest"; break; // Rogue
+                default:                      skill = "tend the herds and clear the ground into your chests"; break; // Rogue
             }
 
             string line;

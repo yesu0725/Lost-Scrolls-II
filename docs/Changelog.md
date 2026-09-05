@@ -7,6 +7,778 @@ marked passed** — assume "unverified in a live session" otherwise.
 
 ---
 
+## Only one companion had a map pin (2026-09-05)  ✅ VERIFIED
+
+§8o #10: with several allies out, exactly one showed on the map.
+
+The tracker keys pins on `DE_CompanionId`, and skipped any companion that hadn't
+got one. **That id arrived with the duel ladders**, so every ally freed before then
+carries none — its own doc comment says as much ("may be null for a legacy
+companion"). Only the newest recruit had an id, so only the newest recruit had a
+pin. The same gap had been quietly costing those allies a ladder record too; the
+map is just where it became visible.
+
+Two fixes, because either alone leaves a hole.
+
+**The id is backfilled on spawn.** `CommunionService.RestoreCompanion` now assigns
+one (on the ZDO owner) to any companion that lacks it, so an old ally becomes a
+full citizen of every id-keyed feature rather than staying invisible to all of
+them. One log line records it.
+
+**And the pin no longer requires one.** The key falls back to the **ZDOID**, which
+is unique and stable for as long as the world is loaded. That is enough for a pin
+and deliberately *not* enough to write down: ZDOIDs go through the connection/remap
+system and don't survive a reload — the same reason chores persist a position
+rather than a ZDOID — so a saved one would come back as a ghost pin pointing at
+nothing. Session-only keys are excluded from the save file, and an ally whose real
+id arrives mid-session has its session-keyed entry retired so it doesn't show twice.
+
+See [Ally-Commands.md](Ally-Commands.md) and [Testing.md](Testing.md) §8p.
+
+---
+
+## An armful at a time, vanilla's own grow-space rule, and pins that stay put (2026-09-05)  ✅ VERIFIED
+
+### Harvesting scales with level, like planting
+
+A level-10 farmer that sows twenty-five crops in a pass and then picks **one** every
+five seconds is a strange sort of expert. The harvest now takes the same block size
+the ally plants: `PlantBlockSide()` squared, so 4 at level 1 rising with the same
+curve. If storage fills mid-armful it keeps what it has gathered rather than
+throwing the lot away, and only complains when it could store nothing at all.
+
+### It was planting into rocks because our clearance test was too kind
+
+`IsSpotClear` looked for a `Plant` or an unharvested `Pickable` within the grow
+radius. Vanilla's own `Plant.HaveGrowSpace` rejects **any** collider on
+`Default / static_solid / Default_small / piece / piece_nonsolid` unless it is an
+unhealthy plant — rocks, build pieces, wild growth, fallen logs, all of it. So the
+ally was allowed to sow where the player could not, which is how crops ended up in
+rocks and wild pickables.
+
+The check is now vanilla's, mask and all. The right standard for a chore is "only
+where you could have planted it by hand", and the cheapest way to be sure of that
+is to run the game's own rule rather than an approximation of it. (The vines clause
+is not replicated: `m_growRadiusVines` is zero on every crop, and a vine sapling is
+not something a field chore plants.)
+
+### Map pins outlive the companion's zone
+
+Pins were keyed on the live `DvergrCompanion` and dropped the moment it left
+`DvergrCompanion.All` — which is to say, the moment its zone unloaded. That is
+exactly backwards: an ally left tending a smelter at home is the one you actually
+want to find from across the map, and it was the only one guaranteed to have no pin.
+
+The tracker now keys on the stable **companion id** and remembers where each ally
+was last seen, so distance never removes a pin. A pin is dropped only when the
+companion is really gone: it **died** (the death marker takes over), it was
+**sealed into a totem**, or it stopped being ours. Summoning one back out of its
+totem restores its pin — seeing it again un-forgets it, so a seal isn't permanent as
+far as the map is concerned.
+
+Remembered positions are written to a small text file under BepInEx's config folder
+(`LostScrollsII/pins.<world>.<playerId>.txt`), keyed by world **and** player so one
+character's allies never show on another's map. Coordinates are written with
+`InvariantCulture`, the rule the competitive stores learned the hard way: a
+comma-decimal locale would otherwise write numbers the next session can't read. The
+file is disposable — losing it costs one pin that reappears the next time you see
+that ally.
+
+See [Ally-Chores.md](Ally-Chores.md), [Ally-Commands.md](Ally-Commands.md) and
+[Testing.md](Testing.md) §8o.
+
+---
+
+## The farmer only ever looked in one chest (2026-09-05)  ✅ VERIFIED
+
+Four farming reports, and the first one explains most of the others.
+
+### It only read the NEAREST chest
+
+`PlantableSeedsInReach`, `HasSeedFor` and `ConsumeSeed` all went through
+`ChoreStorage.NearestSource` — one chest. In a real base the nearest chest to a
+field is the one the **harvest** goes into, and the seed chest is the one behind
+it. So seeds "weren't recognised", and an empty bed with seed a metre further away
+reported nothing to plant. All three now walk **every** chest in range, the same
+way the smelter chore always has.
+
+The chest list is resolved at most once a second while they do, because planting a
+block calls `ConsumeSeed` once per seed — up to 25 times for a level-10 farmer —
+and each of those was running its own overlap query for a list that cannot have
+changed.
+
+### A field whose crop runs out now switches crop
+
+"One crop per field" was enforced as an absolute: if the bed grew carrots and there
+were no carrot seeds left, the ally said *"I've no more seed for this field."* and
+stopped, however much other seed was sitting in the chest. It is now a
+**preference paid for out of the seed supply** — the field's own crop is tried
+first, and anything else in reach after that. A bed gets filled rather than left
+half empty.
+
+This also fixes carrots, turnips and onions specifically. Vanilla has **two**
+saplings per root crop — `CarrotSeeds` grows a carrot, and a `Carrot` grows *more
+seed* — so a field of carrots with only `Carrot` in the chest had a perfectly good
+thing to plant and refused it, because that thing wasn't "the field's crop".
+
+### A wrong-biome seed now says which biome
+
+*"These seeds won't grow in this land"* left the player to work out which seed and
+which land. It now reads, e.g., **"Barley won't grow here — it needs the Plains."**
+`Plant.m_biome` is a flags mask, so a crop with more than one home names them all,
+and a crop that grows everywhere doesn't recite nine biomes.
+
+### The soil scan stopped raycasting the whole patch
+
+`Heightmap.IsPointInside` ignores y entirely and `IsCultivated` samples the paint
+mask by world x/z, so deciding whether a cell is soil never needed a ground height
+at all. The scan was taking one **raycast per cell** — thousands per tick across a
+20 m patch, nearly all of them on bare grass — before asking the cheap question.
+Cheap tests first; the raycast is now paid only for cells that turn out to be soil.
+
+### Diagnostics, because this one keeps coming back
+
+"It won't plant on an empty field" has now been chased through three separate
+causes, each costing a full test pass to narrow down. The catalog logs its full
+census once (`[farm]   CarrotSeeds -> sapling_carrot`), and a farm tick that does
+nothing logs why at most once every 30 s, with the numbers that actually settle it:
+seed types in reach, chests searched, cultivated cells found, clearance budget left.
+
+Also hardened: the catalog now takes **only the first** `Piece.m_resources` entry.
+Every vanilla sapling costs exactly one item and that item is its seed; mapping all
+of them would let a modded plant that also costs Wood register "Wood" as a seed,
+and the farmer would plant trees out of your firewood.
+
+See [Ally-Chores.md](Ally-Chores.md) and [Testing.md](Testing.md) §8n.
+
+---
+
+## A cook keeps to one kind of station; the seed catalog stopped asking ObjectDB (2026-09-05)  ✅ VERIFIED
+
+### Provisioning is three jobs, not one
+
+Reported as "passed but risky": a Support Mage that roams between the cookfires,
+the stone oven and the fermenters is out of position whenever a rack finishes, and
+the only reason nothing burned in testing is the 1 s urgent tick added the day
+before. Cooking now **stays where it was posted**. A mage assigned at a cooking
+station works cooking stations; one assigned at a stone oven works ovens; one
+assigned at a fermenter brews. You staff the rest of the kitchen with more allies,
+which the shared-patch change already allows.
+
+The split is taken from vanilla's own **`CookingStation.m_requireFire`** rather than
+a list of prefab names: the wood and iron cooking stations cook over a fire, the
+stone oven is its own heat source and leaves its fire-check points unconfigured
+(the same flag behind the old Stone Oven `IsFireLit` crash). So "wood and iron
+together, oven separate" falls out of the game's own data.
+
+The chosen kind is persisted (`DE_ChoreVariant`) and gates every sweep that walks
+the patch — the job search, the product sweep, the burning check, has-this-patch-
+work, and restore — the same set of places the Fire/Ice split had to be applied to.
+Coverage reporting knows about it too: a mage on the ovens is not "working here" as
+far as a fermenter is concerned. A chore saved before the split carries variant
+`Any`, and **adopts the kind of station it restores onto** rather than staying
+unspecialised, so an existing kitchen ally settles into one job.
+
+### Pack seeds, properly this time
+
+§8l #9 still failed: after a relog, a farmer with seed only in its pack wouldn't
+plant — but once a crop was in the ground it would. That split is the tell. The
+has-a-crop path asks "find me the seed for THIS sapling" and was already matching
+on the shared name; the **empty-bed** path asks the reverse, "what could I plant
+with what I'm holding", and resolved shared names through
+`ObjectDB.instance.GetItemPrefab(...)` at call time — not dependable where the chore
+actually runs.
+
+`PlantingCatalog` now captures **both directions at build time**. The seed's
+`ItemDrop` is already in hand while the catalog walks each sapling's `Piece`
+resources, so its shared name is recorded right there and no lookup is needed
+later. Four maps, all O(1), no ObjectDB.
+
+See [Ally-Chores.md](Ally-Chores.md) and [Testing.md](Testing.md) §8m.
+
+---
+
+## The input gate was the wrong shape, seeds were keyed on the wrong name (2026-09-05)  ✅ VERIFIED
+
+Five reports from a live session.
+
+### `E` still closed the panel, and other mods' hotkeys still fired
+
+Two halves, and I had only half a fix for one of them.
+
+**Vanilla's half.** The three `ZInput` gates were **prefixes returning false**, and
+Harmony skips the remaining prefixes as soon as one of them returns false — so a
+competing mod's prefix suppressed ours entirely and `InventoryGui.Update` went on
+reading `GetButtonDown("Use")` and hiding the container. What makes this galling is
+that `ModalPanels`' own comment already says this gate has to be a postfix, and
+records *why*; the code underneath it never was one. It is now, at
+`Priority.Last`, so a later postfix from another mod can't put the button back
+either. Nothing new was written for renaming — it goes through the same shared
+gate, which is the point.
+
+**Everyone else's half.** A BepInEx mod with its own hotkey reads
+`UnityEngine.Input.GetKeyDown(someKey)` directly, and no amount of `ZInput` gating
+touches that. New `RenameKeyBlockPatch` mutes `Input.GetKey/GetKeyDown/GetKeyUp`
+(both the `KeyCode` and `string` overloads) **only while a rename is armed**.
+Deliberately not muted: mouse buttons, which is how the Save button is clicked, and
+`Input.inputString`/the Event queue, which is how `TMP_InputField` actually receives
+characters — muting `GetKey*` does not stop typing.
+
+### Seeds in the pack were invisible to the farmer
+
+Keyed on `m_dropPrefab.name`. That is not a safe key for an item sitting in an
+inventory: `Inventory.Load` rebuilds each stored item by instantiating its prefab
+and keeping the clone's `ItemData`, so `m_dropPrefab` can be null or point at a
+`"(Clone)"`-suffixed object. Chest seeds happened to survive it; pack seeds did
+not. Matching is now on **`m_shared.m_name`** — the identity vanilla itself stacks
+on, always populated and never decorated, and already what `ChoreStorage.Holds` and
+`CompanionInventory.Holds` use. The prefab name is still accepted as a fallback,
+clone suffix tolerated, so nothing that used to match stops matching.
+
+### The cook let food burn
+
+The round is a 5 s tick across a patch up to 20 m wide, so a cook could walk past
+finished meat to go and load a fermenter. Three changes: a station **holding a done
+item jumps the queue** in `FindNextJob`, ahead of distance entirely; a visit
+**clears every done slot** rather than one per tick (a full rack used to burn from
+the bottom up while the ally collected the top one and left); and while anything is
+cooked and waiting the round ticks at **1 s** instead of 5.
+
+That last one is written as two early-outs rather than the obvious ternary, because
+the obvious form asks "is anything burning?" — an overlap query across the patch —
+on **every frame**.
+
+### The farmer was foraging
+
+`Pickable` is the same component behind stones, branches, dandelions, mushrooms and
+berry bushes, so a farmer working a 20 m patch in the Meadows stripped the wild
+ground around its bed. The harvest now requires **cultivated soil under the crop**:
+nothing wild grows on tilled ground, so that one test separates a field from a
+forage.
+
+### `NullReferenceException` in `CookingStation.GetFreeSlot`
+
+Reported after a cooking station was destroyed under a working ally. A station
+being torn down stays reachable through its colliders for a frame or two after its
+ZDO has gone, and asking such a station anything walks into vanilla's own null
+dereference. `InPatch<T>` now filters on a **valid `ZNetView`**, which fixes it for
+every caller at once rather than per question, and the three `WantsWork` probes
+check it as well.
+
+See [Ally-Chores.md](Ally-Chores.md), [Ally-Inventory.md](Ally-Inventory.md) and
+[Testing.md](Testing.md) §8l.
+
+---
+
+## The castes were sharing chores, and a farmer kept following its master (2026-09-04)  ✅ VERIFIED
+
+### Fire and Ice were doing each other's work
+
+Reported both ways round: the Fire Mage tending the eitr refinery, the Ice Mage on
+the smelters. The assignment gate was fine — it has always picked the caste from
+the station's prefab name. What was missing is that **a patch can hold both kinds
+of station**, and only one of the three places that walk a patch was asking:
+
+- `FindNextJob` filtered by caste (`MayWork`) — correct.
+- `ProductNames` did not, so a Fire Mage's product sweep included the refinery's
+  eitr, and an Ice Mage's the smelter's bars. In-game that is indistinguishable
+  from the two castes sharing each other's chores, which is what it looked like.
+- `PatchHasWork` and `FindRestoreTarget` did not either, so an ally would hold a
+  post it could never actually work, and restore onto one.
+
+All three now go through `MayWork`. Two related hardenings:
+
+- **Refining is tested first** in `ChoreRules.RequiredCaste(Smelter)`. The tokens
+  are substrings of a prefab name and `"smelter"` is the loosest of them, so any
+  refining station whose name happened to contain it would have been claimed by the
+  Fire Mage before the Ice Mage's own token was looked at. The specific side is now
+  checked first, and both sides gained the obvious synonyms (`refinery`, `grind`,
+  `furnace`, `kiln`). A one-line-per-prefab log (`[chore] station 'x' -> Caste`)
+  makes a future mismatch diagnosable instead of a guess.
+- **The caste gate now also runs while working, not only at assignment.** A chore
+  persists on the ZDO, so a record written before a domain changed hands — feeding
+  was the Support Mage's until husbandry moved to the Rogue — would keep an ally
+  on a chore its caste no longer does. `ChoreRules.RequiredCaste(ChoreKind)` was
+  also made **nullable**: it used to fall through `default: SupportMage`, which
+  would have handed the smelters to the wrong caste the moment anything asked about
+  the domain rather than the station. Smelter returns null there, because its split
+  is genuinely per-station.
+
+### Starting a chore now ends the stance the ally was in
+
+A farmer set to work carried on following its master. `BeginChore` set
+`ChoreActive` and went passive, but never cleared the **follow target** MonsterAI
+was still holding from the Follow stance. That went unnoticed while every chore was
+assigned *at* an object, because `BeginChore` then overwrote the follow target with
+the station — farming, posted on open ground with no anchor, is where it finally
+showed. `BeginChore` now clears the follow target and any combat target and patrols
+the post before optionally following an anchor, so it is true for **every** chore
+rather than a side effect of one.
+
+### The farmer could not see its own field
+
+*"There's no room left to plant"* with visible bare soil a few metres away. The
+planting search charged **every** lattice cell against one budget, including cells
+that simply aren't soil — so with the ally posted at the edge of a field, the
+budget ran out on bare ground before the search ever reached the far half.
+
+The search is now two passes. Terrain paint and biome are cheap lookups, so **pass
+one is unbudgeted** and collects every cultivated cell in the patch; only the
+clearance test costs a physics query, so **only that is rationed** (and generously
+— the number that matters is "enough to cross a full field", not "enough to fill
+one block"). Elevated ground was never the problem: `ZoneSystem.GetGroundHeight`
+raycasts from y = 6000 straight down and answers correctly for raised terrain, and
+the lattice point's own y is irrelevant to it.
+
+A third fallback was added for a real case the lattice cannot serve: a bed the
+**player** sowed by hand does not line up with our grid, so its gaps can be ground
+no lattice cell can reach. If the grid yields nothing, the ally plants a single
+half-cell-offset spot. Tidiness is the preference, not a requirement.
+
+See [Ally-Chores.md](Ally-Chores.md) and [Testing.md](Testing.md) §8k.
+
+---
+
+## Four reports: dead keys, the cook's caste and fire, tidy planting, standing at the station (2026-09-04)  ✅ VERIFIED
+
+**The rename gate did nothing on a live server.** It was a `ZInput` **prefix**
+returning false, and Harmony skips the remaining prefixes once one of them returns
+false — another mod on the server out-orders ours, so it never ran. That exact
+failure is why the tournament/bounty panels' capture patches are **postfixes**, and
+their file says so; a second copy of the gate is how the fix got lost. So the copy
+is gone: `CompanionTypingInputPatch` is deleted and renaming now feeds
+`ModalPanels.AnyOpen`, the shared gate those panels already use — postfix `ZInput`
+getters, `Player.TakeInput`, `PlayerController.TakeInput` (a *different* method),
+plus the cursor and mouse-look patches. One gate, one place to fix it.
+
+**Cooking had migrated to the Rogue.** When hauling came back, the required-caste
+chain ended with "everything else is Haul", and a hovered cooking station or
+fermenter fell through it. Provisioning is now spelled out as its own case rather
+than left to a fallback, and `ChoreRules.RequiredCaste` names every domain
+explicitly instead of relying on `default`.
+
+**The cook now keeps its own fire in.** Saying *"The cooking fire is out!"* and
+stopping made the chore half a chore: the ally tended the food and left the player
+to tend the flame under it. It now finds the fireplace through the station's OWN
+`m_fireCheckPoints` — the transforms vanilla itself tests for a burning
+`EffectArea` — rather than guessing a radius around the grill, feeds it wood from
+a chest via `Fireplace.AddFuel`, and relights a fuelled-but-off hearth with the
+same `RPC_ToggleOn` that `Fireplace.Interact` invokes. Both are RPCs and neither
+touches the local player, which matters because this runs on whichever machine owns
+the companion — often the dedicated server, where there is no local player at all.
+
+**Planting is a block on a grid, not one seed in a random spot.** The old spot
+search sampled random points inside the radius, and a field came out looking sown
+in the dark. Positions are now snapped to a **world-aligned lattice** (a multiple of
+the crop's spacing), so successive batches line up with each other and with what is
+already in the ground — world space rather than post-relative, so two farmers on
+neighbouring beds still agree. The ally plants a **square block**, and how big is
+its **level**: 2x2 to begin with, one more per side every three levels. The search
+prefers a complete block nearest the post, so the bed grows outward from where you
+set the ally to work; if the field has no room for a whole one it fills whatever
+single cells are free, so a nearly-full bed is topped up rather than reporting "no
+room".
+
+Spacing is the crop's own grow radius doubled **plus a margin**. The margin is not
+cosmetic: a whole block is resolved against the world before any of it is planted,
+so its cells are never checked against each other, and exactly 2x the radius would
+leave every neighbour on the boundary. Cell tests are memoised per tick and
+budgeted, because a 20 m patch at ~1 m spacing is thousands of cells and each test
+is an overlap query.
+
+**Workers stand at the station now.** `ArrivalRange` was 4.5 m, which let an ally
+work a furnace from across the room. It is now a config (`Chores/ChoreStationReach`,
+default **3.4 m**) with a hard floor of 3.2 — `BaseAI.Follow` stops moving at 3 m
+from its target, so anything at or under that is a distance the ally can never
+close, and the station would be reported unreachable instead.
+
+See [Ally-Chores.md](Ally-Chores.md), [Ally-Inventory.md](Ally-Inventory.md) and
+[Testing.md](Testing.md) §8j.
+
+---
+
+## Farming is a tool, not a place; doors; shared patches; a Rename button (2026-09-04)  ✅ VERIFIED
+
+### The farm chore failed, and the fix was a different chore
+
+§8h #7 failed with *"I have no chest to store this"* on a 20 m field. The cause was
+arithmetic, not farming: a patch is **20 m** and the chest search is **10 m**, and
+the harvest looked for a chest around the CROP only. Every crop in the outer ring
+of a field therefore had no chest within reach of itself, while the chest sat
+beside the worker's post. Storing a product now tries the item's position first and
+the **post** second (`StoreProduct`), which keeps the original intent — put it away
+near where you found it — without that failure.
+
+The rest of the farm chore was reworked on top of that.
+
+**The switch moved to the companion.** Farming used to be assigned by hovering a
+crop, or a Cultivator on an item stand. A field is ground, not a station, and
+pointing at one crop of many was always an odd way to say "work this bed". Now you
+put a **Cultivator in the ally's own pack**; its tooltip then offers
+`[H] Set companion to farm`, and where it is standing becomes the field. Pressing
+`H` on it again recalls it. Taking the Cultivator back also ends the chore — the
+tool is the licence, not just the switch. The `Pickable` and `ItemStand` hover
+hints are gone.
+
+Two consequences fell out. The post has **no anchor object** (`AssignToFarmHere`
+passes null deliberately — anchoring on the companion would have had it following
+itself), and a field can be **bare**, so the restore path now accepts *cultivated
+ground under the saved post* as proof the workplace still exists. Without that, a
+freshly harvested bed would have failed to restore and stood the ally down.
+
+**One crop per field.** A farmer no longer leaves a patchwork of carrots, turnips
+and barley in one bed. The crop is decided by what is **already growing** in the
+patch (`FieldSapling`); only a completely empty bed lets the ally choose, and from
+then on that is the field's crop. Re-seeding to something else is done the way you
+would expect — plant the first of the new crop yourself.
+
+**Seeds may ride in the pack.** The worker looks in its own bag first and the chest
+by the soil second, so you can hand it a stack and stop it walking back between
+rows. This needed the reverse lookup `PlantingCatalog.SeedFor(sapling)`, because
+the chore now decides the crop first and goes looking for its seed, rather than
+picking a crop from whatever seed it happened to find.
+
+### Companions open doors
+
+Vanilla creatures cannot, which is invisible until you put an ally to work: a
+chore worker meets the workshop door and stops, and the chore reports the station
+unreachable. New `CompanionDoorOpener` (owner-driven, attached like `ShipRideAI`)
+opens a closed door that is between the ally and where it is heading, and **closes
+it again** once the ally has moved away and nobody is standing in the doorway —
+leaving a base propped open would be a real cost.
+
+It calls `Door.Open`, **not** `Door.Interact`. Interact is the player's path and is
+unusable here: it runs `PrivateArea.CheckAccess`, which resolves the ward against
+`Player.m_localPlayer` — the wrong player on a client and **null on a dedicated
+server**, where the chore usually runs — and it books a player statistic. `Open`
+is the half that matters: it invokes the vanilla `UseDoor` RPC and the ZDO owner
+toggles the state. The ward is therefore checked here instead, for the companion's
+**owner**, through the same `ChoreStorage.WardPermits` the chests use (now public).
+Locked doors are left alone: the ally carries no keys.
+
+### Several companions can share one chore
+
+A patch is no longer exclusive. Pressing the key on a workplace always puts
+**another** free ally on it, so a big workshop or a big pen can have two or three
+workers. `WorkerCovering` became `WorkersCovering` and now **reports** rather than
+gates — the tooltip names who is on the job and still offers the assign hint.
+
+Recall moved entirely onto the companion (`H` on the ally). The old station
+toggle-off had to go: with several workers on one patch, "press H on this smelter
+to recall" has no unambiguous answer.
+
+One hazard this opens: `ZNetScene.Destroy` defers the actual destruction to the end
+of the frame, so two workers ticking in the same frame could both see the same
+loose item, both bank it, and duplicate it. A short-lived static `ClaimDrop` latch
+closes that.
+
+### A Rename button
+
+Typing a companion's name was broken by `E` closing the inventory. The gate keyed
+off `TMP_InputField.isFocused`, and a field drops focus for a frame on all sorts of
+things — one dropped frame let `E` through to `InventoryGui.Update`, which closes
+the open container on the Use bind.
+
+Renaming is now an explicit **mode** with its own button beside the field: it reads
+**Rename**, click it to arm the field, it becomes **Save**, click again (or press
+Enter) to commit. The field is `readOnly` outside that mode, so a stray click
+cannot start an edit without arming it, which is what keeps the suppression honest.
+`IsTyping` is the mode flag, and the ZInput gate now covers held binds
+(`GetButton`/`GetButtonUp`) as well as presses, so the letters being typed cannot
+block, attack or sneak. Closing the panel mid-rename cancels rather than leaving
+the suppression latched with no field on screen.
+
+See [Ally-Chores.md](Ally-Chores.md), [Ally-Inventory.md](Ally-Inventory.md) and
+[Testing.md](Testing.md) §8i.
+
+---
+
+## One worker, a whole workshop — and the Rogue takes the herds (2026-09-04)  ✅ VERIFIED
+
+Three changes to the chore system, asked for together.
+
+### A chore is a patch of ground, not a station
+
+A worker now tends **everything of its kind within `Chores/ChoreWorkRadius`
+(default 20 m)** of the spot you assigned it at, walking from job to job. One Fire
+Mage keeps a whole row of smelters, kilns and blast furnaces going; one Support
+Mage runs the entire kitchen, cookers and fermenters alike, as a single chore.
+Cooking and brewing were separate chore kinds and are now one **Provisioning**
+domain, because they are the same job to the player.
+
+Each tick the worker picks the nearest station in the patch that wants something,
+walks to it, and services it once in reach. Two guards keep that from degenerating:
+a station that turns out to be **unservable** (no ore in any chest, a brew exposed
+to the sky) is set aside for 60 s so one stuck furnace can't starve the other five,
+and a station it can't physically **reach** only earns that verdict after six
+consecutive ticks of getting nowhere — one trip across a 20 m patch is not a
+failure. The caste split still applies inside a patch: a Fire Mage in a workshop
+that also holds an eitr refinery keeps to the heat stations.
+
+The post is now a **position** rather than the object you hovered. That is what
+lets the crop be harvested, the animal be culled and one furnace of six be torn
+down without ending the chore — the old "anchor destroyed, stand down" rule fired
+on all three. A chore now ends when the player recalls the worker, or when
+*nothing of its kind has existed in the patch for 60 s*, which is deliberately not
+the same as having nothing to do: a field with nothing ripe and a forge with
+nothing queued are both working sites the ally keeps standing at.
+
+Coverage follows: a second companion is refused for any station, crop or animal
+already inside someone's patch, not just the exact object the first was assigned
+at, and hovering any of them names the worker looking after it. The range-claim
+that used to be special-cased for feeding pens (`FeederCovering`) generalised into
+`WorkerCovering` for every domain.
+
+### Husbandry moves to the Rogue, and it culls
+
+Feeding is unchanged. What is new is that grown tamed animals are grouped by
+prefab and any group over `Chores/HusbandryCullLimit` (**3**) has its surplus
+thinned, with the drops stored like any other chore product. Young are never
+culled; a pregnant animal is spared while any other candidate exists.
+
+**Why three.** Vanilla `Procreation` stops a pen breeding once `m_maxCreatures`
+(4 by default, young included) are within range — so a cull limit at or above
+that cap would never fire, because the pen simply stops at four and sits there. A
+limit below it is what keeps the herd turning over: three adults plus a calf hits
+the cap, the calf grows up, the surplus adult is culled, breeding resumes.
+
+**"Melee only" is structural, not a setting.** Nothing in the cull path goes
+through `MonsterAI` — which is the code that picks an attack, and the only thing
+that could pick a ranged one. The worker closes to `CullRange` itself and the blow
+is landed directly; the visible swing is its own equipped weapon through vanilla
+`Humanoid.StartAttack`, and only when that weapon's primary attack is not a
+projectile, so a caste holding a staff lands the blow without an animation rather
+than casting across the pen.
+
+`CullRange` is **4 m**, not the ~2 m a swing really covers, because
+`BaseAI.Follow` **stops at 3 m**: a shorter range is one the follow logic can
+never close, and the worker would have circled its quarry until it declared the
+animal unreachable. The same 3 m stop is why `ArrivalRange` has always been roomy.
+The hit is scaled to kill outright — livestock is butchered, not duelled, and a
+boar that took six 5-second ticks to die would spend that whole time running from
+its butcher.
+
+Two consequences had to be handled. **Cull drops beat the feed exclusion**: the
+pen stores anything that turns up in it *except* the herd's own food, which would
+otherwise hand a culled wolf's meat straight back to the wolves — so a kill
+records a cull spot (4 m, 60 s) inside which even feed items are collected. And
+**culling grants no XP**: `Character.SetTamed` does not change `m_faction`, so
+`KillXpPatch`'s "no XP for Players-faction deaths" test never actually covered
+livestock, and without an explicit `IsTamed()` check a breeding pen would have
+become a renewable XP farm run by the ally itself.
+
+### Hauling is retired — then restored, folded into the Rogue's domain
+
+It was retired first: once every chore began filing its own output in a chest (the
+previous batch), a dedicated fetch-and-carry worker had nothing left to do that the
+others weren't already doing. On review that was the wrong call for a different
+reason — neither husbandry nor hauling fills a 5-second tick on its own, and
+"tend this corner of my base" is one errand from the player's side. So hauling came
+back the same week as the **second half of the Rogue's chore** rather than as a
+chore of its own.
+
+`Husbandry` and `Haul` are now **one domain wearing two ids**
+(`ChoreAI.IsRogueDomain`). A Rogue assigned at an animal or at a chest does both
+jobs across the same patch; the id only decides what the ally says it is starting
+and which record is persisted. Every "is this the same chore" test — coverage,
+restore, patch-has-work — goes through `SameDomain` rather than comparing
+`ChoreKind` directly, or a Rogue posted at a chest wouldn't be seen to cover the
+pen it is standing in.
+
+**There is no hauling code.** Clearing the ground and filing what a chore produces
+are the same sweep (`StoreProducts`); the Rogue's product set is simply
+*everything loose in the patch*. That falls out of the previous batch's design
+rather than re-adding the old `ServiceHaul`, and it means hauling inherited the
+chest chooser for free — so it no longer needs a *designated* chest, which is
+what the old version was assigned to. Two consequences: the one exclusion (the
+herd's own `m_consumeItems`) means carrots dropped beside a chest with boars in
+range are left alone, and *"The animals aren't hungry."* is gone, because a fed
+herd is no longer a blocker when the same worker is also hauling.
+
+Enum values are **pinned** rather than renumbered, since they are persisted on the
+companion ZDO: `LegacyKind` maps an old Fermenter (4) or Cooking (5) record onto
+Provisioning, and `Haul` keeps its old id 6, so a haul chore saved before any of
+this resumes as itself.
+
+New config: `Chores/ChoreWorkRadius` (20), `Chores/HusbandryCullLimit` (3).
+Guidance pages for all four castes were rewritten and bumped to version 2.
+The `Container` hover hint is back, now gated on `ChoreStorage.IsStoragePiece` so
+the Obliterator, a gravestone and a ship's hold — all `Container`s — never offer
+to have a worker posted at them.
+
+See [Ally-Chores.md](Ally-Chores.md) and [Testing.md](Testing.md) §8h.
+
+---
+
+## Chores put what they make into a chest (2026-09-03)  ✅ VERIFIED
+
+Every chore now files its own output. A smelter worker stows its bars, a cook its
+meals, a brewer its tapped meads, a herder the eggs — instead of leaving them in
+a pile on the ground for a player to come and collect by hand, which is precisely
+the tedium chores exist to remove. The farm harvest and the haul sweep already
+ended in a chest; they now share the same chooser as everything else.
+
+**Where it goes.** Nearest first, with one preference: a chest that **already
+holds the same item** beats an empty one, so a smelter's copper keeps landing in
+the copper chest even when a nearer chest has a free slot. Full chest → next
+nearest. Nothing will take it → the ally says which problem it has (*"Every chest
+here is full!"* vs *"I have no chest to store this!"*) and skips the rest of the
+tick, deliberately declining to make more of what it cannot put away. Never into
+its own pack: a chore worker moves goods between the world and your storage, it
+doesn't hoard them.
+
+**What counts as a chest** is not a prefab list — any *placed container piece*
+qualifies, so vanilla chests, carts, barrels and modded storage all work. The
+exclusions carry the weight, because vanilla's `Container` is used by several
+things that are emphatically not storage: the **Incinerator** (an ally would have
+fed the smelter's output into the one station whose job is destroying items —
+and it is where the Communion Totem ritual runs), **TombStone** and **Corpse**
+(a player's gravestone, and the loot bag a destroyed chest leaves), **ships**
+(cargo is a plain Container child of the hull), **companion packs**
+(`CompanionInventory` puts a Container on the creature — this worker's own, and
+any ally standing nearby), and **dungeon chests** (Containers with no `Piece`).
+Another player's personal chest is refused via vanilla's `Container.CheckAccess`
+asked for the *owner*, and a chest inside someone else's **ward** via
+`PrivateArea.IsPermitted(ownerId)` — a companion must not become the way around
+a guard stone.
+
+**What counts as a product** comes from the station's own conversion list, never
+from "whatever is lying around", so an ally can't pocket the ore you dropped
+beside its smelter. The pen inverts the rule — husbandry produce is whatever
+turns up in it — and therefore has to *exclude* the animals' own consume items,
+or the feeding chore's "drop food at their feet and wait" would become an
+infinite loop run by the ally's own hand.
+
+**Two fixes fell out of the same work.**
+
+*Chest writes now claim ownership first.* `Container.OnContainerChanged` only
+calls `Save()` on the ZDO owner, and `CheckForChanges` reloads from the ZDO
+whenever a newer revision arrives — so every add and remove the chore system made
+from a non-owning client went into a local copy and was then quietly overwritten.
+Vanilla dodges this by claiming the chest when a player opens it. In single-player
+the host owns everything, which is why the existing chores tested clean; on a
+**dedicated server** a chest is usually owned by the server. `ClaimForWrite`
+now runs before every read-modify of a chest.
+
+*The smelter stopped pocketing its inputs.* Ore and fuel were cloned into the
+creature's own hidden vanilla inventory purely to make the code read like the
+player flow — but `Smelter.QueueOre(string)` and `SetFuel(float)` take no item and
+consume nothing, so those clones were never removed again: a slow leak into a bag
+nobody can open. Same shape in the cooking station's fuel path. Both clones are
+gone. (The fermenter and cooking *food* paths keep theirs — `Fermenter.AddItem`
+and `CookingStation.CookItem` do consume from the user's inventory.)
+
+New config `Chores/ChoreChestRadius` (default **10 m**) covers both storing
+products and drawing inputs; input search used to be a separate hardcoded 8 m.
+
+### Follow-up from the first live session
+
+§8g steps 1–2 passed; step 3 (full chest → next chest) failed, and two further
+reports came back with it. All three were one-line consequences of decisions made
+above, and all three are fixed:
+
+**Companions could not share a chest.** Availability was gated on
+`Container.IsInUse()` to avoid writing underneath a player's open inventory. But
+our own lid animation calls `Container.SetInUse` — so the instant a worker
+deposited into a chest, that chest went invisible to every other worker *and to
+itself for the rest of the same tick*, which is precisely why "full → next chest"
+reported no storage instead of moving on (`StoreProducts` files up to four items
+per tick, and item two could no longer see the chest item one had just used). The
+gate also bought nothing it promised: `SetInUse` is local state, never
+replicated, and only runs on the ZDO owner, so another player's open chest never
+set it here anyway. Gate removed — vanilla lets several players share a chest and
+refreshes an open GUI from the inventory's change event. `ChoreAI.OnDisable` now
+also closes any lid it was holding, since `SetInUse` is not self-clearing and a
+worker that despawns mid-deposit would leave the chest standing open.
+
+**A warded base blocked its own owner's companions.** The ward check asked
+`PrivateArea.IsPermitted(ownerId)` — and **a ward's creator is not in its own
+permitted list**. `PrivateArea.Setup` records only the creator's *name* on the
+ward; the creator's player id lives on the `Piece`, and vanilla's own
+`HaveLocalAccess` is `m_piece.IsCreator() || IsPermitted(id)` — two halves, of
+which only the second was implemented. So an ally refused every chest inside its
+owner's own base. Now mirrors both halves. (`Container.CheckAccess(long)` was
+re-checked against the assembly at the same time and is pure player-id logic,
+with no local-player dependency — the same failure mode does not lurk there.)
+
+**A working ally now reports its stance as "On chore"** rather than whichever
+stance it held when you assigned it. The stance underneath is inert until the
+chore ends — stance changes are refused while it works — so showing it only
+invited the question of why pressing the key does nothing. New
+`DvergrCompanion.StanceLabel` puts the wording in one place.
+
+See [Ally-Chores.md](Ally-Chores.md) and [Testing.md](Testing.md) §8g.
+
+---
+
+## Stance reverted to Follow on every relog, chore workers included (2026-09-03)  ✅ VERIFIED (relog persistence)
+
+Reported from a live session: a companion left on **Standby** was back on
+**Follow** — and walking after its master again — as soon as the owner logged
+back in.
+
+**Root cause.** `DvergrCompanion.Stance` was a plain in-memory field, documented
+as such since the stance was added. The component itself does not survive a
+relog: a recruited Dvergr respawns as a bare vanilla prefab and
+`CommunionService.RestoreCompanion` re-attaches `DvergrCompanion` from scratch,
+whose `Stance` property then starts at its C# initializer, `Follow`. Everything
+else the ally is made of (caste, level, XP, owner, name, ladder id, chore
+assignment) was already reconstructed from the ZDO on spawn — the stance was
+simply never added to that list. This is the same shape as the original
+"communed Dvergr reverts to uncommuned after a relog" bug: state that only ever
+lived in runtime objects vanilla does not persist.
+
+**Fix.** Persist it. `SetStance` writes the stance to the companion's ZDO
+(`DE_Stance`, an int) alongside the announce, and `Awake` reads it back in the
+same block that restores caste/level/XP.
+
+The AI half of a stance — alert range, follow target, patrol anchor — was split
+out of `SetStance` into `ApplyStanceToAi`, which `Awake` calls on its own once
+the base alert/move ranges have been captured (Guard and Standby are expressed
+as multiples of those, so the order matters). Restoring that way deliberately
+skips the two things that belong to a *deliberate* order: the capability speech
+bubble (a reload is not a new command) and the ZDO write (nothing changed).
+
+Guard and Standby re-anchor their patrol point at the position the ZDO restored
+them to, which is the post they were left holding. A Follow ally passes a null
+follow target, unchanged from before — vanilla does not persist
+`MonsterAI.m_follow`, and `Update()` already re-acquires the master each frame
+for exactly that reason.
+
+A companion summoned from a Communion Totem still comes back on **Follow**: the
+seal requires Follow stance, and the summon builds a fresh ZDO with no
+`DE_Stance` key, which defaults correctly.
+
+**Chore workers had a second, separate way to end up back on Follow.** A chore
+persists as a kind plus the target's world position, and `ChoreAI` re-resolves
+the actual station by proximity only once its zone has streamed in — several
+frames, sometimes seconds, after the companion spawns. For that whole window
+`ChoreActive` was false, so the ally read as an ordinary Follow companion and
+`Update()` walked it back to its master, off the post it had been left tending.
+`DvergrCompanion.Awake` now sets `ChoreActive` straight from the persisted ZDO
+record (and goes passive), so the ally is a worker from frame one; `ChoreAI`
+takes that state over when it resumes the chore.
+
+The ~60 s give-up path — the station was removed, or its zone never loaded —
+now runs the full `Unassign()` rather than just wiping the record, since a bare
+wipe would leave a companion that was marked working by `Awake` passive and
+postless indefinitely. It is also gated to the ZDO owner now; it had been
+writing `ClearPersistedChore` from every client that had the ally loaded.
+
+`Unassign` took a stance parameter for this: the give-up falls back to
+**Standby**, everything else keeps defaulting to Follow. The distinction is who
+ended the chore. A recall the player issued (`H`, or reassigning the station)
+means "come here", so the ally returns to their side; a give-up means the work
+stopped existing, most likely while the owner was nowhere near, so the ally
+holds the ground it was left on instead of setting off across the map to find
+them. The mid-work "target vanished" path (`_anchorObject == null` — station
+removed, crop harvested, animal died) follows the same rule, so a farm worker
+that runs its field out stays standing in it.
+
+See [Ally-Commands.md](Ally-Commands.md) and [Testing.md](Testing.md) §7 step 5.
+
+---
+
 ## Inter-server crossing threw, and the switch never happened — released 0.10.0 (2026-08-30)  ✅ VERIFIED
 
 Reported from a live attempt: `InvalidOperationException: Collection was modified;
