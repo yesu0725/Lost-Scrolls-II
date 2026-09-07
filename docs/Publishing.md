@@ -136,9 +136,29 @@ truth and push — that folder is the distribution point.
 
 **Built zip:**
 
-- `Thunderstore files/Lost_Scrolls_II_0.11.0.zip` — one package
+- `Thunderstore files/Lost_Scrolls_II_0.11.0.zip` — one package, verified to hold
+  `manifest.json`, `icon.png`, `README.md` and a `0.11.0.0` DLL at the **root**
 
 **Upload:** Lost Scrolls II 0.11.0. Nothing else.
+
+**State at the cut (2026-09-05):**
+
+| | |
+|---|---|
+| `Lost-Scrolls-II` `main` | `afc62b8` — pushed |
+| `Valheim-ServerGuide` `master` | `c76ff78` — pushed (the `examples/LostScrollsII/` guidance source of truth) |
+| `Lost-Scrolls-II.wiki` `master` | `0aa96a9` — pushed, every page byte-identical to `wiki/` |
+| Thunderstore | **not uploaded yet** — the zip is built and waiting |
+
+The wiki sync caught three stale lines in `Companion-Chores` that this cycle's own
+changes had left behind (recall documented on the station, husbandry still the Support
+Mage's, the seed source stated twice). Fixed in `wiki/` first, then mirrored — that
+folder is the source of truth, so never edit the GitHub Wiki directly.
+
+> Five of the fourteen wiki pages showed as differing on a plain `diff` and were
+> **identical in content** — the backing repo stores CRLF and `wiki/` stores LF.
+> Compare with `diff <(tr -d '' < a) <(tr -d '' < b)` before assuming a page is
+> stale, and write CRLF back so the pushed diff stays readable.
 
 ## 0.10.0 — release notes and upload order
 

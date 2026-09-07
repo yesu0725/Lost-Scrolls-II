@@ -40,6 +40,20 @@ Recruited allies can be assigned to handle tedious vanilla workstation tasks ins
 - **Husbandry chore (Rogue since 0.11; was the Support Mage's).** Hover a **tamed animal** and press `H` to assign a Support Mage to tend animals in radius. A hover **tooltip** (`[H] Set companion to tend the herd`) shows on tamed livestock, added on **both** `Tameable.GetHoverText` and `Character.GetHoverText` so it appears regardless of which Hoverable a creature uses — this is what makes it show on **Chicken/Hen** (they surface hover via `Character`, not `Tameable`), as well as boars/wolves/etc. It skips your own recruited allies. **One assigned mage tends the whole pen** — each tick it feeds *one* hungry tamed animal (`Tameable.IsHungry()`) within the 10 m radius, cycling through them across ticks, so a single mage keeps multiple animals fed (it is *not* one-mage-per-animal). It pulls a food that animal accepts (`MonsterAI.m_consumeItems`) from a nearby chest and drops it at the animal's feet (`ItemDrop.DropItem`) — vanilla auto-eats it, keeping them fed → happy → breeding. Won't pile up food (skips if an item is already on the ground nearby). Voiced blockers: "The animals aren't hungry.", "I have no food chest nearby.", "I have no food to give.", "I can't reach the pen."
   - **Claim is by RANGE.** Because one mage covers a whole pen, the "already working here" claim now applies to **every** tamed creature within an active feeder's work radius (`ChoreAI.WorkerCovering`, which now generalises that range rule to every chore domain), not just the single hovered animal: hovering any animal in a tended pen shows *"&lt;name&gt; is already working here."*, and the assign path refuses a second worker on that pen (pressing `H` on it toggles **your own** herder off instead).
 - Every chore reuses the same `ChoreAI` component (domain-based: `Smelter` / `Provisioning` / `Farm` / `Husbandry`) and the same follow/speech/range scaffolding.
+## Configuration (`Chores` section)
+
+| Key | Default | What it governs |
+|---|---|---|
+| `ChoreAssignKey` | `H` | Assign / recall. On a workplace it **adds** a worker; on your own companion it recalls that one. |
+| `ChoreAssignRadius` | 10 | How far from the *player* to look for a free companion of the right caste when assigning. |
+| `ChoreWorkRadius` | 20 | How wide a **patch** one worker tends — every job of its kind within this of the post. Also the size of a field, a pen, and the product sweep. |
+| `ChoreChestRadius` | 10 | How far a worker looks for a chest, both to **store** products and to **draw** inputs. |
+| `ChoreStationReach` | 3.4 | How close it must be to work a station. **Hard floor 3.2** — `BaseAI.Follow` stops at 3 m, so anything at or under that is a distance the ally can never close. |
+| `HusbandryCullLimit` | 3 | Grown animals of each kind a Rogue leaves in the pen. `0` disables culling. Below vanilla's breeding cap of 4 on purpose — see *The Rogue's corner*. |
+
+Related, outside this section: `Companions/FollowEngageRange` (the combat leash),
+`Companions/ShowMapPins`, `Interface/ContainerPanelOffset`.
+
 ## One worker, a whole workshop
 
 **A chore is a patch of ground, not a single station.** You assign a worker by

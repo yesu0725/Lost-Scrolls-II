@@ -24,7 +24,7 @@ A spiritual sequel to the deprecated mod **Lost Scrolls** (TaegukGaming), rebuil
 
 ## Setup
 
-1. Install via your mod manager (r2modman / Thunderstore Mod Manager). BepInEx is pulled in automatically.
+1. Install via your mod manager (Gale (recommended) / r2modman / Thunderstore Mod Manager). BepInEx is pulled in automatically.
 2. Launch Valheim and load a world.
 3. Fight a Dvergr down to low health *without killing it*, then **hold your Block button** with the crosshair on it to channel the Communion Rite (you can keep blocking/dodging). Hold it through the struggle and it's now your ally.
 

@@ -47,23 +47,27 @@
 - `src/Companions/CompanionLevelBadgePatch.cs` — `★N` badge + vanilla-star suppression.
 
 ## Phase 4 — Chores / Automation
-**Status:** ✅ **verified in-game (2026-07-02)** — the full caste-gated chore system (Fire/Ice smelting+refining, Support provisioning/farming/husbandry, Rogue hauling), plus persistence, claim tooltips, farming plant+harvest with biome gating, the Cultivator-on-item-stand field trigger, and feed claim-by-range. See [Testing.md](Testing.md) §7d/§8/§8b–§8f.
+**Status:** ✅ **verified in-game.** Originally 2026-07-02; **rebuilt and re-verified end to end for 0.11.0 (2026-09-05)**, [Testing.md](Testing.md) §8g–§8p. The 0.11.0 pass is the authoritative shape of the system — the bullets below describe it, not the 2026-07 version.
 
 Phase 4 started as Smelter-only ore feeding; it has since grown (across later feedback) into a full caste-gated chore system. [Ally-Chores.md](Ally-Chores.md) is the authoritative spec. Current state:
 
-- [x] **Caste-gated assignment** (`H`): the hovered target decides the chore and the required caste (`ChoreRules` + `CommunionService.DetectCaste`). One `ChoreAI` component, mode-based.
+- [x] **Caste-gated assignment** (`H`): the hovered target decides the chore and the required caste (`ChoreRules` + `CommunionService.DetectCaste`). One `ChoreAI` component, domain-based. The gate runs **while working** too, not only at assignment, and every sweep that walks a patch applies it — four places, not one.
+- [x] **A chore is a patch of ground, not a station** (0.11.0). The post is a **position**; the worker tends every job of its kind within `ChoreWorkRadius` (20 m), walking between them, and a patch is **shared** — pressing the key again adds another ally. Recall moved onto the companion.
+- [x] **Everything a chore makes goes into a chest** (`ChoreStorage`), nearest-first preferring one that already holds the item. What counts as storage is structural, not a prefab list.
+- [x] **Companions open doors** (`CompanionDoorOpener`) via `Door.Open`, never `Door.Interact`.
 - [x] **Smelting** (Fire Mage) — any `Smelter`-family station (smelter/blast furnace/charcoal kiln), ore **and fuel**, capacity-gated, with vanilla add VFX.
 - [x] **Refining** (Ice Mage) — the `Smelter`-family eitr refinery / spinning wheel (same code path).
 - [x] **Provisioning** (Support Mage) — Fermenter (load base / tap when ready) and Cooking Station (add raw / pull done before it burns / fuel).
-- [x] **Farming** (Support Mage) — **plants seeds from a chest AND harvests ripe `Pickable`s** into it, any crop type (seed→sapling via `PlantingCatalog`; plants on free cultivated ground). Assign tooltip on crops. Pick VFX on harvest, place VFX on planting.
-- [x] **Husbandry** (Support Mage) — feed hungry tamed animals from a chest; one mage tends the whole pen (all hungry animals in radius). Assign tooltip on tamed livestock.
-- [x] **Hauling** (Rogue) — sweep loose ground items into a hovered chest.
+- [x] **Farming** (Support Mage) — started by putting a **Cultivator in the ally's own pack** and pressing the chore key on the **companion** (a field is ground, not a station). Plants and harvests in **level-scaled blocks** on a world-aligned grid; one crop per field while the seed lasts, then the next; seed from the pack or **any** chest in range; clearance is vanilla's own `Plant.HaveGrowSpace`, so it can only sow where the player could. Wrong-biome seeds name the biome.
+- [x] **Husbandry + Hauling** (**Rogue** — moved from the Support Mage at 0.11.0) — one domain wearing two ids. Feeds the herd, **culls** the surplus (melee only by construction), and clears loose items into chests, all across one patch.
 - [x] **Voiced blockers** — each worker says what's stopping it (can't reach / no chest / missing input / fire out / exposed brew / chest full) via `Chat.SetNpcText`. 3D detection; ranges bumped (arrival 4.5m, search 8m).
 - [x] **Verified in-game (2026-07-02):** every chore above confirmed working, including farming plant+harvest, biome-gated planting, the Cultivator-on-item-stand trigger, Chicken/Hen feed tooltip, feed claim-by-range, and the Stone Oven cooking regression.
-- [ ] **Remaining unbuilt (by design):** chore time still grants **no XP**. *(Farm replanting and assignment persistence — both implemented.)*
+- [ ] **Remaining unbuilt (by design):** chore time still grants **no XP**, and **culling grants none either** — without that a breeding pen would be a renewable XP farm run by the ally. *(Farm replanting and assignment persistence — both implemented.)*
 
 ### Implementation notes
-- `src/Companions/ChoreAI.cs` — mode-based chore worker (Smelter/Farm/FeedAnimals/Fermenter/Cooking/Haul).
+- `src/Companions/ChoreAI.cs` — domain-based chore worker (Smelter / Provisioning / Farm / Husbandry+Haul). Provisioning splits again by station kind (cookfires / oven / fermenters) off vanilla's `CookingStation.m_requireFire`.
+- `src/Companions/ChoreStorage.cs` — where a worker puts what it makes and draws what it needs; the chest chooser and its exclusions.
+- `src/Companions/CompanionDoorOpener.cs` — opens a door in the way and shuts it behind.
 - `src/Companions/ChoreRules.cs` — station→caste gating + caste display names.
 - `src/Companions/CommunionService.cs` — `DetectCaste` (caste from prefab on recruit).
 - `src/Plugin.cs` — `ChoreAssignKey`/`ChoreAssignRadius` config; the hover-routing + caste-gated assign handler.
@@ -154,7 +158,7 @@ Requested out of band from the phase order — implemented before Phase 7 since 
 **Status:** code-complete (multi-caste recruit/chores/UX, lightweight per-caste leveling, caste lore finalized); **not yet verified in-game**.
 
 - [x] **Recruit** works for all four castes — caste is detected from the prefab (`Dverger`/`DvergerMageFire`/`DvergerMageIce`/`DvergerMageSupport`) via `CommunionService.DetectCaste`, no longer hardcoded to Rogue.
-- [x] **Chores** are caste-specialized: Fire→Smelting, Ice→Refining, Support→Provisioning/Farming/Husbandry, Rogue→Hauling (`ChoreRules`).
+- [x] **Chores** are caste-specialized: Fire→Smelting, Ice→Refining, Support→Provisioning/Farming, **Rogue→Husbandry+Hauling** (`ChoreRules`; husbandry moved from the Support Mage at 0.11.0).
 - [x] **Caste surfaced in UX** — recruit message and hover text name the caste (`DvergrCaste.Display()`); `[recruit]` log records the detected caste.
 - [x] **Leveling & duels** already operate on any caste uniformly. Combat *identity* is inherent — each caste is a different vanilla prefab with its own attacks (Fire casts fireballs, Ice frost, Support heals/shields, Rogue melee), so they already fight differently without custom code.
 - [x] **Per-caste leveling differentiation** (lightweight) — Rogue/Fire gain +3% move speed/level, Ice/Support gain +4% max health/level, layered on `SetLevel` (`DvergrCompanion.ApplyCasteBonus`). See [Ally-Leveling.md](Ally-Leveling.md).
